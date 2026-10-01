@@ -42,6 +42,9 @@ const {
 } = require("../dominio/erroresExpedientesDiseno");
 const { ErrorRequisitoNoEncontrado } = require("../dominio/erroresRequisitosEntrada");
 const { ErrorSalidaNoEncontrada } = require("../dominio/erroresSalidasDiseno");
+const { ErrorVerificacionNoEncontrada } = require("../dominio/erroresVerificaciones");
+const { ErrorValidacionNoEncontrada } = require("../dominio/erroresValidaciones");
+const { ErrorRevisionNoEncontrada } = require("../dominio/erroresRevisionesDiseno");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -136,6 +139,13 @@ function manejadorErrores(error, req, res, next) {
     return res.status(409).json({ error: error.message });
   }
   if (error instanceof ErrorRequisitoNoEncontrado || error instanceof ErrorSalidaNoEncontrada) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorVerificacionNoEncontrada ||
+    error instanceof ErrorValidacionNoEncontrada ||
+    error instanceof ErrorRevisionNoEncontrada
+  ) {
     return res.status(404).json({ error: error.message });
   }
 
