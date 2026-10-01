@@ -1,3 +1,11 @@
+async function buscarPorId(pool, id) {
+  const [filas] = await pool.query(
+    "SELECT * FROM usuarios WHERE id = ? AND deleted_at IS NULL LIMIT 1",
+    [id]
+  );
+  return filas[0] || null;
+}
+
 async function buscarPorCorreo(pool, correo) {
   const [filas] = await pool.query(
     "SELECT * FROM usuarios WHERE correo = ? AND deleted_at IS NULL LIMIT 1",
@@ -46,6 +54,7 @@ async function actualizarPassword(pool, id, passwordHash) {
 }
 
 module.exports = {
+  buscarPorId,
   buscarPorCorreo,
   buscarPorTokenRecuperacion,
   registrarIntentoFallido,

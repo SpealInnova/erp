@@ -6,6 +6,12 @@ const {
   ErrorTokenInvalido,
 } = require("../dominio/erroresAuth");
 const { ErrorClienteNoEncontrado, ErrorIdentificacionDuplicada } = require("../dominio/erroresClientes");
+const {
+  ErrorProyectoNoEncontrado,
+  ErrorClienteInvalido,
+  ErrorResponsableInvalido,
+} = require("../dominio/erroresProyectos");
+const { ErrorTransicionInvalida } = require("../dominio/estadoProyecto");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -29,6 +35,19 @@ function manejadorErrores(error, req, res, next) {
   }
   if (error instanceof ErrorIdentificacionDuplicada) {
     return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorProyectoNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorClienteInvalido || error instanceof ErrorResponsableInvalido) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorTransicionInvalida) {
+    return res.status(409).json({
+      error: error.message,
+      estadoActual: error.estadoActual,
+      estadoDestino: error.estadoDestino,
+    });
   }
 
   console.error(error);

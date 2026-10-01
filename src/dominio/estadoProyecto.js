@@ -28,6 +28,14 @@ const TRANSICIONES_PERMITIDAS = {
   [ESTADOS.CANCELADO]: [],
 };
 
+class ErrorTransicionInvalida extends Error {
+  constructor(estadoActual, estadoDestino) {
+    super(`Transición no permitida: ${estadoActual} -> ${estadoDestino}`);
+    this.estadoActual = estadoActual;
+    this.estadoDestino = estadoDestino;
+  }
+}
+
 function puedeTransicionar(estadoActual, estadoDestino) {
   const permitidos = TRANSICIONES_PERMITIDAS[estadoActual];
   if (!permitidos) {
@@ -38,9 +46,9 @@ function puedeTransicionar(estadoActual, estadoDestino) {
 
 function transicionar(estadoActual, estadoDestino) {
   if (!puedeTransicionar(estadoActual, estadoDestino)) {
-    throw new Error(`Transición no permitida: ${estadoActual} -> ${estadoDestino}`);
+    throw new ErrorTransicionInvalida(estadoActual, estadoDestino);
   }
   return estadoDestino;
 }
 
-module.exports = { ESTADOS, puedeTransicionar, transicionar };
+module.exports = { ESTADOS, puedeTransicionar, transicionar, ErrorTransicionInvalida };
