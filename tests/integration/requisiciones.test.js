@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const request = require("supertest");
 const { crearApp } = require("../../src/app");
 const { crearPool } = require("../../src/config/db");
+const { sufijoUnico } = require("../helpers/unico");
 
 const hayBaseDeDatos = Boolean(process.env.DB_HOST);
 const describirSiHayBD = hayBaseDeDatos ? describe : describe.skip;
@@ -43,7 +44,7 @@ describirSiHayBD("CRUD de Requisiciones (integración contra BD real)", () => {
     const [proyecto] = await pool.query(
       `INSERT INTO proyectos (codigo_pry, cliente_id, nombre_proyecto, estado, responsable_id)
        VALUES (?, ?, 'Proyecto para Requisiciones', 'prospecto', ?)`,
-      [`PRY-${Date.now()}`, clienteId, usuarioId]
+      [`PRY-${sufijoUnico()}`, clienteId, usuarioId]
     );
     proyectoId = proyecto.insertId;
 
