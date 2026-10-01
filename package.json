@@ -5,7 +5,6 @@
   "description": "SPEAL Project Control — ERP",
   "main": "src/index.js",
   "scripts": {
-    "prestart": "npm run migrate",
     "start": "node src/index.js",
     "migrate": "node scripts/migrate.js",
     "test": "jest --coverage",
