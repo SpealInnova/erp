@@ -5,6 +5,7 @@ const { crearAuthRutas } = require("./rutas/authRutas");
 const { crearClientesRutas } = require("./rutas/clientesRutas");
 const { crearProyectosRutas } = require("./rutas/proyectosRutas");
 const { crearCotizacionesRutas } = require("./rutas/cotizacionesRutas");
+const { crearProveedoresRutas } = require("./rutas/proveedoresRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -41,6 +42,7 @@ function crearApp() {
   app.use("/clientes", requireAuth, crearClientesRutas(pool));
   app.use("/proyectos", requireAuth, crearProyectosRutas(pool));
   app.use("/cotizaciones", requireAuth, crearCotizacionesRutas(pool));
+  app.use("/proveedores", requireAuth, crearProveedoresRutas(pool));
 
   app.use(manejadorErrores);
 
