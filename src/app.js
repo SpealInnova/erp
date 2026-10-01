@@ -1,8 +1,11 @@
 const express = require("express");
+const { crearPool } = require("./config/db");
+const { verificarConexion } = require("./servicios/estadoBaseDatos");
 
 function crearApp() {
   const app = express();
   const APP_ENV = process.env.APP_ENV || "desconocido";
+  const pool = crearPool();
 
   app.get("/", (req, res) => {
     res.json({
@@ -15,6 +18,15 @@ function crearApp() {
 
   app.get("/health", (req, res) => {
     res.status(200).send("ok");
+  });
+
+  app.get("/health/db", async (req, res) => {
+    try {
+      await verificarConexion(pool);
+      res.status(200).json({ estado: "ok" });
+    } catch (error) {
+      res.status(503).json({ estado: "error", mensaje: error.message });
+    }
   });
 
   return app;

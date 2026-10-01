@@ -5,7 +5,9 @@
   "description": "SPEAL Project Control — ERP",
   "main": "src/index.js",
   "scripts": {
+    "prestart": "npm run migrate",
     "start": "node src/index.js",
+    "migrate": "node scripts/migrate.js",
     "test": "jest --coverage",
     "test:watch": "jest --watch",
     "lint": "eslint .",
@@ -15,7 +17,9 @@
     "node": ">=18"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "mysql2": "^3.11.3",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
