@@ -40,6 +40,8 @@ const {
   ErrorExpedienteNoEditable,
   ErrorNumeroSerieDuplicado,
 } = require("../dominio/erroresExpedientesDiseno");
+const { ErrorRequisitoNoEncontrado } = require("../dominio/erroresRequisitosEntrada");
+const { ErrorSalidaNoEncontrada } = require("../dominio/erroresSalidasDiseno");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -132,6 +134,9 @@ function manejadorErrores(error, req, res, next) {
   }
   if (error instanceof ErrorNumeroSerieDuplicado) {
     return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorRequisitoNoEncontrado || error instanceof ErrorSalidaNoEncontrada) {
+    return res.status(404).json({ error: error.message });
   }
 
   console.error(error);

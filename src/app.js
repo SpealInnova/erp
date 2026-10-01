@@ -9,6 +9,8 @@ const { crearProveedoresRutas } = require("./rutas/proveedoresRutas");
 const { crearRequisicionesRutas } = require("./rutas/requisicionesRutas");
 const { crearOrdenesCompraRutas } = require("./rutas/ordenesCompraRutas");
 const { crearExpedientesDisenoRutas } = require("./rutas/expedientesDisenoRutas");
+const { crearRequisitosEntradaRutas } = require("./rutas/requisitosEntradaRutas");
+const { crearSalidasDisenoRutas } = require("./rutas/salidasDisenoRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -49,6 +51,16 @@ function crearApp() {
   app.use("/requisiciones", requireAuth, crearRequisicionesRutas(pool));
   app.use("/ordenes-compra", requireAuth, crearOrdenesCompraRutas(pool));
   app.use("/expedientes-diseno", requireAuth, crearExpedientesDisenoRutas(pool));
+  app.use(
+    "/expedientes-diseno/:expedienteId/requisitos-entrada",
+    requireAuth,
+    crearRequisitosEntradaRutas(pool)
+  );
+  app.use(
+    "/expedientes-diseno/:expedienteId/salidas-diseno",
+    requireAuth,
+    crearSalidasDisenoRutas(pool)
+  );
 
   app.use(manejadorErrores);
 
