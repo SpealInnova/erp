@@ -33,6 +33,13 @@ const {
   ErrorOrdenCompraNoEditable,
   ErrorItemsVacios: ErrorItemsVaciosOC,
 } = require("../dominio/erroresOrdenesCompra");
+const {
+  ErrorExpedienteNoEncontrado,
+  ErrorProyectoNoExiste: ErrorProyectoNoExisteExpediente,
+  ErrorResponsableNoExiste,
+  ErrorExpedienteNoEditable,
+  ErrorNumeroSerieDuplicado,
+} = require("../dominio/erroresExpedientesDiseno");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -109,6 +116,21 @@ function manejadorErrores(error, req, res, next) {
     return res.status(400).json({ error: error.message });
   }
   if (error instanceof ErrorOrdenCompraNoEditable) {
+    return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorExpedienteNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorProyectoNoExisteExpediente ||
+    error instanceof ErrorResponsableNoExiste
+  ) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorExpedienteNoEditable) {
+    return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorNumeroSerieDuplicado) {
     return res.status(409).json({ error: error.message });
   }
 
