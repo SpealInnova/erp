@@ -45,6 +45,9 @@ const { ErrorSalidaNoEncontrada } = require("../dominio/erroresSalidasDiseno");
 const { ErrorVerificacionNoEncontrada } = require("../dominio/erroresVerificaciones");
 const { ErrorValidacionNoEncontrada } = require("../dominio/erroresValidaciones");
 const { ErrorRevisionNoEncontrada } = require("../dominio/erroresRevisionesDiseno");
+const { ErrorRiesgoNoEncontrado } = require("../dominio/erroresRiesgosDiseno");
+const { ErrorCambioNoEncontrado } = require("../dominio/erroresCambiosDiseno");
+const { ErrorTransferenciaNoEncontrada } = require("../dominio/erroresTransferencias");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -145,6 +148,13 @@ function manejadorErrores(error, req, res, next) {
     error instanceof ErrorVerificacionNoEncontrada ||
     error instanceof ErrorValidacionNoEncontrada ||
     error instanceof ErrorRevisionNoEncontrada
+  ) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorRiesgoNoEncontrado ||
+    error instanceof ErrorCambioNoEncontrado ||
+    error instanceof ErrorTransferenciaNoEncontrada
   ) {
     return res.status(404).json({ error: error.message });
   }

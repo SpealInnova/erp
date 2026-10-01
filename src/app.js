@@ -14,6 +14,9 @@ const { crearSalidasDisenoRutas } = require("./rutas/salidasDisenoRutas");
 const { crearVerificacionesRutas } = require("./rutas/verificacionesRutas");
 const { crearValidacionesRutas } = require("./rutas/validacionesRutas");
 const { crearRevisionesDisenoRutas } = require("./rutas/revisionesDisenoRutas");
+const { crearRiesgosDisenoRutas } = require("./rutas/riesgosDisenoRutas");
+const { crearCambiosDisenoRutas } = require("./rutas/cambiosDisenoRutas");
+const { crearTransferenciasRutas } = require("./rutas/transferenciasRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -78,6 +81,21 @@ function crearApp() {
     "/expedientes-diseno/:expedienteId/revisiones-diseno",
     requireAuth,
     crearRevisionesDisenoRutas(pool)
+  );
+  app.use(
+    "/expedientes-diseno/:expedienteId/riesgos-diseno",
+    requireAuth,
+    crearRiesgosDisenoRutas(pool)
+  );
+  app.use(
+    "/expedientes-diseno/:expedienteId/cambios-diseno",
+    requireAuth,
+    crearCambiosDisenoRutas(pool)
+  );
+  app.use(
+    "/expedientes-diseno/:expedienteId/transferencias",
+    requireAuth,
+    crearTransferenciasRutas(pool)
   );
 
   app.use(manejadorErrores);
