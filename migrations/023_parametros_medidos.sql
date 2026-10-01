@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS parametros_medidos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  reporte_id INT UNSIGNED NOT NULL,
+  parametro VARCHAR(255) NOT NULL,
+  unidad VARCHAR(50) NULL,
+  valor_medido VARCHAR(100) NULL,
+  valor_esperado VARCHAR(100) NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  CONSTRAINT fk_parametros_medidos_reporte FOREIGN KEY (reporte_id) REFERENCES reportes_servicio_tecnico(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
