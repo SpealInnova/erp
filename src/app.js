@@ -2,6 +2,8 @@ const express = require("express");
 const { crearPool } = require("./config/db");
 const { verificarConexion } = require("./servicios/estadoBaseDatos");
 const { crearAuthRutas } = require("./rutas/authRutas");
+const { crearClientesRutas } = require("./rutas/clientesRutas");
+const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
 function crearApp() {
@@ -34,6 +36,7 @@ function crearApp() {
   });
 
   app.use("/auth", crearAuthRutas(pool));
+  app.use("/clientes", requireAuth, crearClientesRutas(pool));
 
   app.use(manejadorErrores);
 
