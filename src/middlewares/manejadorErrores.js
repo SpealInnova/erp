@@ -20,6 +20,19 @@ const {
   ErrorItemsVacios,
 } = require("../dominio/erroresCotizaciones");
 const { ErrorProveedorNoEncontrado, ErrorNitDuplicado } = require("../dominio/erroresProveedores");
+const {
+  ErrorRequisicionNoEncontrada,
+  ErrorProyectoNoExiste,
+  ErrorRequisicionNoEditable,
+  ErrorItemsVacios: ErrorItemsVaciosRequisicion,
+} = require("../dominio/erroresRequisiciones");
+const {
+  ErrorOrdenCompraNoEncontrada,
+  ErrorRequisicionNoExiste,
+  ErrorProveedorNoExiste,
+  ErrorOrdenCompraNoEditable,
+  ErrorItemsVacios: ErrorItemsVaciosOC,
+} = require("../dominio/erroresOrdenesCompra");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -74,6 +87,28 @@ function manejadorErrores(error, req, res, next) {
     return res.status(404).json({ error: error.message });
   }
   if (error instanceof ErrorNitDuplicado) {
+    return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorRequisicionNoEncontrada) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorProyectoNoExiste || error instanceof ErrorItemsVaciosRequisicion) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorRequisicionNoEditable) {
+    return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorOrdenCompraNoEncontrada) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorRequisicionNoExiste ||
+    error instanceof ErrorProveedorNoExiste ||
+    error instanceof ErrorItemsVaciosOC
+  ) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorOrdenCompraNoEditable) {
     return res.status(409).json({ error: error.message });
   }
 

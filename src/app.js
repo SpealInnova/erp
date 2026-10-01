@@ -6,6 +6,8 @@ const { crearClientesRutas } = require("./rutas/clientesRutas");
 const { crearProyectosRutas } = require("./rutas/proyectosRutas");
 const { crearCotizacionesRutas } = require("./rutas/cotizacionesRutas");
 const { crearProveedoresRutas } = require("./rutas/proveedoresRutas");
+const { crearRequisicionesRutas } = require("./rutas/requisicionesRutas");
+const { crearOrdenesCompraRutas } = require("./rutas/ordenesCompraRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -43,6 +45,8 @@ function crearApp() {
   app.use("/proyectos", requireAuth, crearProyectosRutas(pool));
   app.use("/cotizaciones", requireAuth, crearCotizacionesRutas(pool));
   app.use("/proveedores", requireAuth, crearProveedoresRutas(pool));
+  app.use("/requisiciones", requireAuth, crearRequisicionesRutas(pool));
+  app.use("/ordenes-compra", requireAuth, crearOrdenesCompraRutas(pool));
 
   app.use(manejadorErrores);
 
