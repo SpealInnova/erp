@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS actas_cierre_satisfaccion (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  numero_acta VARCHAR(20) NOT NULL,
+  proyecto_id INT UNSIGNED NOT NULL,
+  cliente_id INT UNSIGNED NOT NULL,
+  tipo_entrega ENUM('venta', 'demostracion', 'piloto') NOT NULL,
+  tipo_documento_referencia ENUM('orden_compra', 'contrato', 'consorcio', 'union_temporal', 'otro') NOT NULL,
+  numero_documento_referencia VARCHAR(100) NULL,
+  objeto TEXT NOT NULL,
+  responsable_entrega_id INT UNSIGNED NOT NULL,
+  receptor_cliente_nombre VARCHAR(150) NOT NULL,
+  receptor_cliente_cargo VARCHAR(100) NULL,
+  fecha_elaboracion DATE NOT NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  UNIQUE KEY uq_actas_cierre_numero (numero_acta),
+  CONSTRAINT fk_actas_cierre_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_actas_cierre_cliente FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+  CONSTRAINT fk_actas_cierre_responsable FOREIGN KEY (responsable_entrega_id) REFERENCES usuarios(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

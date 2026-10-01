@@ -55,6 +55,12 @@ const {
   ErrorProyectoNoExiste: ErrorProyectoNoExisteReporte,
 } = require("../dominio/erroresReportesServicioTecnico");
 const { ErrorParametroNoEncontrado } = require("../dominio/erroresParametrosMedidos");
+const {
+  ErrorActaNoEncontrada,
+  ErrorProyectoNoExiste: ErrorProyectoNoExisteActa,
+  ErrorClienteNoExiste: ErrorClienteNoExisteActa,
+  ErrorItemsVacios: ErrorItemsVaciosActa,
+} = require("../dominio/erroresActasCierre");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -177,6 +183,16 @@ function manejadorErrores(error, req, res, next) {
   }
   if (error instanceof ErrorParametroNoEncontrado) {
     return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorActaNoEncontrada) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorProyectoNoExisteActa ||
+    error instanceof ErrorClienteNoExisteActa ||
+    error instanceof ErrorItemsVaciosActa
+  ) {
+    return res.status(400).json({ error: error.message });
   }
 
   console.error(error);

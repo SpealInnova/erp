@@ -21,6 +21,7 @@ const {
   crearReportesServicioTecnicoRutas,
 } = require("./rutas/reportesServicioTecnicoRutas");
 const { crearParametrosMedidosRutas } = require("./rutas/parametrosMedidosRutas");
+const { crearActasCierreRutas } = require("./rutas/actasCierreRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -111,6 +112,7 @@ function crearApp() {
     requireAuth,
     crearParametrosMedidosRutas(pool)
   );
+  app.use("/actas-cierre-satisfaccion", requireAuth, crearActasCierreRutas(pool));
 
   app.use(manejadorErrores);
 
