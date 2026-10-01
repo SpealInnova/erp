@@ -1,0 +1,5 @@
+ALTER TABLE usuarios
+  ADD COLUMN IF NOT EXISTS intentos_fallidos INT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS bloqueado_hasta DATETIME NULL,
+  ADD COLUMN IF NOT EXISTS token_recuperacion VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS token_recuperacion_expira DATETIME NULL;

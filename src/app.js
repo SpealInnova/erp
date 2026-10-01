@@ -1,11 +1,15 @@
 const express = require("express");
 const { crearPool } = require("./config/db");
 const { verificarConexion } = require("./servicios/estadoBaseDatos");
+const { crearAuthRutas } = require("./rutas/authRutas");
+const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
 function crearApp() {
   const app = express();
   const APP_ENV = process.env.APP_ENV || "desconocido";
   const pool = crearPool();
+
+  app.use(express.json());
 
   app.get("/", (req, res) => {
     res.json({
@@ -28,6 +32,10 @@ function crearApp() {
       res.status(503).json({ estado: "error", mensaje: error.message });
     }
   });
+
+  app.use("/auth", crearAuthRutas(pool));
+
+  app.use(manejadorErrores);
 
   return app;
 }
