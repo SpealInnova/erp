@@ -43,7 +43,7 @@ describirSiHayBD("CRUD de Requisiciones (integración contra BD real)", () => {
     const [proyecto] = await pool.query(
       `INSERT INTO proyectos (codigo_pry, cliente_id, nombre_proyecto, estado, responsable_id)
        VALUES (?, ?, 'Proyecto para Requisiciones', 'prospecto', ?)`,
-      [`PRY-TEST-${Date.now()}`, clienteId, usuarioId]
+      [`PRY-${Date.now()}`, clienteId, usuarioId]
     );
     proyectoId = proyecto.insertId;
 

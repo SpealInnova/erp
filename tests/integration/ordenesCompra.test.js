@@ -45,14 +45,14 @@ describirSiHayBD("CRUD de Órdenes de Compra (integración contra BD real)", () 
     const [proyecto] = await pool.query(
       `INSERT INTO proyectos (codigo_pry, cliente_id, nombre_proyecto, estado, responsable_id)
        VALUES (?, ?, 'Proyecto para OC', 'prospecto', ?)`,
-      [`PRY-OC-TEST-${Date.now()}`, clienteId, usuarioId]
+      [`PRY-${Date.now()}`, clienteId, usuarioId]
     );
     proyectoId = proyecto.insertId;
 
     const [requisicion] = await pool.query(
       `INSERT INTO requisiciones (numero_requisicion, proyecto_id, solicitante_id, procedencia, estado)
        VALUES (?, ?, ?, 'nacional', 'solicitada')`,
-      [`REQ-OC-TEST-${Date.now()}`, proyectoId, usuarioId]
+      [`REQ-${Date.now()}`, proyectoId, usuarioId]
     );
     requisicionId = requisicion.insertId;
 
