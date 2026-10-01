@@ -1,3 +1,5 @@
+const { ErrorTransicionInvalida } = require("./erroresEstado");
+
 const ESTADOS = {
   PROSPECTO: "prospecto",
   PLANEACION: "planeacion",
@@ -27,14 +29,6 @@ const TRANSICIONES_PERMITIDAS = {
   [ESTADOS.CERRADO]: [],
   [ESTADOS.CANCELADO]: [],
 };
-
-class ErrorTransicionInvalida extends Error {
-  constructor(estadoActual, estadoDestino) {
-    super(`Transición no permitida: ${estadoActual} -> ${estadoDestino}`);
-    this.estadoActual = estadoActual;
-    this.estadoDestino = estadoDestino;
-  }
-}
 
 function puedeTransicionar(estadoActual, estadoDestino) {
   const permitidos = TRANSICIONES_PERMITIDAS[estadoActual];

@@ -11,7 +11,14 @@ const {
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
 } = require("../dominio/erroresProyectos");
-const { ErrorTransicionInvalida } = require("../dominio/estadoProyecto");
+const { ErrorTransicionInvalida } = require("../dominio/erroresEstado");
+const {
+  ErrorCotizacionNoEncontrada,
+  ErrorClienteNoExiste,
+  ErrorAsesorNoExiste,
+  ErrorCotizacionNoEditable,
+  ErrorItemsVacios,
+} = require("../dominio/erroresCotizaciones");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -48,6 +55,19 @@ function manejadorErrores(error, req, res, next) {
       estadoActual: error.estadoActual,
       estadoDestino: error.estadoDestino,
     });
+  }
+  if (error instanceof ErrorCotizacionNoEncontrada) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorClienteNoExiste ||
+    error instanceof ErrorAsesorNoExiste ||
+    error instanceof ErrorItemsVacios
+  ) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorCotizacionNoEditable) {
+    return res.status(409).json({ error: error.message });
   }
 
   console.error(error);
