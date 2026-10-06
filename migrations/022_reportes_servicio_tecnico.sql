@@ -1,0 +1,33 @@
+CREATE TABLE IF NOT EXISTS reportes_servicio_tecnico (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  numero_reporte VARCHAR(20) NOT NULL,
+  equipo_numero_serie VARCHAR(100) NOT NULL,
+  cliente_id INT UNSIGNED NOT NULL,
+  proyecto_id INT UNSIGNED NULL,
+  tipo_servicio ENUM(
+    'instalacion',
+    'inspeccion',
+    'asistencia',
+    'mantenimiento_preventivo',
+    'mantenimiento_correctivo',
+    'garantia',
+    'validacion'
+  ) NOT NULL,
+  en_garantia TINYINT(1) NOT NULL DEFAULT 0,
+  tecnico_responsable_id INT UNSIGNED NOT NULL,
+  motivo TEXT NULL,
+  hallazgos TEXT NULL,
+  recomendaciones TEXT NULL,
+  fecha_servicio DATE NULL,
+  hora_inicio TIME NULL,
+  hora_fin TIME NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  UNIQUE KEY uq_reportes_servicio_numero (numero_reporte),
+  CONSTRAINT fk_reportes_servicio_equipo FOREIGN KEY (equipo_numero_serie) REFERENCES expedientes_diseno(numero_serie),
+  CONSTRAINT fk_reportes_servicio_cliente FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+  CONSTRAINT fk_reportes_servicio_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_reportes_servicio_tecnico FOREIGN KEY (tecnico_responsable_id) REFERENCES usuarios(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

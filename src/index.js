@@ -1,22 +1,26 @@
-const express = require("express");
+const { crearApp } = require("./app");
+const { crearPool } = require("./config/db");
+const { ejecutarMigraciones } = require("./migrador");
 
-const app = express();
 const PORT = process.env.PORT || 3000;
 const APP_ENV = process.env.APP_ENV || "desconocido";
 
-app.get("/", (req, res) => {
-  res.json({
-    proyecto: "SPEAL Project Control",
-    estado: "funcionando",
-    entorno: APP_ENV,
-    hora_servidor: new Date().toISOString(),
+async function iniciar() {
+  const poolMigraciones = crearPool();
+  try {
+    await ejecutarMigraciones(poolMigraciones);
+    console.log("Migraciones al día.");
+  } finally {
+    await poolMigraciones.end();
+  }
+
+  const app = crearApp();
+  app.listen(PORT, () => {
+    console.log(`SPEAL Project Control (${APP_ENV}) escuchando en puerto ${PORT}`);
   });
-});
+}
 
-app.get("/health", (req, res) => {
-  res.status(200).send("ok");
-});
-
-app.listen(PORT, () => {
-  console.log(`SPEAL Project Control (${APP_ENV}) escuchando en puerto ${PORT}`);
+iniciar().catch((error) => {
+  console.error("No se pudo iniciar la aplicación (fallo en migraciones):", error);
+  process.exit(1);
 });

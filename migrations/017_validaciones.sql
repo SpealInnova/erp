@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS validaciones (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  expediente_id INT UNSIGNED NOT NULL,
+  aspecto_validado VARCHAR(255) NOT NULL,
+  metodo VARCHAR(255) NULL,
+  condicion_prueba VARCHAR(255) NULL,
+  resultado VARCHAR(255) NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  CONSTRAINT fk_validaciones_expediente FOREIGN KEY (expediente_id) REFERENCES expedientes_diseno(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
