@@ -282,3 +282,171 @@ body {
   cursor: pointer;
   color: var(--ink);
 }
+
+.campo select {
+  width: 100%;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--ink);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--canvas);
+  box-shadow: var(--hundido);
+}
+
+.campo select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--hundido), 0 0 0 3px var(--accent-tint);
+}
+
+body.app-body {
+  display: block;
+  padding: 0;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.menu {
+  background: var(--canvas);
+  box-shadow: var(--relieve);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.menu .marca {
+  margin-bottom: 16px;
+  padding-left: 12px;
+}
+
+.menu a {
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.9375rem;
+}
+
+.menu a:hover {
+  color: var(--accent-ink);
+}
+
+.menu a[aria-current="page"] {
+  box-shadow: var(--hundido);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.menu a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.menu .proximo {
+  padding: 10px 12px;
+  color: var(--ink-mute);
+  font-size: 0.9375rem;
+}
+
+.menu .boton {
+  margin-top: auto;
+}
+
+.contenido {
+  padding: 32px;
+  min-width: 0;
+}
+
+.contenido:focus {
+  outline: none;
+}
+
+.encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.encabezado h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+
+.boton-pequeno {
+  width: auto;
+  padding: 10px 18px;
+  font-size: 0.9375rem;
+}
+
+.tarjeta-ancha {
+  background: var(--canvas);
+  border-radius: var(--radio);
+  box-shadow: var(--relieve);
+  padding: 24px;
+  overflow-x: auto;
+}
+
+.tarjeta-ancha table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.tarjeta-ancha th,
+.tarjeta-ancha td {
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.tarjeta-ancha th {
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.formulario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 18px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 2px;
+  }
+
+  .menu .marca {
+    display: none;
+  }
+
+  .menu .boton {
+    width: auto;
+    margin-top: 0;
+    margin-left: auto;
+    padding: 8px 14px;
+    font-size: 0.875rem;
+  }
+
+  .contenido {
+    padding: 16px;
+  }
+}

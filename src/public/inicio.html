@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Inicio — SPEAL Project Control</title>
+  <title>SPEAL Project Control</title>
   <link rel="stylesheet" href="/css/estilos.css">
   <script src="/js/accesibilidad.js"></script>
 </head>
-<body>
+<body class="app-body">
   <button id="btn-accesibilidad" class="acceso-boton" type="button" aria-expanded="false" aria-controls="panel-accesibilidad">Accesibilidad</button>
   <section id="panel-accesibilidad" class="acceso-panel oculto" aria-label="Opciones de accesibilidad">
     <label><input id="opcion-contraste" type="checkbox"> Alto contraste</label>
@@ -19,11 +19,26 @@
     </fieldset>
     <label><input id="opcion-movimiento" type="checkbox"> Reducir animaciones</label>
   </section>
-  <main class="tarjeta">
-    <h1 class="marca">SPEAL Project Control</h1>
-    <p class="subtitulo" id="saludo">Sesión iniciada.</p>
-    <button id="cerrar-sesion" class="boton boton-secundario" type="button">Cerrar sesión</button>
-  </main>
+
+  <div class="app">
+    <nav class="menu" aria-label="Módulos">
+      <p class="marca">SPEAL</p>
+      <a href="#/clientes" data-modulo="clientes">Clientes</a>
+      <span class="proximo">Proyectos</span>
+      <span class="proximo">Cotizaciones</span>
+      <span class="proximo">Proveedores</span>
+      <span class="proximo">Requisiciones</span>
+      <span class="proximo">Órdenes de compra</span>
+      <span class="proximo">Expedientes de diseño</span>
+      <span class="proximo">Reportes de servicio</span>
+      <span class="proximo">Actas de cierre</span>
+      <button id="cerrar-sesion" class="boton boton-secundario" type="button">Cerrar sesión</button>
+    </nav>
+
+    <main class="contenido" id="contenido" tabindex="-1">
+      <p class="subtitulo">Cargando…</p>
+    </main>
+  </div>
 
   <script src="/js/inicio.js"></script>
 </body>
