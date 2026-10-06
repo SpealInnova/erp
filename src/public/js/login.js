@@ -60,7 +60,7 @@ formLogin.addEventListener("submit", async (evento) => {
     } else {
       mostrarAlerta(alertaLogin, "error", cuerpo.error || "No se pudo iniciar sesión.");
     }
-  } catch (error) {
+  } catch {
     mostrarAlerta(alertaLogin, "error", "No hay conexión con el servidor. Intenta de nuevo.");
   } finally {
     botonLogin.disabled = false;
@@ -81,7 +81,7 @@ formRecuperar.addEventListener("submit", async (evento) => {
   try {
     const { cuerpo } = await enviar("/auth/solicitar-recuperacion", { correo });
     mostrarAlerta(alertaRecuperar, "ok", cuerpo.mensaje || "Revisa tu correo.");
-  } catch (error) {
+  } catch {
     mostrarAlerta(alertaRecuperar, "error", "No hay conexión con el servidor. Intenta de nuevo.");
   } finally {
     botonRecuperar.disabled = false;

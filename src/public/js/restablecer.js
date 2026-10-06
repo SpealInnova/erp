@@ -49,7 +49,7 @@ form.addEventListener("submit", async (evento) => {
       mostrarAlerta("error", cuerpo.error || "No se pudo guardar la contraseña.");
     }
     boton.disabled = false;
-  } catch (error) {
+  } catch {
     mostrarAlerta("error", "No hay conexión con el servidor. Intenta de nuevo.");
     boton.disabled = false;
   }

@@ -4,7 +4,7 @@ const raiz = document.documentElement;
 function leerPreferencias() {
   try {
     return JSON.parse(localStorage.getItem(CLAVE_PREFERENCIAS)) || {};
-  } catch (error) {
+  } catch {
     return {};
   }
 }
@@ -12,7 +12,7 @@ function leerPreferencias() {
 function guardarPreferencias(preferencias) {
   try {
     localStorage.setItem(CLAVE_PREFERENCIAS, JSON.stringify(preferencias));
-  } catch (error) {
+  } catch {
     return;
   }
 }
