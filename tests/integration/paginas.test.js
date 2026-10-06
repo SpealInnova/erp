@@ -29,5 +29,15 @@ describe("Páginas de acceso (sin base de datos)", () => {
 
     const js = await request(app).get("/js/login.js");
     expect(js.status).toBe(200);
+
+    const acces = await request(app).get("/js/accesibilidad.js");
+    expect(acces.status).toBe(200);
+  });
+
+  test("las pantallas de acceso incluyen el botón de accesibilidad", async () => {
+    const login = await request(app).get("/login");
+    expect(login.text).toContain("btn-accesibilidad");
+    const restablecer = await request(app).get("/restablecer-password?token=abc");
+    expect(restablecer.text).toContain("btn-accesibilidad");
   });
 });

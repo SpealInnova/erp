@@ -20,6 +20,39 @@
   --fuente: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+html[data-contraste="alto"] {
+  --ink: #000000;
+  --ink-soft: #1a1a1a;
+  --ink-mute: #333333;
+  --canvas: #ffffff;
+  --borde: #000000;
+  --accent: #2a2fa8;
+  --accent-ink: #1d2279;
+  --accent-tint: #dfe2ff;
+  --good: #05623f;
+  --good-tint: #ffffff;
+  --crit: #9b0c1f;
+  --crit-tint: #ffffff;
+  --relieve: none;
+  --relieve-suave: 0 0 0 2px #000000;
+  --hundido: inset 0 0 0 2px #000000;
+}
+
+html[data-texto="grande"] {
+  font-size: 120%;
+}
+
+html[data-texto="muy-grande"] {
+  font-size: 140%;
+}
+
+html[data-movimiento="reducido"] *,
+html[data-movimiento="reducido"] *::before,
+html[data-movimiento="reducido"] *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -30,6 +63,7 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--fuente);
+  font-size: 1rem;
   display: grid;
   grid-template-columns: minmax(0, min(400px, 100%));
   justify-content: center;
@@ -47,7 +81,7 @@ body {
 }
 
 .marca {
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--accent-ink);
   margin: 0 0 4px;
@@ -55,7 +89,7 @@ body {
 
 .subtitulo {
   color: var(--ink-soft);
-  font-size: 14px;
+  font-size: 0.875rem;
   margin: 0 0 24px;
 }
 
@@ -65,7 +99,7 @@ body {
 
 .campo label {
   display: block;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--ink-soft);
   margin-bottom: 8px;
@@ -138,7 +172,7 @@ body {
 .enlace {
   display: inline-block;
   margin-top: 16px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--accent-ink);
   text-decoration: none;
   cursor: pointer;
@@ -161,7 +195,7 @@ body {
 .alerta {
   padding: 12px 14px;
   border-radius: 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
   margin-bottom: 18px;
   box-shadow: var(--hundido);
 }
@@ -182,6 +216,64 @@ body {
 
 .texto-suave {
   color: var(--ink-mute);
-  font-size: 12px;
+  font-size: 0.75rem;
   margin-top: 16px;
+}
+
+.acceso-boton {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--canvas);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  box-shadow: var(--relieve-suave);
+  cursor: pointer;
+}
+
+.acceso-boton:focus-visible,
+.acceso-panel input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.acceso-panel {
+  position: fixed;
+  top: 52px;
+  right: 12px;
+  z-index: 10;
+  width: min(280px, calc(100% - 24px));
+  padding: 16px;
+  background: var(--canvas);
+  border-radius: 16px;
+  box-shadow: var(--relieve);
+  font-size: 0.875rem;
+}
+
+.acceso-panel fieldset {
+  border: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.acceso-panel legend {
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.acceso-panel label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  color: var(--ink);
 }
