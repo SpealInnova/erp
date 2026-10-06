@@ -13,5 +13,14 @@
     "no-unused-vars": "error",
     "eqeqeq": "error",
     "no-console": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/public/**/*.js"],
+      "env": {
+        "node": false,
+        "browser": true
+      }
+    }
+  ]
 }

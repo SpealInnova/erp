@@ -1,0 +1,167 @@
+:root {
+  --ink: #1a2033;
+  --ink-soft: #5b6478;
+  --ink-mute: #8a93a8;
+  --canvas: #eff3fa;
+  --surface: #ffffff;
+  --borde: #d8deea;
+  --accent: #4f5fe0;
+  --accent-ink: #3b49be;
+  --accent-tint: #edeffd;
+  --good: #1e9e6b;
+  --good-tint: #e5f6ef;
+  --crit: #d8394f;
+  --crit-tint: #fce7ea;
+  --radio: 16px;
+  --sombra: 0 8px 24px rgba(26, 32, 51, 0.08);
+  --fuente: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--fuente);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.tarjeta {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 32px;
+}
+
+.marca {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  margin: 0 0 4px;
+}
+
+.subtitulo {
+  color: var(--ink-soft);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.campo {
+  margin-bottom: 16px;
+}
+
+.campo label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.campo input {
+  width: 100%;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--ink);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.campo input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.boton {
+  width: 100%;
+  padding: 12px 14px;
+  font: inherit;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.boton:hover {
+  background: var(--accent-ink);
+}
+
+.boton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.boton-secundario {
+  background: transparent;
+  color: var(--accent-ink);
+  border: 1px solid var(--borde);
+  margin-top: 8px;
+}
+
+.boton-secundario:hover {
+  background: var(--accent-tint);
+}
+
+.enlace {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--accent-ink);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+
+.enlace:hover {
+  text-decoration: underline;
+}
+
+.alerta {
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.alerta.error {
+  background: var(--crit-tint);
+  color: var(--crit);
+}
+
+.alerta.ok {
+  background: var(--good-tint);
+  color: var(--good);
+}
+
+.oculto {
+  display: none;
+}
+
+.acciones-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.texto-suave {
+  color: var(--ink-mute);
+  font-size: 12px;
+  margin-top: 16px;
+}

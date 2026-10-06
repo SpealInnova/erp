@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iniciar sesión — SPEAL Project Control</title>
+  <link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+  <main class="tarjeta">
+    <h1 class="marca">SPEAL Project Control</h1>
+
+    <section id="seccion-login">
+      <p class="subtitulo">Inicia sesión para continuar</p>
+
+      <div id="alerta-login" class="alerta error oculto" role="alert"></div>
+
+      <form id="form-login" novalidate>
+        <div class="campo">
+          <label for="correo">Correo</label>
+          <input id="correo" name="correo" type="email" autocomplete="username" required>
+        </div>
+        <div class="campo">
+          <label for="password">Contraseña</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button id="boton-login" class="boton" type="submit">Entrar</button>
+      </form>
+
+      <button id="ir-recuperar" class="enlace" type="button">¿Olvidaste tu contraseña?</button>
+    </section>
+
+    <section id="seccion-recuperar" class="oculto">
+      <p class="subtitulo">Te enviaremos un enlace para crear una nueva contraseña.</p>
+
+      <div id="alerta-recuperar" class="alerta oculto" role="alert"></div>
+
+      <form id="form-recuperar" novalidate>
+        <div class="campo">
+          <label for="correo-recuperar">Correo</label>
+          <input id="correo-recuperar" name="correo" type="email" autocomplete="username" required>
+        </div>
+        <button id="boton-recuperar" class="boton" type="submit">Enviar enlace</button>
+      </form>
+
+      <button id="volver-login" class="enlace" type="button">Volver a iniciar sesión</button>
+    </section>
+  </main>
+
+  <script src="/js/login.js"></script>
+</body>
+</html>

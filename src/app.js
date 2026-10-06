@@ -1,3 +1,4 @@
+const path = require("path");
 const express = require("express");
 const { crearPool } = require("./config/db");
 const { verificarConexion } = require("./servicios/estadoBaseDatos");
@@ -44,6 +45,14 @@ function crearApp() {
   app.get("/health", (req, res) => {
     res.status(200).send("ok");
   });
+
+  const carpetaPublica = path.join(__dirname, "public");
+  app.use(express.static(carpetaPublica));
+  app.get("/login", (req, res) => res.sendFile(path.join(carpetaPublica, "login.html")));
+  app.get("/restablecer-password", (req, res) =>
+    res.sendFile(path.join(carpetaPublica, "restablecer-password.html"))
+  );
+  app.get("/inicio", (req, res) => res.sendFile(path.join(carpetaPublica, "inicio.html")));
 
   app.get("/health/db", async (req, res) => {
     try {
