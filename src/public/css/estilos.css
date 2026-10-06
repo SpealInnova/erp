@@ -38,6 +38,11 @@ html[data-contraste="alto"] {
   --hundido: inset 0 0 0 2px #000000;
 }
 
+html[data-contraste="alto"] .tarjeta,
+html[data-contraste="alto"] .acceso-panel {
+  border: 2px solid var(--borde);
+}
+
 html[data-texto="grande"] {
   font-size: 120%;
 }
