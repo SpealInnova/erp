@@ -35,6 +35,10 @@ function crearApp() {
   app.use(express.json());
 
   app.get("/", (req, res) => {
+    res.redirect("/login");
+  });
+
+  app.get("/estado", (req, res) => {
     res.json({
       proyecto: "SPEAL Project Control",
       estado: "funcionando",
