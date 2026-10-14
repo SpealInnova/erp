@@ -193,22 +193,14 @@ function construirCampo(config, valor) {
   return div;
 }
 
-let _clientesCache = null;
 async function obtenerClientes() {
-  if (!_clientesCache) {
-    const r = await api("GET", "/clientes");
-    _clientesCache = r.status === 200 ? r.cuerpo.clientes : [];
-  }
-  return _clientesCache;
+  const r = await api("GET", "/clientes");
+  return r.status === 200 ? r.cuerpo.clientes : [];
 }
 
-let _usuariosCache = null;
 async function obtenerUsuarios() {
-  if (!_usuariosCache) {
-    const r = await api("GET", "/usuarios");
-    _usuariosCache = r.status === 200 ? r.cuerpo.usuarios : [];
-  }
-  return _usuariosCache;
+  const r = await api("GET", "/usuarios");
+  return r.status === 200 ? r.cuerpo.usuarios : [];
 }
 
 async function vistaClienteForm(id) {
