@@ -422,6 +422,30 @@ body.app-body {
   margin-bottom: 8px;
 }
 
+.tarjeta-ancha table input {
+  width: 100%;
+  min-width: 90px;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--ink);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--canvas);
+  box-shadow: var(--hundido);
+  box-sizing: border-box;
+}
+
+.tarjeta-ancha table input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--hundido), 0 0 0 3px var(--accent-tint);
+}
+
+.item-total {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
 @media (max-width: 760px) {
   .app {
     grid-template-columns: minmax(0, 1fr);
