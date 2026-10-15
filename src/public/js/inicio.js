@@ -203,6 +203,21 @@ async function obtenerUsuarios() {
   return r.status === 200 ? r.cuerpo.usuarios : [];
 }
 
+async function obtenerProyectos() {
+  const r = await api("GET", "/proyectos");
+  return r.status === 200 ? r.cuerpo.proyectos : [];
+}
+
+async function obtenerProveedores() {
+  const r = await api("GET", "/proveedores");
+  return r.status === 200 ? r.cuerpo.proveedores : [];
+}
+
+async function obtenerRequisiciones() {
+  const r = await api("GET", "/requisiciones");
+  return r.status === 200 ? r.cuerpo.requisiciones : [];
+}
+
 async function vistaClienteForm(id) {
   marcarMenu("clientes");
   mostrarCargando();
@@ -1140,6 +1155,729 @@ async function vistaProveedorForm(id) {
   });
 }
 
+const ESTADOS_REQUISICION = [
+  { valor: "solicitada", texto: "Solicitada" },
+  { valor: "en_cotizacion", texto: "En cotización" },
+  { valor: "convertida_oc", texto: "Convertida a OC" },
+  { valor: "cerrada", texto: "Cerrada" },
+];
+
+function textoEstadoRequisicion(valor) {
+  const encontrado = ESTADOS_REQUISICION.find((e) => e.valor === valor);
+  return encontrado ? encontrado.texto : valor;
+}
+
+const OPCIONES_PROCEDENCIA = [
+  { valor: "nacional", texto: "Nacional" },
+  { valor: "importacion", texto: "Importación" },
+  { valor: "almacen", texto: "Almacén" },
+];
+
+function textoProcedencia(valor) {
+  const encontrado = OPCIONES_PROCEDENCIA.find((o) => o.valor === valor);
+  return encontrado ? encontrado.texto : valor;
+}
+
+async function vistaRequisiciones() {
+  marcarMenu("requisiciones");
+  mostrarCargando();
+  const [{ status, cuerpo }, proyectos] = await Promise.all([
+    api("GET", "/requisiciones"),
+    obtenerProyectos(),
+  ]);
+  contenido.replaceChildren();
+
+  if (status !== 200) {
+    contenido.append(encabezado("Requisiciones"), alerta("error", "No se pudieron cargar las requisiciones."));
+    return;
+  }
+
+  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
+
+  const nuevo = boton("Nueva requisición", () => (window.location.hash = "#/requisiciones/nuevo"));
+  contenido.append(encabezado("Requisiciones", [nuevo]));
+
+  const requisiciones = cuerpo.requisiciones;
+  if (requisiciones.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay requisiciones registradas.";
+    contenido.append(p);
+    return;
+  }
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Número", "Proyecto", "Procedencia", "Estado", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+
+  const tbody = document.createElement("tbody");
+  requisiciones.forEach((r) => {
+    const fila = document.createElement("tr");
+    [
+      r.numero_requisicion,
+      nombreProyecto(r.proyecto_id),
+      textoProcedencia(r.procedencia),
+      textoEstadoRequisicion(r.estado),
+    ].forEach((valor) => {
+      const td = document.createElement("td");
+      td.textContent = valor;
+      fila.append(td);
+    });
+    const accion = document.createElement("td");
+    const editar = boton(
+      "Ver / Editar",
+      () => (window.location.hash = `#/requisiciones/${r.id}`),
+      true
+    );
+    editar.setAttribute("aria-label", `Ver requisición ${r.numero_requisicion}`);
+    accion.append(editar);
+    fila.append(accion);
+    tbody.append(fila);
+  });
+
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  contenido.append(tarjeta);
+}
+
+function construirFilaItemSimple(item, campos, editable, onEliminar) {
+  const fila = document.createElement("tr");
+
+  campos.forEach((campo) => {
+    const td = document.createElement("td");
+    if (!editable) {
+      td.textContent = item[campo.nombre] ?? "";
+      fila.append(td);
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = campo.tipo || "text";
+    input.value = item[campo.nombre] ?? "";
+    if (campo.tipo === "number") {
+      input.step = "0.01";
+      input.min = "0.0001";
+    }
+    input.required = true;
+    input.addEventListener("input", () => {
+      item[campo.nombre] = input.value;
+    });
+    td.append(input);
+    fila.append(td);
+  });
+
+  const tdAccion = document.createElement("td");
+  if (editable) {
+    tdAccion.append(boton("Quitar", onEliminar, true));
+  }
+  fila.append(tdAccion);
+
+  return fila;
+}
+
+async function vistaRequisicionForm(id) {
+  marcarMenu("requisiciones");
+  mostrarCargando();
+
+  const proyectos = await obtenerProyectos();
+  let requisicion = null;
+  if (id) {
+    const r = await api("GET", `/requisiciones/${id}`);
+    if (r.status !== 200) {
+      contenido.replaceChildren(encabezado("Requisición"), alerta("error", "No se encontró la requisición."));
+      return;
+    }
+    requisicion = r.cuerpo.requisicion;
+  } else if (proyectos.length === 0) {
+    contenido.replaceChildren(
+      encabezado("Nueva requisición"),
+      alerta("error", "Primero crea al menos un proyecto.")
+    );
+    return;
+  }
+
+  const editable = !id || requisicion.estado === "solicitada";
+  const opcionesProyectos = proyectos.map((p) => ({ valor: String(p.id), texto: p.nombre_proyecto }));
+
+  contenido.replaceChildren();
+  const volver = boton("Volver a requisiciones", () => (window.location.hash = "#/requisiciones"), true);
+  contenido.append(
+    encabezado(id ? `Requisición ${requisicion.numero_requisicion}` : "Nueva requisición", [volver])
+  );
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+
+  const camposCabecera = id
+    ? [
+        { nombre: "proyecto", etiqueta: "Proyecto", tipo: "estatico" },
+        editable
+          ? { nombre: "procedencia", etiqueta: "Procedencia", tipo: "select", requerido: true, opciones: OPCIONES_PROCEDENCIA }
+          : { nombre: "procedencia_txt", etiqueta: "Procedencia", tipo: "estatico" },
+      ]
+    : [
+        { nombre: "proyecto_id", etiqueta: "Proyecto", tipo: "select", requerido: true, opciones: opcionesProyectos },
+        { nombre: "procedencia", etiqueta: "Procedencia", tipo: "select", requerido: true, opciones: OPCIONES_PROCEDENCIA },
+      ];
+
+  camposCabecera.forEach((config) => {
+    let valor = "";
+    if (requisicion) {
+      if (config.nombre === "proyecto") {
+        valor = proyectos.find((p) => p.id === requisicion.proyecto_id)?.nombre_proyecto || "—";
+      } else if (config.nombre === "procedencia" || config.nombre === "procedencia_txt") {
+        valor = config.tipo === "estatico" ? textoProcedencia(requisicion.procedencia) : requisicion.procedencia;
+      }
+    }
+    grid.append(construirCampo(config, valor));
+  });
+
+  if (!editable) {
+    const aviso = document.createElement("p");
+    aviso.className = "subtitulo";
+    aviso.textContent = "Solo se puede editar una requisición en estado solicitada.";
+    grid.append(aviso);
+  }
+
+  const subtituloItems = document.createElement("h3");
+  subtituloItems.textContent = "Ítems";
+  subtituloItems.style.marginTop = "24px";
+
+  const camposItem = [
+    { nombre: "descripcion", etiqueta: "Descripción" },
+    { nombre: "cantidad", etiqueta: "Cantidad", tipo: "number" },
+    { nombre: "unidad", etiqueta: "Unidad" },
+  ];
+
+  const tablaItems = document.createElement("table");
+  const theadItems = document.createElement("thead");
+  const filaCabeceraItems = document.createElement("tr");
+  ["Descripción", "Cantidad", "Unidad", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabeceraItems.append(th);
+  });
+  theadItems.append(filaCabeceraItems);
+  const tbodyItems = document.createElement("tbody");
+  tablaItems.append(theadItems, tbodyItems);
+
+  const items = requisicion
+    ? requisicion.items.map((i) => ({ ...i }))
+    : [{ descripcion: "", cantidad: "1", unidad: "" }];
+
+  function redibujarItems() {
+    tbodyItems.replaceChildren();
+    items.forEach((item, indice) => {
+      const fila = construirFilaItemSimple(item, camposItem, editable, () => {
+        items.splice(indice, 1);
+        if (items.length === 0) {
+          items.push({ descripcion: "", cantidad: "1", unidad: "" });
+        }
+        redibujarItems();
+      });
+      tbodyItems.append(fila);
+    });
+  }
+
+  redibujarItems();
+
+  const bloqueItems = document.createElement("div");
+  bloqueItems.className = "tarjeta-ancha";
+  bloqueItems.style.boxShadow = "none";
+  bloqueItems.style.padding = "0";
+  bloqueItems.append(tablaItems);
+
+  if (editable) {
+    const agregar = boton("Agregar ítem", () => {
+      items.push({ descripcion: "", cantidad: "1", unidad: "" });
+      redibujarItems();
+    }, true);
+    agregar.style.marginTop = "12px";
+    bloqueItems.append(agregar);
+  }
+
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.style.marginTop = "16px";
+  guardar.textContent = id ? "Guardar cambios" : "Crear requisición";
+
+  form.append(grid, subtituloItems, bloqueItems);
+  if (editable) form.append(guardar);
+  tarjeta.append(mensaje, form);
+  contenido.append(tarjeta);
+
+  if (editable) {
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      mensaje.replaceChildren();
+
+      const datos = {};
+      camposCabecera
+        .filter((c) => c.tipo !== "estatico")
+        .forEach((config) => {
+          const valor = form.elements[config.nombre].value.trim();
+          if (valor !== "") datos[config.nombre] = valor;
+        });
+
+      const itemsInvalidos = items.some((item) => !item.descripcion || !item.cantidad || !item.unidad);
+      if (itemsInvalidos) {
+        mensaje.append(alerta("error", "Completa descripción, cantidad y unidad de cada ítem."));
+        return;
+      }
+      datos.items = items.map((item) => ({
+        descripcion: item.descripcion,
+        cantidad: Number(item.cantidad),
+        unidad: item.unidad,
+      }));
+
+      const faltantes = camposCabecera.filter(
+        (c) => c.tipo !== "estatico" && c.requerido && !datos[c.nombre]
+      );
+      if (faltantes.length > 0) {
+        mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+        return;
+      }
+
+      guardar.disabled = true;
+      try {
+        const r = id
+          ? await api("PUT", `/requisiciones/${id}`, datos)
+          : await api("POST", "/requisiciones", datos);
+        if (r.status === 200 || r.status === 201) {
+          window.location.hash = id ? `#/requisiciones/${id}` : "#/requisiciones";
+          if (id) vistaRequisicionForm(id);
+          return;
+        }
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar la requisición."));
+      } catch (error) {
+        if (error.message !== "sesion-expirada") {
+          mensaje.append(alerta("error", "No hay conexión con el servidor."));
+        }
+      } finally {
+        guardar.disabled = false;
+      }
+    });
+  }
+
+  if (id) {
+    const bloqueEstado = document.createElement("div");
+    bloqueEstado.style.marginTop = "24px";
+    bloqueEstado.style.paddingTop = "24px";
+    bloqueEstado.style.borderTop = "1px solid var(--borde)";
+
+    const subtituloEstado = document.createElement("p");
+    subtituloEstado.className = "subtitulo";
+    subtituloEstado.textContent = `Estado actual: ${textoEstadoRequisicion(requisicion.estado)}`;
+    bloqueEstado.append(subtituloEstado);
+
+    const mensajeEstado = document.createElement("div");
+    const filaEstado = document.createElement("div");
+    filaEstado.className = "formulario-grid";
+    filaEstado.append(
+      construirCampo(
+        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_REQUISICION },
+        requisicion.estado
+      )
+    );
+    const botonEstado = boton("Actualizar estado", async () => {
+      mensajeEstado.replaceChildren();
+      const nuevoEstado = document.getElementById("nuevo_estado").value;
+      const r = await api("PATCH", `/requisiciones/${id}/estado`, { estado: nuevoEstado });
+      if (r.status === 200) {
+        vistaRequisicionForm(id);
+        return;
+      }
+      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+    });
+
+    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    tarjeta.append(bloqueEstado);
+  }
+}
+
+const ESTADOS_ORDEN_COMPRA = [
+  { valor: "pte_aprobar", texto: "Pendiente de aprobar" },
+  { valor: "aprobada_pte_pago", texto: "Aprobada, pendiente de pago" },
+  { valor: "paga", texto: "Pagada" },
+  { valor: "contabilizada", texto: "Contabilizada" },
+];
+
+function textoEstadoOrdenCompra(valor) {
+  const encontrado = ESTADOS_ORDEN_COMPRA.find((e) => e.valor === valor);
+  return encontrado ? encontrado.texto : valor;
+}
+
+function calcularTotalItemOC(item) {
+  return (Number(item.cantidad) || 0) * (Number(item.precio_unitario) || 0);
+}
+
+async function vistaOrdenesCompra() {
+  marcarMenu("ordenes-compra");
+  mostrarCargando();
+  const [{ status, cuerpo }, proveedores] = await Promise.all([
+    api("GET", "/ordenes-compra"),
+    obtenerProveedores(),
+  ]);
+  contenido.replaceChildren();
+
+  if (status !== 200) {
+    contenido.append(encabezado("Órdenes de compra"), alerta("error", "No se pudieron cargar las órdenes de compra."));
+    return;
+  }
+
+  const nombreProveedor = (id) => proveedores.find((p) => p.id === id)?.razon_social || "—";
+
+  const nuevo = boton("Nueva orden de compra", () => (window.location.hash = "#/ordenes-compra/nuevo"));
+  contenido.append(encabezado("Órdenes de compra", [nuevo]));
+
+  const ordenes = cuerpo.ordenes;
+  if (ordenes.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay órdenes de compra registradas.";
+    contenido.append(p);
+    return;
+  }
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Número", "Proveedor", "Estado", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+
+  const tbody = document.createElement("tbody");
+  ordenes.forEach((o) => {
+    const fila = document.createElement("tr");
+    [o.numero_oc, nombreProveedor(o.proveedor_id), textoEstadoOrdenCompra(o.estado)].forEach((valor) => {
+      const td = document.createElement("td");
+      td.textContent = valor;
+      fila.append(td);
+    });
+    const accion = document.createElement("td");
+    const editar = boton(
+      "Ver / Editar",
+      () => (window.location.hash = `#/ordenes-compra/${o.id}`),
+      true
+    );
+    editar.setAttribute("aria-label", `Ver orden de compra ${o.numero_oc}`);
+    accion.append(editar);
+    fila.append(accion);
+    tbody.append(fila);
+  });
+
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  contenido.append(tarjeta);
+}
+
+async function vistaOrdenCompraForm(id) {
+  marcarMenu("ordenes-compra");
+  mostrarCargando();
+
+  const [proveedores, requisiciones] = await Promise.all([obtenerProveedores(), obtenerRequisiciones()]);
+  let orden = null;
+  if (id) {
+    const r = await api("GET", `/ordenes-compra/${id}`);
+    if (r.status !== 200) {
+      contenido.replaceChildren(encabezado("Orden de compra"), alerta("error", "No se encontró la orden de compra."));
+      return;
+    }
+    orden = r.cuerpo.orden;
+  } else if (proveedores.length === 0 || requisiciones.length === 0) {
+    contenido.replaceChildren(
+      encabezado("Nueva orden de compra"),
+      alerta("error", "Primero crea al menos un proveedor y una requisición.")
+    );
+    return;
+  }
+
+  const editable = !id || orden.estado === "pte_aprobar";
+  const opcionesProveedores = proveedores.map((p) => ({ valor: String(p.id), texto: p.razon_social }));
+  const opcionesRequisiciones = requisiciones.map((r) => ({ valor: String(r.id), texto: r.numero_requisicion }));
+
+  contenido.replaceChildren();
+  const volver = boton("Volver a órdenes de compra", () => (window.location.hash = "#/ordenes-compra"), true);
+  contenido.append(
+    encabezado(id ? `Orden de compra ${orden.numero_oc}` : "Nueva orden de compra", [volver])
+  );
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+
+  const camposCabecera = id
+    ? [
+        { nombre: "requisicion", etiqueta: "Requisición", tipo: "estatico" },
+        editable
+          ? { nombre: "proveedor_id", etiqueta: "Proveedor", tipo: "select", requerido: true, opciones: opcionesProveedores }
+          : { nombre: "proveedor", etiqueta: "Proveedor", tipo: "estatico" },
+      ]
+    : [
+        { nombre: "requisicion_id", etiqueta: "Requisición", tipo: "select", requerido: true, opciones: opcionesRequisiciones },
+        { nombre: "proveedor_id", etiqueta: "Proveedor", tipo: "select", requerido: true, opciones: opcionesProveedores },
+      ];
+
+  camposCabecera.forEach((config) => {
+    let valor = "";
+    if (orden) {
+      if (config.nombre === "requisicion") {
+        valor = requisiciones.find((r) => r.id === orden.requisicion_id)?.numero_requisicion || "—";
+      } else if (config.nombre === "proveedor") {
+        valor = proveedores.find((p) => p.id === orden.proveedor_id)?.razon_social || "—";
+      } else if (config.nombre === "proveedor_id") {
+        valor = String(orden.proveedor_id);
+      }
+    }
+    grid.append(construirCampo(config, valor));
+  });
+
+  if (!editable) {
+    const aviso = document.createElement("p");
+    aviso.className = "subtitulo";
+    aviso.textContent = "Solo se puede editar una orden de compra en estado pendiente de aprobar.";
+    grid.append(aviso);
+  }
+
+  const subtituloItems = document.createElement("h3");
+  subtituloItems.textContent = "Ítems";
+  subtituloItems.style.marginTop = "24px";
+
+  const tablaItems = document.createElement("table");
+  const theadItems = document.createElement("thead");
+  const filaCabeceraItems = document.createElement("tr");
+  ["Descripción", "Cantidad", "Precio unitario", "Total", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabeceraItems.append(th);
+  });
+  theadItems.append(filaCabeceraItems);
+  const tbodyItems = document.createElement("tbody");
+  tablaItems.append(theadItems, tbodyItems);
+
+  const totalGeneral = document.createElement("p");
+  totalGeneral.className = "subtitulo";
+
+  const items = orden
+    ? orden.items.map((i) => ({ ...i }))
+    : [{ descripcion: "", cantidad: "1", precio_unitario: "0" }];
+
+  function recalcularTotalGeneral() {
+    const total = items.reduce((acc, item) => acc + calcularTotalItemOC(item), 0);
+    totalGeneral.textContent = `Total: $${formatearMoneda(total)}`;
+  }
+
+  function construirFilaItemOC(item, onEliminar) {
+    const fila = document.createElement("tr");
+
+    function celda(nombre, tipo, requerida) {
+      const td = document.createElement("td");
+      if (!editable) {
+        td.textContent = item[nombre] ?? "";
+        return td;
+      }
+      const input = document.createElement("input");
+      input.type = tipo;
+      input.value = item[nombre] ?? "";
+      if (tipo === "number") {
+        input.step = "0.01";
+        input.min = "0";
+      }
+      input.required = requerida;
+      input.addEventListener("input", () => {
+        item[nombre] = input.value;
+        fila._actualizarTotal();
+        recalcularTotalGeneral();
+      });
+      td.append(input);
+      return td;
+    }
+
+    fila.append(
+      celda("descripcion", "text", true),
+      celda("cantidad", "number", true),
+      celda("precio_unitario", "number", true)
+    );
+
+    const tdTotal = document.createElement("td");
+    tdTotal.className = "item-total";
+    tdTotal.textContent = formatearMoneda(calcularTotalItemOC(item));
+    fila.append(tdTotal);
+    fila._actualizarTotal = () => {
+      tdTotal.textContent = formatearMoneda(calcularTotalItemOC(item));
+    };
+
+    const tdAccion = document.createElement("td");
+    if (editable) {
+      tdAccion.append(boton("Quitar", onEliminar, true));
+    }
+    fila.append(tdAccion);
+
+    return fila;
+  }
+
+  function redibujarItems() {
+    tbodyItems.replaceChildren();
+    items.forEach((item, indice) => {
+      const fila = construirFilaItemOC(item, () => {
+        items.splice(indice, 1);
+        if (items.length === 0) {
+          items.push({ descripcion: "", cantidad: "1", precio_unitario: "0" });
+        }
+        redibujarItems();
+        recalcularTotalGeneral();
+      });
+      tbodyItems.append(fila);
+    });
+  }
+
+  redibujarItems();
+  recalcularTotalGeneral();
+
+  const bloqueItems = document.createElement("div");
+  bloqueItems.className = "tarjeta-ancha";
+  bloqueItems.style.boxShadow = "none";
+  bloqueItems.style.padding = "0";
+  bloqueItems.append(tablaItems);
+
+  if (editable) {
+    const agregar = boton("Agregar ítem", () => {
+      items.push({ descripcion: "", cantidad: "1", precio_unitario: "0" });
+      redibujarItems();
+      recalcularTotalGeneral();
+    }, true);
+    agregar.style.marginTop = "12px";
+    bloqueItems.append(agregar);
+  }
+
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.style.marginTop = "16px";
+  guardar.textContent = id ? "Guardar cambios" : "Crear orden de compra";
+
+  form.append(grid, subtituloItems, bloqueItems, totalGeneral);
+  if (editable) form.append(guardar);
+  tarjeta.append(mensaje, form);
+  contenido.append(tarjeta);
+
+  if (editable) {
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      mensaje.replaceChildren();
+
+      const datos = {};
+      camposCabecera
+        .filter((c) => c.tipo !== "estatico")
+        .forEach((config) => {
+          const valor = form.elements[config.nombre].value.trim();
+          if (valor !== "") datos[config.nombre] = valor;
+        });
+
+      const itemsInvalidos = items.some(
+        (item) => !item.descripcion || !item.cantidad || Number(item.precio_unitario) < 0
+      );
+      if (itemsInvalidos) {
+        mensaje.append(alerta("error", "Completa descripción, cantidad y precio unitario de cada ítem."));
+        return;
+      }
+      datos.items = items.map((item) => ({
+        descripcion: item.descripcion,
+        cantidad: Number(item.cantidad),
+        precio_unitario: Number(item.precio_unitario),
+      }));
+
+      const faltantes = camposCabecera.filter(
+        (c) => c.tipo !== "estatico" && c.requerido && !datos[c.nombre]
+      );
+      if (faltantes.length > 0) {
+        mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+        return;
+      }
+
+      guardar.disabled = true;
+      try {
+        const r = id
+          ? await api("PUT", `/ordenes-compra/${id}`, datos)
+          : await api("POST", "/ordenes-compra", datos);
+        if (r.status === 200 || r.status === 201) {
+          window.location.hash = id ? `#/ordenes-compra/${id}` : "#/ordenes-compra";
+          if (id) vistaOrdenCompraForm(id);
+          return;
+        }
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar la orden de compra."));
+      } catch (error) {
+        if (error.message !== "sesion-expirada") {
+          mensaje.append(alerta("error", "No hay conexión con el servidor."));
+        }
+      } finally {
+        guardar.disabled = false;
+      }
+    });
+  }
+
+  if (id) {
+    const bloqueEstado = document.createElement("div");
+    bloqueEstado.style.marginTop = "24px";
+    bloqueEstado.style.paddingTop = "24px";
+    bloqueEstado.style.borderTop = "1px solid var(--borde)";
+
+    const subtituloEstado = document.createElement("p");
+    subtituloEstado.className = "subtitulo";
+    subtituloEstado.textContent = `Estado actual: ${textoEstadoOrdenCompra(orden.estado)}`;
+    bloqueEstado.append(subtituloEstado);
+
+    const mensajeEstado = document.createElement("div");
+    const filaEstado = document.createElement("div");
+    filaEstado.className = "formulario-grid";
+    filaEstado.append(
+      construirCampo(
+        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_ORDEN_COMPRA },
+        orden.estado
+      )
+    );
+    const botonEstado = boton("Actualizar estado", async () => {
+      mensajeEstado.replaceChildren();
+      const nuevoEstado = document.getElementById("nuevo_estado").value;
+      const r = await api("PATCH", `/ordenes-compra/${id}/estado`, { estado: nuevoEstado });
+      if (r.status === 200) {
+        vistaOrdenCompraForm(id);
+        return;
+      }
+      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+    });
+
+    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    tarjeta.append(bloqueEstado);
+  }
+}
+
 function enrutar() {
   const ruta = window.location.hash || "#/clientes";
 
@@ -1162,6 +1900,16 @@ function enrutar() {
   const editarProveedor = ruta.match(/^#\/proveedores\/(\d+)$/);
   if (editarProveedor) return vistaProveedorForm(editarProveedor[1]);
   if (/^#\/proveedores$/.test(ruta)) return vistaProveedores();
+
+  if (/^#\/requisiciones\/nuevo$/.test(ruta)) return vistaRequisicionForm(null);
+  const editarRequisicion = ruta.match(/^#\/requisiciones\/(\d+)$/);
+  if (editarRequisicion) return vistaRequisicionForm(editarRequisicion[1]);
+  if (/^#\/requisiciones$/.test(ruta)) return vistaRequisiciones();
+
+  if (/^#\/ordenes-compra\/nuevo$/.test(ruta)) return vistaOrdenCompraForm(null);
+  const editarOC = ruta.match(/^#\/ordenes-compra\/(\d+)$/);
+  if (editarOC) return vistaOrdenCompraForm(editarOC[1]);
+  if (/^#\/ordenes-compra$/.test(ruta)) return vistaOrdenesCompra();
 
   return vistaClientes();
 }
