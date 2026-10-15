@@ -972,6 +972,174 @@ async function vistaCotizacionForm(id) {
   }
 }
 
+const CAMPOS_PROVEEDOR = [
+  { nombre: "nit_cc", etiqueta: "NIT o CC", requerido: true },
+  { nombre: "razon_social", etiqueta: "Razón social", requerido: true },
+  { nombre: "tipo_persona", etiqueta: "Tipo de persona", tipo: "select", requerido: true,
+    opciones: [{ valor: "natural", texto: "Natural" }, { valor: "juridica", texto: "Jurídica" }] },
+  { nombre: "origen", etiqueta: "Origen", tipo: "select", requerido: true,
+    opciones: [{ valor: "nacional", texto: "Nacional" }, { valor: "extranjera", texto: "Extranjera" }] },
+  { nombre: "clasificacion", etiqueta: "Clasificación", tipo: "select", requerido: true,
+    opciones: [
+      { valor: "productos", texto: "Productos" },
+      { valor: "servicios", texto: "Servicios" },
+      { valor: "ambos", texto: "Ambos" },
+    ] },
+  { nombre: "contacto_comercial_nombre", etiqueta: "Contacto comercial" },
+  { nombre: "contacto_comercial_telefono", etiqueta: "Teléfono comercial" },
+  { nombre: "contacto_comercial_email", etiqueta: "Correo comercial", tipo: "email" },
+  { nombre: "contacto_pagos_nombre", etiqueta: "Contacto de pagos" },
+  { nombre: "contacto_pagos_telefono", etiqueta: "Teléfono de pagos" },
+  { nombre: "contacto_pagos_email", etiqueta: "Correo de pagos", tipo: "email" },
+  { nombre: "contacto_tecnico_nombre", etiqueta: "Contacto técnico" },
+  { nombre: "contacto_tecnico_telefono", etiqueta: "Teléfono técnico" },
+  { nombre: "contacto_tecnico_email", etiqueta: "Correo técnico", tipo: "email" },
+];
+
+function textoClasificacionProveedor(valor) {
+  const encontrado = CAMPOS_PROVEEDOR.find((c) => c.nombre === "clasificacion");
+  const opcion = encontrado.opciones.find((o) => o.valor === valor);
+  return opcion ? opcion.texto : valor;
+}
+
+async function vistaProveedores() {
+  marcarMenu("proveedores");
+  mostrarCargando();
+  const { status, cuerpo } = await api("GET", "/proveedores");
+  contenido.replaceChildren();
+
+  if (status !== 200) {
+    contenido.append(encabezado("Proveedores"), alerta("error", "No se pudieron cargar los proveedores."));
+    return;
+  }
+
+  const nuevo = boton("Nuevo proveedor", () => (window.location.hash = "#/proveedores/nuevo"));
+  contenido.append(encabezado("Proveedores", [nuevo]));
+
+  const proveedores = cuerpo.proveedores;
+  if (proveedores.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay proveedores registrados.";
+    contenido.append(p);
+    return;
+  }
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Razón social", "NIT/CC", "Origen", "Clasificación", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+
+  const tbody = document.createElement("tbody");
+  proveedores.forEach((p) => {
+    const fila = document.createElement("tr");
+    [
+      p.razon_social,
+      p.nit_cc,
+      p.origen === "nacional" ? "Nacional" : "Extranjera",
+      textoClasificacionProveedor(p.clasificacion),
+    ].forEach((valor) => {
+      const td = document.createElement("td");
+      td.textContent = valor;
+      fila.append(td);
+    });
+    const accion = document.createElement("td");
+    const editar = boton(
+      "Editar",
+      () => (window.location.hash = `#/proveedores/${p.id}`),
+      true
+    );
+    editar.setAttribute("aria-label", `Editar ${p.razon_social}`);
+    accion.append(editar);
+    fila.append(accion);
+    tbody.append(fila);
+  });
+
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  contenido.append(tarjeta);
+}
+
+async function vistaProveedorForm(id) {
+  marcarMenu("proveedores");
+  mostrarCargando();
+  let proveedor = null;
+  if (id) {
+    const r = await api("GET", `/proveedores/${id}`);
+    if (r.status !== 200) {
+      contenido.replaceChildren(encabezado("Proveedor"), alerta("error", "No se encontró el proveedor."));
+      return;
+    }
+    proveedor = r.cuerpo.proveedor;
+  }
+
+  contenido.replaceChildren();
+  const volver = boton("Volver a proveedores", () => (window.location.hash = "#/proveedores"), true);
+  contenido.append(encabezado(id ? "Editar proveedor" : "Nuevo proveedor", [volver]));
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+
+  CAMPOS_PROVEEDOR.forEach((config) => {
+    grid.append(construirCampo(config, proveedor ? proveedor[config.nombre] : ""));
+  });
+
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.textContent = id ? "Guardar cambios" : "Crear proveedor";
+
+  form.append(grid, guardar);
+  tarjeta.append(mensaje, form);
+  contenido.append(tarjeta);
+
+  form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    mensaje.replaceChildren();
+    const datos = {};
+    CAMPOS_PROVEEDOR.forEach((config) => {
+      const valor = form.elements[config.nombre].value.trim();
+      if (valor !== "") datos[config.nombre] = valor;
+    });
+    const faltantes = CAMPOS_PROVEEDOR.filter((c) => c.requerido && !datos[c.nombre]);
+    if (faltantes.length > 0) {
+      mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+      return;
+    }
+
+    guardar.disabled = true;
+    try {
+      const r = id
+        ? await api("PUT", `/proveedores/${id}`, datos)
+        : await api("POST", "/proveedores", datos);
+      if (r.status === 200 || r.status === 201) {
+        window.location.hash = "#/proveedores";
+        return;
+      }
+      mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el proveedor."));
+    } catch (error) {
+      if (error.message !== "sesion-expirada") {
+        mensaje.append(alerta("error", "No hay conexión con el servidor."));
+      }
+    } finally {
+      guardar.disabled = false;
+    }
+  });
+}
+
 function enrutar() {
   const ruta = window.location.hash || "#/clientes";
 
@@ -989,6 +1157,11 @@ function enrutar() {
   const editarCotizacion = ruta.match(/^#\/cotizaciones\/(\d+)$/);
   if (editarCotizacion) return vistaCotizacionForm(editarCotizacion[1]);
   if (/^#\/cotizaciones$/.test(ruta)) return vistaCotizaciones();
+
+  if (/^#\/proveedores\/nuevo$/.test(ruta)) return vistaProveedorForm(null);
+  const editarProveedor = ruta.match(/^#\/proveedores\/(\d+)$/);
+  if (editarProveedor) return vistaProveedorForm(editarProveedor[1]);
+  if (/^#\/proveedores$/.test(ruta)) return vistaProveedores();
 
   return vistaClientes();
 }
