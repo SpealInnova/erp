@@ -1878,6 +1878,742 @@ async function vistaOrdenCompraForm(id) {
   }
 }
 
+const ESTADOS_EXPEDIENTE = [
+  { valor: "pendiente", texto: "Pendiente" },
+  { valor: "aprobado", texto: "Aprobado" },
+  { valor: "aprobado_con_restricciones", texto: "Aprobado con restricciones" },
+  { valor: "rechazado", texto: "Rechazado" },
+];
+
+function textoEstadoExpediente(valor) {
+  const encontrado = ESTADOS_EXPEDIENTE.find((e) => e.valor === valor);
+  return encontrado ? encontrado.texto : valor;
+}
+
+async function vistaExpedientes() {
+  marcarMenu("expedientes-diseno");
+  mostrarCargando();
+  const [{ status, cuerpo }, proyectos, usuarios] = await Promise.all([
+    api("GET", "/expedientes-diseno"),
+    obtenerProyectos(),
+    obtenerUsuarios(),
+  ]);
+  contenido.replaceChildren();
+
+  if (status !== 200) {
+    contenido.append(encabezado("Expedientes de diseño"), alerta("error", "No se pudieron cargar los expedientes."));
+    return;
+  }
+
+  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
+  const nombreUsuario = (id) => usuarios.find((u) => u.id === id)?.nombre || "—";
+
+  const nuevo = boton("Nuevo expediente", () => (window.location.hash = "#/expedientes-diseno/nuevo"));
+  contenido.append(encabezado("Expedientes de diseño", [nuevo]));
+
+  const expedientes = cuerpo.expedientes;
+  if (expedientes.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay expedientes de diseño registrados.";
+    contenido.append(p);
+    return;
+  }
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Código", "Producto", "Proyecto", "Responsable", "Estado", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+
+  const tbody = document.createElement("tbody");
+  expedientes.forEach((e) => {
+    const fila = document.createElement("tr");
+    [
+      e.codigo_expediente,
+      e.producto_nombre,
+      nombreProyecto(e.proyecto_id),
+      nombreUsuario(e.responsable_diseno_id),
+      textoEstadoExpediente(e.estado_liberacion),
+    ].forEach((valor) => {
+      const td = document.createElement("td");
+      td.textContent = valor;
+      fila.append(td);
+    });
+    const accion = document.createElement("td");
+    const editar = boton(
+      "Ver / Editar",
+      () => (window.location.hash = `#/expedientes-diseno/${e.id}`),
+      true
+    );
+    editar.setAttribute("aria-label", `Ver expediente ${e.codigo_expediente}`);
+    accion.append(editar);
+    fila.append(accion);
+    tbody.append(fila);
+  });
+
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  contenido.append(tarjeta);
+}
+
+async function vistaExpedienteForm(id) {
+  marcarMenu("expedientes-diseno");
+  mostrarCargando();
+
+  const [proyectos, usuarios] = await Promise.all([obtenerProyectos(), obtenerUsuarios()]);
+  let expediente = null;
+  if (id) {
+    const r = await api("GET", `/expedientes-diseno/${id}`);
+    if (r.status !== 200) {
+      contenido.replaceChildren(encabezado("Expediente de diseño"), alerta("error", "No se encontró el expediente."));
+      return;
+    }
+    expediente = r.cuerpo.expediente;
+  } else if (proyectos.length === 0) {
+    contenido.replaceChildren(
+      encabezado("Nuevo expediente"),
+      alerta("error", "Primero crea al menos un proyecto.")
+    );
+    return;
+  }
+
+  const editable = !id || expediente.estado_liberacion === "pendiente";
+  const opcionesProyectos = proyectos.map((p) => ({ valor: String(p.id), texto: p.nombre_proyecto }));
+  const opcionesUsuarios = usuarios.map((u) => ({ valor: String(u.id), texto: u.nombre }));
+
+  contenido.replaceChildren();
+  const volver = boton("Volver a expedientes", () => (window.location.hash = "#/expedientes-diseno"), true);
+  contenido.append(
+    encabezado(id ? `Expediente ${expediente.codigo_expediente}` : "Nuevo expediente", [volver])
+  );
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+
+  const camposBase = [
+    { nombre: "producto_nombre", etiqueta: "Nombre del producto", requerido: true },
+    { nombre: "modelo", etiqueta: "Modelo" },
+    { nombre: "numero_serie", etiqueta: "Número de serie" },
+  ];
+
+  const camposCabecera = id
+    ? [
+        { nombre: "proyecto", etiqueta: "Proyecto", tipo: "estatico" },
+        ...camposBase,
+        editable
+          ? { nombre: "responsable_diseno_id", etiqueta: "Responsable de diseño", tipo: "select", requerido: true, opciones: opcionesUsuarios }
+          : { nombre: "responsable", etiqueta: "Responsable de diseño", tipo: "estatico" },
+      ]
+    : [
+        { nombre: "proyecto_id", etiqueta: "Proyecto", tipo: "select", requerido: true, opciones: opcionesProyectos },
+        ...camposBase,
+        { nombre: "responsable_diseno_id", etiqueta: "Responsable de diseño", tipo: "select", requerido: true, opciones: opcionesUsuarios },
+      ];
+
+  camposCabecera.forEach((config) => {
+    let valor = "";
+    if (expediente) {
+      if (config.nombre === "proyecto") {
+        valor = proyectos.find((p) => p.id === expediente.proyecto_id)?.nombre_proyecto || "—";
+      } else if (config.nombre === "responsable") {
+        valor = usuarios.find((u) => u.id === expediente.responsable_diseno_id)?.nombre || "—";
+      } else if (config.nombre === "responsable_diseno_id") {
+        valor = String(expediente.responsable_diseno_id);
+      } else if (config.tipo !== "estatico") {
+        valor = expediente[config.nombre] || "";
+      }
+    }
+    grid.append(construirCampo(config, valor));
+  });
+
+  if (!editable) {
+    const aviso = document.createElement("p");
+    aviso.className = "subtitulo";
+    aviso.textContent = "Solo se puede editar un expediente en estado pendiente.";
+    grid.append(aviso);
+  }
+
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.textContent = id ? "Guardar cambios" : "Crear expediente";
+
+  form.append(grid);
+  if (editable) form.append(guardar);
+  tarjeta.append(mensaje, form);
+  contenido.append(tarjeta);
+
+  if (editable) {
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      mensaje.replaceChildren();
+      const datos = {};
+      camposCabecera
+        .filter((c) => c.tipo !== "estatico")
+        .forEach((config) => {
+          const valor = form.elements[config.nombre].value.trim();
+          if (valor !== "") datos[config.nombre] = valor;
+        });
+      const faltantes = camposCabecera.filter(
+        (c) => c.tipo !== "estatico" && c.requerido && !datos[c.nombre]
+      );
+      if (faltantes.length > 0) {
+        mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+        return;
+      }
+
+      guardar.disabled = true;
+      try {
+        const r = id
+          ? await api("PUT", `/expedientes-diseno/${id}`, datos)
+          : await api("POST", "/expedientes-diseno", datos);
+        if (r.status === 200 || r.status === 201) {
+          window.location.hash = id ? `#/expedientes-diseno/${id}` : "#/expedientes-diseno";
+          if (id) vistaExpedienteForm(id);
+          return;
+        }
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el expediente."));
+      } catch (error) {
+        if (error.message !== "sesion-expirada") {
+          mensaje.append(alerta("error", "No hay conexión con el servidor."));
+        }
+      } finally {
+        guardar.disabled = false;
+      }
+    });
+  }
+
+  if (id) {
+    const bloqueEstado = document.createElement("div");
+    bloqueEstado.style.marginTop = "24px";
+    bloqueEstado.style.paddingTop = "24px";
+    bloqueEstado.style.borderTop = "1px solid var(--borde)";
+
+    const subtituloEstado = document.createElement("p");
+    subtituloEstado.className = "subtitulo";
+    subtituloEstado.textContent = `Estado actual: ${textoEstadoExpediente(expediente.estado_liberacion)}`;
+    bloqueEstado.append(subtituloEstado);
+
+    const mensajeEstado = document.createElement("div");
+    const filaEstado = document.createElement("div");
+    filaEstado.className = "formulario-grid";
+    filaEstado.append(
+      construirCampo(
+        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_EXPEDIENTE },
+        expediente.estado_liberacion
+      )
+    );
+    const botonEstado = boton("Actualizar estado", async () => {
+      mensajeEstado.replaceChildren();
+      const nuevoEstado = document.getElementById("nuevo_estado").value;
+      const r = await api("PATCH", `/expedientes-diseno/${id}/estado`, { estado: nuevoEstado });
+      if (r.status === 200) {
+        vistaExpedienteForm(id);
+        return;
+      }
+      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+    });
+
+    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    tarjeta.append(bloqueEstado);
+  }
+}
+
+const TIPOS_SERVICIO = [
+  { valor: "instalacion", texto: "Instalación" },
+  { valor: "inspeccion", texto: "Inspección" },
+  { valor: "asistencia", texto: "Asistencia" },
+  { valor: "mantenimiento_preventivo", texto: "Mantenimiento preventivo" },
+  { valor: "mantenimiento_correctivo", texto: "Mantenimiento correctivo" },
+  { valor: "garantia", texto: "Garantía" },
+  { valor: "validacion", texto: "Validación" },
+];
+
+function textoTipoServicio(valor) {
+  const encontrado = TIPOS_SERVICIO.find((t) => t.valor === valor);
+  return encontrado ? encontrado.texto : valor;
+}
+
+const CAMPOS_REPORTE = (clientes, proyectos) => [
+  { nombre: "cliente_id", etiqueta: "Cliente", tipo: "select", requerido: true,
+    opciones: clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social })) },
+  { nombre: "proyecto_id", etiqueta: "Proyecto (opcional)", tipo: "select",
+    opciones: [{ valor: "", texto: "— Sin proyecto —" }, ...proyectos.map((p) => ({ valor: String(p.id), texto: p.nombre_proyecto }))] },
+  { nombre: "equipo_numero_serie", etiqueta: "Número de serie del equipo", requerido: true },
+  { nombre: "tipo_servicio", etiqueta: "Tipo de servicio", tipo: "select", requerido: true, opciones: TIPOS_SERVICIO },
+  { nombre: "en_garantia", etiqueta: "¿En garantía?", tipo: "select",
+    opciones: [{ valor: "no", texto: "No" }, { valor: "si", texto: "Sí" }] },
+  { nombre: "fecha_servicio", etiqueta: "Fecha de servicio", tipo: "date" },
+  { nombre: "hora_inicio", etiqueta: "Hora de inicio", tipo: "time" },
+  { nombre: "hora_fin", etiqueta: "Hora de fin", tipo: "time" },
+  { nombre: "motivo", etiqueta: "Motivo" },
+  { nombre: "hallazgos", etiqueta: "Hallazgos" },
+  { nombre: "recomendaciones", etiqueta: "Recomendaciones" },
+];
+
+async function vistaReportesServicio() {
+  marcarMenu("reportes-servicio");
+  mostrarCargando();
+  const [{ status, cuerpo }, clientes] = await Promise.all([
+    api("GET", "/reportes-servicio-tecnico"),
+    obtenerClientes(),
+  ]);
+  contenido.replaceChildren();
+
+  if (status !== 200) {
+    contenido.append(encabezado("Reportes de servicio"), alerta("error", "No se pudieron cargar los reportes."));
+    return;
+  }
+
+  const nombreCliente = (idCliente) => clientes.find((c) => c.id === idCliente)?.nombre_razon_social || "—";
+
+  const nuevo = boton("Nuevo reporte", () => (window.location.hash = "#/reportes-servicio/nuevo"));
+  contenido.append(encabezado("Reportes de servicio técnico", [nuevo]));
+
+  const reportes = cuerpo.reportes;
+  if (reportes.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay reportes de servicio registrados.";
+    contenido.append(p);
+    return;
+  }
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Equipo (N° serie)", "Cliente", "Tipo de servicio", "Fecha", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+
+  const tbody = document.createElement("tbody");
+  reportes.forEach((r) => {
+    const fila = document.createElement("tr");
+    [
+      r.equipo_numero_serie,
+      nombreCliente(r.cliente_id),
+      textoTipoServicio(r.tipo_servicio),
+      r.fecha_servicio ? r.fecha_servicio.substring(0, 10) : "—",
+    ].forEach((valor) => {
+      const td = document.createElement("td");
+      td.textContent = valor;
+      fila.append(td);
+    });
+    const accion = document.createElement("td");
+    const editar = boton("Editar", () => (window.location.hash = `#/reportes-servicio/${r.id}`), true);
+    editar.setAttribute("aria-label", `Editar reporte de ${r.equipo_numero_serie}`);
+    accion.append(editar);
+    fila.append(accion);
+    tbody.append(fila);
+  });
+
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  contenido.append(tarjeta);
+}
+
+async function vistaReporteServicioForm(id) {
+  marcarMenu("reportes-servicio");
+  mostrarCargando();
+
+  const [clientes, proyectos] = await Promise.all([obtenerClientes(), obtenerProyectos()]);
+  let reporte = null;
+  if (id) {
+    const r = await api("GET", `/reportes-servicio-tecnico/${id}`);
+    if (r.status !== 200) {
+      contenido.replaceChildren(encabezado("Reporte de servicio"), alerta("error", "No se encontró el reporte."));
+      return;
+    }
+    reporte = r.cuerpo.reporte;
+  } else if (clientes.length === 0) {
+    contenido.replaceChildren(
+      encabezado("Nuevo reporte"),
+      alerta("error", "Primero crea al menos un cliente.")
+    );
+    return;
+  }
+
+  const campos = CAMPOS_REPORTE(clientes, proyectos);
+
+  contenido.replaceChildren();
+  const volver = boton("Volver a reportes", () => (window.location.hash = "#/reportes-servicio"), true);
+  contenido.append(encabezado(id ? "Editar reporte de servicio" : "Nuevo reporte de servicio", [volver]));
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+
+  campos.forEach((config) => {
+    let valor = "";
+    if (reporte) {
+      if (config.nombre === "en_garantia") valor = reporte.en_garantia ? "si" : "no";
+      else if (config.nombre === "proyecto_id") valor = reporte.proyecto_id ? String(reporte.proyecto_id) : "";
+      else if (config.nombre === "fecha_servicio") valor = reporte.fecha_servicio ? reporte.fecha_servicio.substring(0, 10) : "";
+      else valor = reporte[config.nombre] || "";
+    }
+    grid.append(construirCampo(config, valor));
+  });
+
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.textContent = id ? "Guardar cambios" : "Crear reporte";
+
+  form.append(grid, guardar);
+  tarjeta.append(mensaje, form);
+  contenido.append(tarjeta);
+
+  form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    mensaje.replaceChildren();
+    const datos = {};
+    campos.forEach((config) => {
+      const valor = form.elements[config.nombre].value.trim();
+      if (valor === "") return;
+      if (config.nombre === "en_garantia") datos.en_garantia = valor === "si";
+      else datos[config.nombre] = valor;
+    });
+    const faltantes = campos.filter((c) => c.requerido && !datos[c.nombre]);
+    if (faltantes.length > 0) {
+      mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+      return;
+    }
+
+    guardar.disabled = true;
+    try {
+      const r = id
+        ? await api("PUT", `/reportes-servicio-tecnico/${id}`, datos)
+        : await api("POST", "/reportes-servicio-tecnico", datos);
+      if (r.status === 200 || r.status === 201) {
+        window.location.hash = "#/reportes-servicio";
+        return;
+      }
+      mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el reporte."));
+    } catch (error) {
+      if (error.message !== "sesion-expirada") {
+        mensaje.append(alerta("error", "No hay conexión con el servidor."));
+      }
+    } finally {
+      guardar.disabled = false;
+    }
+  });
+}
+
+const OPCIONES_TIPO_ENTREGA = [
+  { valor: "venta", texto: "Venta" },
+  { valor: "demostracion", texto: "Demostración" },
+  { valor: "piloto", texto: "Piloto" },
+];
+
+const OPCIONES_DOCUMENTO_REFERENCIA = [
+  { valor: "orden_compra", texto: "Orden de compra" },
+  { valor: "contrato", texto: "Contrato" },
+  { valor: "consorcio", texto: "Consorcio" },
+  { valor: "union_temporal", texto: "Unión temporal" },
+  { valor: "otro", texto: "Otro" },
+];
+
+function textoTipoEntrega(valor) {
+  const encontrado = OPCIONES_TIPO_ENTREGA.find((o) => o.valor === valor);
+  return encontrado ? encontrado.texto : valor;
+}
+
+async function vistaActasCierre() {
+  marcarMenu("actas-cierre");
+  mostrarCargando();
+  const [{ status, cuerpo }, proyectos, clientes] = await Promise.all([
+    api("GET", "/actas-cierre-satisfaccion"),
+    obtenerProyectos(),
+    obtenerClientes(),
+  ]);
+  contenido.replaceChildren();
+
+  if (status !== 200) {
+    contenido.append(encabezado("Actas de cierre"), alerta("error", "No se pudieron cargar las actas."));
+    return;
+  }
+
+  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
+  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
+
+  const nuevo = boton("Nueva acta", () => (window.location.hash = "#/actas-cierre/nuevo"));
+  contenido.append(encabezado("Actas de cierre a satisfacción", [nuevo]));
+
+  const actas = cuerpo.actas;
+  if (actas.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay actas de cierre registradas.";
+    contenido.append(p);
+    return;
+  }
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Número", "Proyecto", "Cliente", "Tipo de entrega", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+
+  const tbody = document.createElement("tbody");
+  actas.forEach((a) => {
+    const fila = document.createElement("tr");
+    [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id), textoTipoEntrega(a.tipo_entrega)].forEach(
+      (valor) => {
+        const td = document.createElement("td");
+        td.textContent = valor;
+        fila.append(td);
+      }
+    );
+    const accion = document.createElement("td");
+    const editar = boton("Ver / Editar", () => (window.location.hash = `#/actas-cierre/${a.id}`), true);
+    editar.setAttribute("aria-label", `Ver acta ${a.numero_acta}`);
+    accion.append(editar);
+    fila.append(accion);
+    tbody.append(fila);
+  });
+
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  contenido.append(tarjeta);
+}
+
+async function vistaActaCierreForm(id) {
+  marcarMenu("actas-cierre");
+  mostrarCargando();
+
+  const [proyectos, clientes] = await Promise.all([obtenerProyectos(), obtenerClientes()]);
+  let acta = null;
+  if (id) {
+    const r = await api("GET", `/actas-cierre-satisfaccion/${id}`);
+    if (r.status !== 200) {
+      contenido.replaceChildren(encabezado("Acta de cierre"), alerta("error", "No se encontró el acta."));
+      return;
+    }
+    acta = r.cuerpo.acta;
+  } else if (proyectos.length === 0 || clientes.length === 0) {
+    contenido.replaceChildren(
+      encabezado("Nueva acta"),
+      alerta("error", "Primero crea al menos un proyecto y un cliente.")
+    );
+    return;
+  }
+
+  const opcionesProyectos = proyectos.map((p) => ({ valor: String(p.id), texto: p.nombre_proyecto }));
+  const opcionesClientes = clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social }));
+
+  const camposCabecera = [
+    { nombre: "proyecto_id", etiqueta: "Proyecto", tipo: "select", requerido: true, opciones: opcionesProyectos },
+    { nombre: "cliente_id", etiqueta: "Cliente", tipo: "select", requerido: true, opciones: opcionesClientes },
+    { nombre: "tipo_entrega", etiqueta: "Tipo de entrega", tipo: "select", requerido: true, opciones: OPCIONES_TIPO_ENTREGA },
+    { nombre: "tipo_documento_referencia", etiqueta: "Documento de referencia", tipo: "select", requerido: true, opciones: OPCIONES_DOCUMENTO_REFERENCIA },
+    { nombre: "numero_documento_referencia", etiqueta: "Número de documento" },
+    { nombre: "objeto", etiqueta: "Objeto", requerido: true },
+    { nombre: "receptor_cliente_nombre", etiqueta: "Nombre de quien recibe", requerido: true },
+    { nombre: "receptor_cliente_cargo", etiqueta: "Cargo de quien recibe" },
+    { nombre: "fecha_elaboracion", etiqueta: "Fecha de elaboración", tipo: "date" },
+  ];
+
+  contenido.replaceChildren();
+  const volver = boton("Volver a actas de cierre", () => (window.location.hash = "#/actas-cierre"), true);
+  contenido.append(encabezado(id ? `Acta ${acta.numero_acta}` : "Nueva acta de cierre", [volver]));
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+
+  camposCabecera.forEach((config) => {
+    let valor = "";
+    if (acta) {
+      if (config.nombre === "fecha_elaboracion") valor = acta.fecha_elaboracion ? acta.fecha_elaboracion.substring(0, 10) : "";
+      else valor = acta[config.nombre] !== null && acta[config.nombre] !== undefined ? String(acta[config.nombre]) : "";
+    }
+    grid.append(construirCampo(config, valor));
+  });
+
+  const subtituloItems = document.createElement("h3");
+  subtituloItems.textContent = "Ítems verificados";
+  subtituloItems.style.marginTop = "24px";
+
+  const tablaItems = document.createElement("table");
+  const theadItems = document.createElement("thead");
+  const filaCabeceraItems = document.createElement("tr");
+  ["Elemento", "Cantidad", "Cumple", ""].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabeceraItems.append(th);
+  });
+  theadItems.append(filaCabeceraItems);
+  const tbodyItems = document.createElement("tbody");
+  tablaItems.append(theadItems, tbodyItems);
+
+  const items = acta
+    ? acta.items.map((i) => ({ ...i }))
+    : [{ elemento: "", cantidad: "1", cumple: "si" }];
+
+  function construirFilaActaItem(item, onEliminar) {
+    const fila = document.createElement("tr");
+
+    const tdElemento = document.createElement("td");
+    const inputElemento = document.createElement("input");
+    inputElemento.type = "text";
+    inputElemento.value = item.elemento || "";
+    inputElemento.required = true;
+    inputElemento.addEventListener("input", () => (item.elemento = inputElemento.value));
+    tdElemento.append(inputElemento);
+    fila.append(tdElemento);
+
+    const tdCantidad = document.createElement("td");
+    const inputCantidad = document.createElement("input");
+    inputCantidad.type = "number";
+    inputCantidad.step = "1";
+    inputCantidad.min = "1";
+    inputCantidad.value = item.cantidad ?? "1";
+    inputCantidad.required = true;
+    inputCantidad.addEventListener("input", () => (item.cantidad = inputCantidad.value));
+    tdCantidad.append(inputCantidad);
+    fila.append(tdCantidad);
+
+    const tdCumple = document.createElement("td");
+    const selectCumple = document.createElement("select");
+    [{ valor: "si", texto: "Sí" }, { valor: "no", texto: "No" }].forEach((op) => {
+      const o = document.createElement("option");
+      o.value = op.valor;
+      o.textContent = op.texto;
+      selectCumple.append(o);
+    });
+    selectCumple.value = item.cumple || "si";
+    selectCumple.addEventListener("change", () => (item.cumple = selectCumple.value));
+    tdCumple.append(selectCumple);
+    fila.append(tdCumple);
+
+    const tdAccion = document.createElement("td");
+    tdAccion.append(boton("Quitar", onEliminar, true));
+    fila.append(tdAccion);
+
+    return fila;
+  }
+
+  function redibujarItems() {
+    tbodyItems.replaceChildren();
+    items.forEach((item, indice) => {
+      const fila = construirFilaActaItem(item, () => {
+        items.splice(indice, 1);
+        if (items.length === 0) {
+          items.push({ elemento: "", cantidad: "1", cumple: "si" });
+        }
+        redibujarItems();
+      });
+      tbodyItems.append(fila);
+    });
+  }
+
+  redibujarItems();
+
+  const bloqueItems = document.createElement("div");
+  bloqueItems.className = "tarjeta-ancha";
+  bloqueItems.style.boxShadow = "none";
+  bloqueItems.style.padding = "0";
+  bloqueItems.append(tablaItems);
+
+  const agregar = boton("Agregar ítem", () => {
+    items.push({ elemento: "", cantidad: "1", cumple: "si" });
+    redibujarItems();
+  }, true);
+  agregar.style.marginTop = "12px";
+  bloqueItems.append(agregar);
+
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.style.marginTop = "16px";
+  guardar.textContent = id ? "Guardar cambios" : "Crear acta";
+
+  form.append(grid, subtituloItems, bloqueItems, guardar);
+  tarjeta.append(mensaje, form);
+  contenido.append(tarjeta);
+
+  form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    mensaje.replaceChildren();
+
+    const datos = {};
+    camposCabecera.forEach((config) => {
+      const valor = form.elements[config.nombre].value.trim();
+      if (valor !== "") datos[config.nombre] = valor;
+    });
+
+    const itemsInvalidos = items.some((item) => !item.elemento || !item.cantidad);
+    if (itemsInvalidos) {
+      mensaje.append(alerta("error", "Completa elemento y cantidad de cada ítem."));
+      return;
+    }
+    datos.items = items.map((item) => ({
+      elemento: item.elemento,
+      cantidad: Number(item.cantidad),
+      cumple: item.cumple,
+    }));
+
+    const faltantes = camposCabecera.filter((c) => c.requerido && !datos[c.nombre]);
+    if (faltantes.length > 0) {
+      mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+      return;
+    }
+
+    guardar.disabled = true;
+    try {
+      const r = id
+        ? await api("PUT", `/actas-cierre-satisfaccion/${id}`, datos)
+        : await api("POST", "/actas-cierre-satisfaccion", datos);
+      if (r.status === 200 || r.status === 201) {
+        window.location.hash = "#/actas-cierre";
+        return;
+      }
+      mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el acta."));
+    } catch (error) {
+      if (error.message !== "sesion-expirada") {
+        mensaje.append(alerta("error", "No hay conexión con el servidor."));
+      }
+    } finally {
+      guardar.disabled = false;
+    }
+  });
+}
+
 function enrutar() {
   const ruta = window.location.hash || "#/clientes";
 
@@ -1910,6 +2646,21 @@ function enrutar() {
   const editarOC = ruta.match(/^#\/ordenes-compra\/(\d+)$/);
   if (editarOC) return vistaOrdenCompraForm(editarOC[1]);
   if (/^#\/ordenes-compra$/.test(ruta)) return vistaOrdenesCompra();
+
+  if (/^#\/expedientes-diseno\/nuevo$/.test(ruta)) return vistaExpedienteForm(null);
+  const editarExpediente = ruta.match(/^#\/expedientes-diseno\/(\d+)$/);
+  if (editarExpediente) return vistaExpedienteForm(editarExpediente[1]);
+  if (/^#\/expedientes-diseno$/.test(ruta)) return vistaExpedientes();
+
+  if (/^#\/reportes-servicio\/nuevo$/.test(ruta)) return vistaReporteServicioForm(null);
+  const editarReporte = ruta.match(/^#\/reportes-servicio\/(\d+)$/);
+  if (editarReporte) return vistaReporteServicioForm(editarReporte[1]);
+  if (/^#\/reportes-servicio$/.test(ruta)) return vistaReportesServicio();
+
+  if (/^#\/actas-cierre\/nuevo$/.test(ruta)) return vistaActaCierreForm(null);
+  const editarActa = ruta.match(/^#\/actas-cierre\/(\d+)$/);
+  if (editarActa) return vistaActaCierreForm(editarActa[1]);
+  if (/^#\/actas-cierre$/.test(ruta)) return vistaActasCierre();
 
   return vistaClientes();
 }
