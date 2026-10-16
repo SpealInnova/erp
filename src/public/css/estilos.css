@@ -446,6 +446,16 @@ body.app-body {
   font-weight: 600;
 }
 
+.tabla-items {
+  table-layout: fixed;
+  min-width: 540px;
+}
+
+.tabla-items th:first-child,
+.tabla-items td:first-child {
+  width: 34%;
+}
+
 @media (max-width: 760px) {
   .app {
     grid-template-columns: minmax(0, 1fr);
@@ -472,5 +482,19 @@ body.app-body {
 
   .contenido {
     padding: 16px;
+  }
+
+  .acceso-boton {
+    position: static;
+    width: auto;
+    padding: 8px 14px;
+    font-size: 0.875rem;
+    box-shadow: none;
+  }
+
+  .acceso-panel {
+    top: 12px;
+    right: 12px;
+    bottom: auto;
   }
 }

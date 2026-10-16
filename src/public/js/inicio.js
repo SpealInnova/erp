@@ -656,6 +656,14 @@ async function vistaCotizaciones() {
   contenido.append(tarjeta);
 }
 
+const ETIQUETAS_ITEM_COTIZACION = {
+  descripcion: "Descripción",
+  cantidad: "Cantidad",
+  valor_unitario: "Valor unitario",
+  descuento_porcentaje: "Descuento %",
+  iva_porcentaje: "IVA %",
+};
+
 function construirFilaItem(item, editable, onCambio, onEliminar) {
   const fila = document.createElement("tr");
 
@@ -667,6 +675,8 @@ function construirFilaItem(item, editable, onCambio, onEliminar) {
     }
     const input = document.createElement("input");
     input.type = tipo;
+    input.name = nombre;
+    input.setAttribute("aria-label", ETIQUETAS_ITEM_COTIZACION[nombre]);
     input.value = valor;
     if (tipo === "number") {
       input.step = "0.01";
@@ -808,6 +818,7 @@ async function vistaCotizacionForm(id) {
   subtituloItems.style.marginTop = "24px";
 
   const tablaItems = document.createElement("table");
+  tablaItems.className = "tabla-items";
   const theadItems = document.createElement("thead");
   const filaCabeceraItems = document.createElement("tr");
   ["Descripción", "Cantidad", "Valor unitario", "Descuento %", "IVA %", "Total", ""].forEach((texto) => {
@@ -1261,6 +1272,8 @@ function construirFilaItemSimple(item, campos, editable, onEliminar) {
     }
     const input = document.createElement("input");
     input.type = campo.tipo || "text";
+    input.name = campo.nombre;
+    input.setAttribute("aria-label", campo.etiqueta);
     input.value = item[campo.nombre] ?? "";
     if (campo.tipo === "number") {
       input.step = "0.01";
@@ -1363,6 +1376,7 @@ async function vistaRequisicionForm(id) {
   ];
 
   const tablaItems = document.createElement("table");
+  tablaItems.className = "tabla-items";
   const theadItems = document.createElement("thead");
   const filaCabeceraItems = document.createElement("tr");
   ["Descripción", "Cantidad", "Unidad", ""].forEach((texto) => {
@@ -1669,6 +1683,7 @@ async function vistaOrdenCompraForm(id) {
   subtituloItems.style.marginTop = "24px";
 
   const tablaItems = document.createElement("table");
+  tablaItems.className = "tabla-items";
   const theadItems = document.createElement("thead");
   const filaCabeceraItems = document.createElement("tr");
   ["Descripción", "Cantidad", "Precio unitario", "Total", ""].forEach((texto) => {
@@ -1704,6 +1719,11 @@ async function vistaOrdenCompraForm(id) {
       }
       const input = document.createElement("input");
       input.type = tipo;
+      input.name = nombre;
+      input.setAttribute(
+        "aria-label",
+        { descripcion: "Descripción", cantidad: "Cantidad", precio_unitario: "Precio unitario" }[nombre]
+      );
       input.value = item[nombre] ?? "";
       if (tipo === "number") {
         input.step = "0.01";
@@ -2469,6 +2489,7 @@ async function vistaActaCierreForm(id) {
   subtituloItems.style.marginTop = "24px";
 
   const tablaItems = document.createElement("table");
+  tablaItems.className = "tabla-items";
   const theadItems = document.createElement("thead");
   const filaCabeceraItems = document.createElement("tr");
   ["Elemento", "Cantidad", "Cumple", ""].forEach((texto) => {
@@ -2491,6 +2512,8 @@ async function vistaActaCierreForm(id) {
     const tdElemento = document.createElement("td");
     const inputElemento = document.createElement("input");
     inputElemento.type = "text";
+    inputElemento.name = "elemento";
+    inputElemento.setAttribute("aria-label", "Elemento");
     inputElemento.value = item.elemento || "";
     inputElemento.required = true;
     inputElemento.addEventListener("input", () => (item.elemento = inputElemento.value));
@@ -2500,6 +2523,8 @@ async function vistaActaCierreForm(id) {
     const tdCantidad = document.createElement("td");
     const inputCantidad = document.createElement("input");
     inputCantidad.type = "number";
+    inputCantidad.name = "cantidad";
+    inputCantidad.setAttribute("aria-label", "Cantidad");
     inputCantidad.step = "1";
     inputCantidad.min = "1";
     inputCantidad.value = item.cantidad ?? "1";
@@ -2510,6 +2535,8 @@ async function vistaActaCierreForm(id) {
 
     const tdCumple = document.createElement("td");
     const selectCumple = document.createElement("select");
+    selectCumple.name = "cumple";
+    selectCumple.setAttribute("aria-label", "Cumple");
     [{ valor: "si", texto: "Sí" }, { valor: "no", texto: "No" }].forEach((op) => {
       const o = document.createElement("option");
       o.value = op.valor;
