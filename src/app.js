@@ -1,3 +1,4 @@
+const path = require("path");
 const express = require("express");
 const { crearPool } = require("./config/db");
 const { verificarConexion } = require("./servicios/estadoBaseDatos");
@@ -22,6 +23,7 @@ const {
 } = require("./rutas/reportesServicioTecnicoRutas");
 const { crearParametrosMedidosRutas } = require("./rutas/parametrosMedidosRutas");
 const { crearActasCierreRutas } = require("./rutas/actasCierreRutas");
+const { crearUsuariosRutas } = require("./rutas/usuariosRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -33,6 +35,10 @@ function crearApp() {
   app.use(express.json());
 
   app.get("/", (req, res) => {
+    res.redirect("/login");
+  });
+
+  app.get("/estado", (req, res) => {
     res.json({
       proyecto: "SPEAL Project Control",
       estado: "funcionando",
@@ -44,6 +50,14 @@ function crearApp() {
   app.get("/health", (req, res) => {
     res.status(200).send("ok");
   });
+
+  const carpetaPublica = path.join(__dirname, "public");
+  app.use(express.static(carpetaPublica));
+  app.get("/login", (req, res) => res.sendFile(path.join(carpetaPublica, "login.html")));
+  app.get("/restablecer-password", (req, res) =>
+    res.sendFile(path.join(carpetaPublica, "restablecer-password.html"))
+  );
+  app.get("/inicio", (req, res) => res.sendFile(path.join(carpetaPublica, "inicio.html")));
 
   app.get("/health/db", async (req, res) => {
     try {
@@ -113,6 +127,7 @@ function crearApp() {
     crearParametrosMedidosRutas(pool)
   );
   app.use("/actas-cierre-satisfaccion", requireAuth, crearActasCierreRutas(pool));
+  app.use("/usuarios", requireAuth, crearUsuariosRutas(pool));
 
   app.use(manejadorErrores);
 

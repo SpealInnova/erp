@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPEAL Project Control</title>
+  <link rel="stylesheet" href="/css/estilos.css">
+  <script src="/js/accesibilidad.js"></script>
+</head>
+<body class="app-body">
+  <section id="panel-accesibilidad" class="acceso-panel oculto" aria-label="Opciones de accesibilidad">
+    <label><input id="opcion-contraste" type="checkbox"> Alto contraste</label>
+    <fieldset>
+      <legend>Tamaño de texto</legend>
+      <label><input name="texto" type="radio" value="normal"> Normal</label>
+      <label><input name="texto" type="radio" value="grande"> Grande</label>
+      <label><input name="texto" type="radio" value="muy-grande"> Muy grande</label>
+    </fieldset>
+    <label><input id="opcion-movimiento" type="checkbox"> Reducir animaciones</label>
+  </section>
+
+  <div class="app">
+    <nav class="menu" aria-label="Módulos">
+      <p class="marca">SPEAL</p>
+      <a href="#/clientes" data-modulo="clientes">Clientes</a>
+      <a href="#/proyectos" data-modulo="proyectos">Proyectos</a>
+      <a href="#/cotizaciones" data-modulo="cotizaciones">Cotizaciones</a>
+      <a href="#/proveedores" data-modulo="proveedores">Proveedores</a>
+      <a href="#/requisiciones" data-modulo="requisiciones">Requisiciones</a>
+      <a href="#/ordenes-compra" data-modulo="ordenes-compra">Órdenes de compra</a>
+      <a href="#/expedientes-diseno" data-modulo="expedientes-diseno">Expedientes de diseño</a>
+      <a href="#/reportes-servicio" data-modulo="reportes-servicio">Reportes de servicio</a>
+      <a href="#/actas-cierre" data-modulo="actas-cierre">Actas de cierre</a>
+      <button id="btn-accesibilidad" class="acceso-boton" type="button" aria-expanded="false" aria-controls="panel-accesibilidad">Accesibilidad</button>
+      <button id="cerrar-sesion" class="boton boton-secundario" type="button">Cerrar sesión</button>
+    </nav>
+
+    <main class="contenido" id="contenido" tabindex="-1">
+      <p class="subtitulo">Cargando…</p>
+    </main>
+  </div>
+
+  <script src="/js/inicio.js"></script>
+</body>
+</html>

@@ -1,3 +1,10 @@
+async function listarActivos(pool) {
+  const [filas] = await pool.query(
+    "SELECT id, nombre, correo, rol FROM usuarios WHERE deleted_at IS NULL AND activo = 1 ORDER BY nombre"
+  );
+  return filas;
+}
+
 async function buscarPorId(pool, id) {
   const [filas] = await pool.query(
     "SELECT * FROM usuarios WHERE id = ? AND deleted_at IS NULL LIMIT 1",
@@ -54,6 +61,7 @@ async function actualizarPassword(pool, id, passwordHash) {
 }
 
 module.exports = {
+  listarActivos,
   buscarPorId,
   buscarPorCorreo,
   buscarPorTokenRecuperacion,
