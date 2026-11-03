@@ -36,6 +36,63 @@ function alerta(tipo, mensaje) {
   return div;
 }
 
+function formatoEjemploCampo(config) {
+  if (!config) return null;
+  if (config.tipo === "email") return "ejemplo: nombre@dominio.com";
+  if (config.tipo === "date") return "selecciona una fecha del calendario";
+  if (config.tipo === "select" && config.opciones) {
+    const opciones = normalizarOpciones(config.opciones).map((o) => o.texto);
+    return `opciones válidas: ${opciones.join(", ")}`;
+  }
+  return null;
+}
+
+function traducirDetalleIssue(issue, config) {
+  if (config && config.tipo === "email") {
+    return "el formato de correo no es válido";
+  }
+  if (issue.code === "too_small" && issue.type === "string") {
+    return "es obligatorio";
+  }
+  if (issue.code === "too_small") {
+    return `debe ser mayor o igual a ${issue.minimum}`;
+  }
+  if (issue.code === "too_big") {
+    return `debe ser menor o igual a ${issue.maximum}`;
+  }
+  if (issue.code === "invalid_type") {
+    return "falta este dato o tiene un formato incorrecto";
+  }
+  if (issue.code === "invalid_enum_value" || issue.code === "invalid_value") {
+    return "el valor elegido no es una opción válida";
+  }
+  return issue.message;
+}
+
+function mostrarErroresValidacion(form, campos, detalles) {
+  form.querySelectorAll(".campo-error").forEach((el) => el.classList.remove("campo-error"));
+  const mensajes = [];
+  (detalles || []).forEach((issue) => {
+    let nombreCampo = issue.path[0];
+    let prefijo = "";
+    if (nombreCampo === "items" && issue.path.length >= 3) {
+      prefijo = `Ítem ${Number(issue.path[1]) + 1} — `;
+      nombreCampo = issue.path[2];
+    }
+    const config = campos.find((c) => c.nombre === nombreCampo);
+    const input = prefijo ? null : form.elements[nombreCampo];
+    if (input) {
+      const contenedor = input.closest(".campo");
+      if (contenedor) contenedor.classList.add("campo-error");
+    }
+    const etiqueta = prefijo + (config ? config.etiqueta : nombreCampo);
+    const ejemplo = formatoEjemploCampo(config);
+    const detalle = traducirDetalleIssue(issue, config);
+    mensajes.push(`${etiqueta}: ${detalle}${ejemplo ? " (" + ejemplo + ")" : ""}`);
+  });
+  return mensajes;
+}
+
 function encabezado(titulo, botones = []) {
   const bloque = document.createElement("div");
   bloque.className = "encabezado";
@@ -52,6 +109,22 @@ function boton(texto, onClick, secundario = false) {
   b.textContent = texto;
   b.addEventListener("click", onClick);
   return b;
+}
+
+function botonCancelar(rutaVolver) {
+  return boton(
+    "Cancelar",
+    () => {
+      if (window.confirm("¿Deseas cancelar? Se perderán los datos ingresados.")) {
+        window.location.hash = rutaVolver;
+      }
+    },
+    true
+  );
+}
+
+function confirmarCreacion(nombreObjeto) {
+  return window.confirm(`¿Confirmas crear ${nombreObjeto}?`);
 }
 
 function mostrarCargando() {
@@ -253,6 +326,7 @@ async function vistaClienteForm(id) {
   guardar.textContent = id ? "Guardar cambios" : "Crear cliente";
 
   form.append(grid, guardar);
+  if (!id) form.append(botonCancelar("#/clientes"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -269,6 +343,7 @@ async function vistaClienteForm(id) {
       mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
       return;
     }
+    if (!id && !confirmarCreacion("este cliente")) return;
 
     guardar.disabled = true;
     try {
@@ -281,6 +356,9 @@ async function vistaClienteForm(id) {
       }
       if (r.status === 409) {
         mensaje.append(alerta("error", "Ya existe un cliente con ese número de identificación."));
+      } else if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+        const mensajes = mostrarErroresValidacion(form, CAMPOS_CLIENTE, r.cuerpo.detalles);
+        mensaje.append(alerta("error", mensajes.join(" · ")));
       } else if (r.status === 400) {
         mensaje.append(alerta("error", "Revisa los datos ingresados."));
       } else {
@@ -474,6 +552,7 @@ async function vistaProyectoForm(id) {
   guardar.textContent = id ? "Guardar cambios" : "Crear proyecto";
 
   form.append(grid, guardar);
+  if (!id) form.append(botonCancelar("#/proyectos"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -494,6 +573,7 @@ async function vistaProyectoForm(id) {
       mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
       return;
     }
+    if (!id && !confirmarCreacion("este proyecto")) return;
 
     guardar.disabled = true;
     try {
@@ -505,7 +585,12 @@ async function vistaProyectoForm(id) {
         if (id) vistaProyectoForm(id);
         return;
       }
-      mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el proyecto."));
+      if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+        const mensajes = mostrarErroresValidacion(form, camposProyecto, r.cuerpo.detalles);
+        mensaje.append(alerta("error", mensajes.join(" · ")));
+      } else {
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el proyecto."));
+      }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
         mensaje.append(alerta("error", "No hay conexión con el servidor."));
@@ -902,6 +987,7 @@ async function vistaCotizacionForm(id) {
 
   form.append(grid, subtituloItems, bloqueItems, totalGeneral);
   if (editable) form.append(guardar);
+  if (!id) form.append(botonCancelar("#/cotizaciones"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -940,6 +1026,7 @@ async function vistaCotizacionForm(id) {
         mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
         return;
       }
+      if (!id && !confirmarCreacion("esta cotización")) return;
 
       guardar.disabled = true;
       try {
@@ -951,7 +1038,12 @@ async function vistaCotizacionForm(id) {
           if (id) vistaCotizacionForm(id);
           return;
         }
-        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar la cotización."));
+        if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+          const mensajes = mostrarErroresValidacion(form, camposCabecera, r.cuerpo.detalles);
+          mensaje.append(alerta("error", mensajes.join(" · ")));
+        } else {
+          mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar la cotización."));
+        }
       } catch (error) {
         if (error.message !== "sesion-expirada") {
           mensaje.append(alerta("error", "No hay conexión con el servidor."));
@@ -1129,6 +1221,7 @@ async function vistaProveedorForm(id) {
   guardar.textContent = id ? "Guardar cambios" : "Crear proveedor";
 
   form.append(grid, guardar);
+  if (!id) form.append(botonCancelar("#/proveedores"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -1145,6 +1238,7 @@ async function vistaProveedorForm(id) {
       mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
       return;
     }
+    if (!id && !confirmarCreacion("este proveedor")) return;
 
     guardar.disabled = true;
     try {
@@ -1155,7 +1249,12 @@ async function vistaProveedorForm(id) {
         window.location.hash = "#/proveedores";
         return;
       }
-      mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el proveedor."));
+      if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+        const mensajes = mostrarErroresValidacion(form, CAMPOS_PROVEEDOR, r.cuerpo.detalles);
+        mensaje.append(alerta("error", mensajes.join(" · ")));
+      } else {
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el proveedor."));
+      }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
         mensaje.append(alerta("error", "No hay conexión con el servidor."));
@@ -1276,8 +1375,8 @@ function construirFilaItemSimple(item, campos, editable, onEliminar) {
     input.setAttribute("aria-label", campo.etiqueta);
     input.value = item[campo.nombre] ?? "";
     if (campo.tipo === "number") {
-      input.step = "0.01";
-      input.min = "0.0001";
+      input.step = "1";
+      input.min = "1";
     }
     input.required = true;
     input.addEventListener("input", () => {
@@ -1336,12 +1435,14 @@ async function vistaRequisicionForm(id) {
 
   const camposCabecera = id
     ? [
+        { nombre: "numero_requisicion", etiqueta: "Número de requisición", tipo: "estatico" },
         { nombre: "proyecto", etiqueta: "Proyecto", tipo: "estatico" },
         editable
           ? { nombre: "procedencia", etiqueta: "Procedencia", tipo: "select", requerido: true, opciones: OPCIONES_PROCEDENCIA }
           : { nombre: "procedencia_txt", etiqueta: "Procedencia", tipo: "estatico" },
       ]
     : [
+        { nombre: "numero_requisicion", etiqueta: "Número de requisición", requerido: true },
         { nombre: "proyecto_id", etiqueta: "Proyecto", tipo: "select", requerido: true, opciones: opcionesProyectos },
         { nombre: "procedencia", etiqueta: "Procedencia", tipo: "select", requerido: true, opciones: OPCIONES_PROCEDENCIA },
       ];
@@ -1349,7 +1450,9 @@ async function vistaRequisicionForm(id) {
   camposCabecera.forEach((config) => {
     let valor = "";
     if (requisicion) {
-      if (config.nombre === "proyecto") {
+      if (config.nombre === "numero_requisicion") {
+        valor = requisicion.numero_requisicion;
+      } else if (config.nombre === "proyecto") {
         valor = proyectos.find((p) => p.id === requisicion.proyecto_id)?.nombre_proyecto || "—";
       } else if (config.nombre === "procedencia" || config.nombre === "procedencia_txt") {
         valor = config.tipo === "estatico" ? textoProcedencia(requisicion.procedencia) : requisicion.procedencia;
@@ -1432,6 +1535,7 @@ async function vistaRequisicionForm(id) {
 
   form.append(grid, subtituloItems, bloqueItems);
   if (editable) form.append(guardar);
+  if (!id) form.append(botonCancelar("#/requisiciones"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -1466,6 +1570,7 @@ async function vistaRequisicionForm(id) {
         mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
         return;
       }
+      if (!id && !confirmarCreacion("esta requisición")) return;
 
       guardar.disabled = true;
       try {
@@ -1477,7 +1582,12 @@ async function vistaRequisicionForm(id) {
           if (id) vistaRequisicionForm(id);
           return;
         }
-        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar la requisición."));
+        if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+          const mensajes = mostrarErroresValidacion(form, camposCabecera, r.cuerpo.detalles);
+          mensaje.append(alerta("error", mensajes.join(" · ")));
+        } else {
+          mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar la requisición."));
+        }
       } catch (error) {
         if (error.message !== "sesion-expirada") {
           mensaje.append(alerta("error", "No hay conexión con el servidor."));
@@ -1804,6 +1914,7 @@ async function vistaOrdenCompraForm(id) {
 
   form.append(grid, subtituloItems, bloqueItems, totalGeneral);
   if (editable) form.append(guardar);
+  if (!id) form.append(botonCancelar("#/ordenes-compra"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -1840,6 +1951,7 @@ async function vistaOrdenCompraForm(id) {
         mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
         return;
       }
+      if (!id && !confirmarCreacion("esta orden de compra")) return;
 
       guardar.disabled = true;
       try {
@@ -1851,7 +1963,12 @@ async function vistaOrdenCompraForm(id) {
           if (id) vistaOrdenCompraForm(id);
           return;
         }
-        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar la orden de compra."));
+        if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+          const mensajes = mostrarErroresValidacion(form, camposCabecera, r.cuerpo.detalles);
+          mensaje.append(alerta("error", mensajes.join(" · ")));
+        } else {
+          mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar la orden de compra."));
+        }
       } catch (error) {
         if (error.message !== "sesion-expirada") {
           mensaje.append(alerta("error", "No hay conexión con el servidor."));
@@ -2073,6 +2190,7 @@ async function vistaExpedienteForm(id) {
 
   form.append(grid);
   if (editable) form.append(guardar);
+  if (!id) form.append(botonCancelar("#/expedientes-diseno"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -2094,6 +2212,7 @@ async function vistaExpedienteForm(id) {
         mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
         return;
       }
+      if (!id && !confirmarCreacion("este expediente")) return;
 
       guardar.disabled = true;
       try {
@@ -2105,7 +2224,12 @@ async function vistaExpedienteForm(id) {
           if (id) vistaExpedienteForm(id);
           return;
         }
-        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el expediente."));
+        if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+          const mensajes = mostrarErroresValidacion(form, camposCabecera, r.cuerpo.detalles);
+          mensaje.append(alerta("error", mensajes.join(" · ")));
+        } else {
+          mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el expediente."));
+        }
       } catch (error) {
         if (error.message !== "sesion-expirada") {
           mensaje.append(alerta("error", "No hay conexión con el servidor."));
@@ -2303,6 +2427,7 @@ async function vistaReporteServicioForm(id) {
   guardar.textContent = id ? "Guardar cambios" : "Crear reporte";
 
   form.append(grid, guardar);
+  if (!id) form.append(botonCancelar("#/reportes-servicio"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -2321,6 +2446,7 @@ async function vistaReporteServicioForm(id) {
       mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
       return;
     }
+    if (!id && !confirmarCreacion("este reporte de servicio")) return;
 
     guardar.disabled = true;
     try {
@@ -2331,7 +2457,12 @@ async function vistaReporteServicioForm(id) {
         window.location.hash = "#/reportes-servicio";
         return;
       }
-      mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el reporte."));
+      if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+        const mensajes = mostrarErroresValidacion(form, campos, r.cuerpo.detalles);
+        mensaje.append(alerta("error", mensajes.join(" · ")));
+      } else {
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el reporte."));
+      }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
         mensaje.append(alerta("error", "No hay conexión con el servidor."));
@@ -2591,6 +2722,7 @@ async function vistaActaCierreForm(id) {
   guardar.textContent = id ? "Guardar cambios" : "Crear acta";
 
   form.append(grid, subtituloItems, bloqueItems, guardar);
+  if (!id) form.append(botonCancelar("#/actas-cierre"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -2620,6 +2752,7 @@ async function vistaActaCierreForm(id) {
       mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
       return;
     }
+    if (!id && !confirmarCreacion("esta acta de cierre")) return;
 
     guardar.disabled = true;
     try {
@@ -2630,7 +2763,12 @@ async function vistaActaCierreForm(id) {
         window.location.hash = "#/actas-cierre";
         return;
       }
-      mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el acta."));
+      if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+        const mensajes = mostrarErroresValidacion(form, camposCabecera, r.cuerpo.detalles);
+        mensaje.append(alerta("error", mensajes.join(" · ")));
+      } else {
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el acta."));
+      }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
         mensaje.append(alerta("error", "No hay conexión con el servidor."));

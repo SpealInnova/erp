@@ -127,6 +127,16 @@ body {
   box-shadow: var(--hundido), 0 0 0 3px var(--accent-tint);
 }
 
+.campo-error input,
+.campo-error select {
+  border-color: var(--crit);
+  box-shadow: var(--hundido), 0 0 0 2px var(--crit-tint);
+}
+
+.campo-error label {
+  color: var(--crit);
+}
+
 .boton {
   width: 100%;
   padding: 12px 14px;
@@ -422,7 +432,8 @@ body.app-body {
   margin-bottom: 8px;
 }
 
-.tarjeta-ancha table input {
+.tarjeta-ancha table input,
+.tarjeta-ancha table select {
   width: 100%;
   min-width: 90px;
   padding: 8px 10px;
@@ -435,7 +446,8 @@ body.app-body {
   box-sizing: border-box;
 }
 
-.tarjeta-ancha table input:focus {
+.tarjeta-ancha table input:focus,
+.tarjeta-ancha table select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: var(--hundido), 0 0 0 3px var(--accent-tint);
