@@ -281,6 +281,11 @@ async function obtenerProyectos() {
   return r.status === 200 ? r.cuerpo.proyectos : [];
 }
 
+async function obtenerCotizaciones() {
+  const r = await api("GET", "/cotizaciones");
+  return r.status === 200 ? r.cuerpo.cotizaciones : [];
+}
+
 async function obtenerProveedores() {
   const r = await api("GET", "/proveedores");
   return r.status === 200 ? r.cuerpo.proveedores : [];
@@ -472,7 +477,11 @@ async function vistaProyectoForm(id) {
   marcarMenu("proyectos");
   mostrarCargando();
 
-  const [clientes, usuarios] = await Promise.all([obtenerClientes(), obtenerUsuarios()]);
+  const [clientes, usuarios, cotizaciones] = await Promise.all([
+    obtenerClientes(),
+    obtenerUsuarios(),
+    obtenerCotizaciones(),
+  ]);
   let proyecto = null;
   if (id) {
     const r = await api("GET", `/proyectos/${id}`);
@@ -491,6 +500,17 @@ async function vistaProyectoForm(id) {
 
   const opcionesClientes = clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social }));
   const opcionesUsuarios = usuarios.map((u) => ({ valor: String(u.id), texto: u.nombre }));
+  const cotizacionesAceptadas = cotizaciones.filter((c) => c.estado === "aceptada");
+  const opcionesCotizacion = [
+    { valor: "", texto: "Ninguna" },
+    ...(id
+      ? cotizacionesAceptadas.filter((c) => c.cliente_id === proyecto.cliente_id)
+      : cotizacionesAceptadas
+    ).map((c) => ({
+      valor: String(c.id),
+      texto: id ? c.numero_cotizacion : `${c.numero_cotizacion} — ${nombreClienteDe(clientes, c.cliente_id)}`,
+    })),
+  ];
 
   contenido.replaceChildren();
   const volver = boton("Volver a proyectos", () => (window.location.hash = "#/proyectos"), true);
@@ -516,6 +536,7 @@ async function vistaProyectoForm(id) {
         },
         { nombre: "nombre_proyecto", etiqueta: "Nombre del proyecto", requerido: true },
         { nombre: "linea_negocio", etiqueta: "Línea de negocio" },
+        { nombre: "cotizacion_id", etiqueta: "Cotización de origen", tipo: "select", opciones: opcionesCotizacion },
       ]
     : [
         {
@@ -534,6 +555,7 @@ async function vistaProyectoForm(id) {
         },
         { nombre: "nombre_proyecto", etiqueta: "Nombre del proyecto", requerido: true },
         { nombre: "linea_negocio", etiqueta: "Línea de negocio" },
+        { nombre: "cotizacion_id", etiqueta: "Cotización de origen", tipo: "select", opciones: opcionesCotizacion },
       ];
 
   camposProyecto.forEach((config) => {
@@ -541,6 +563,7 @@ async function vistaProyectoForm(id) {
     if (proyecto) {
       if (config.nombre === "cliente") valor = nombreClienteDe(clientes, proyecto.cliente_id);
       else if (config.nombre === "responsable_id") valor = String(proyecto.responsable_id);
+      else if (config.nombre === "cotizacion_id") valor = proyecto.cotizacion_id ? String(proyecto.cotizacion_id) : "";
       else valor = proyecto[config.nombre];
     }
     grid.append(construirCampo(config, valor));

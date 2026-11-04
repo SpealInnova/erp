@@ -10,6 +10,7 @@ const {
   ErrorProyectoNoEncontrado,
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
+  ErrorCotizacionInvalida,
 } = require("../dominio/erroresProyectos");
 const { ErrorTransicionInvalida } = require("../dominio/erroresEstado");
 const {
@@ -89,7 +90,11 @@ function manejadorErrores(error, req, res, next) {
   if (error instanceof ErrorProyectoNoEncontrado) {
     return res.status(404).json({ error: error.message });
   }
-  if (error instanceof ErrorClienteInvalido || error instanceof ErrorResponsableInvalido) {
+  if (
+    error instanceof ErrorClienteInvalido ||
+    error instanceof ErrorResponsableInvalido ||
+    error instanceof ErrorCotizacionInvalida
+  ) {
     return res.status(400).json({ error: error.message });
   }
   if (error instanceof ErrorTransicionInvalida) {

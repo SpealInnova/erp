@@ -1,13 +1,16 @@
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
+const cotizacionesRepositorio = require("../repositorios/cotizacionesRepositorio");
 const auditoria = require("./auditoria");
 const { formatearCodigoPry } = require("../dominio/codigoProyecto");
 const { transicionar, ESTADOS } = require("../dominio/estadoProyecto");
+const { ESTADOS: ESTADOS_COTIZACION } = require("../dominio/estadoCotizacion");
 const {
   ErrorProyectoNoEncontrado,
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
+  ErrorCotizacionInvalida,
 } = require("../dominio/erroresProyectos");
 
 const TABLA = "proyectos";
@@ -27,6 +30,17 @@ async function generarCodigoPry(pool) {
   throw new Error("No se pudo generar un código de proyecto único");
 }
 
+async function validarCotizacion(pool, cotizacionId, clienteId) {
+  const cotizacion = await cotizacionesRepositorio.obtenerPorId(pool, cotizacionId);
+  if (
+    !cotizacion ||
+    cotizacion.estado !== ESTADOS_COTIZACION.ACEPTADA ||
+    cotizacion.cliente_id !== clienteId
+  ) {
+    throw new ErrorCotizacionInvalida();
+  }
+}
+
 async function crearProyecto(pool, datos, usuarioId) {
   const cliente = await clientesRepositorio.obtenerPorId(pool, datos.cliente_id);
   if (!cliente) {
@@ -35,6 +49,9 @@ async function crearProyecto(pool, datos, usuarioId) {
   const responsable = await usuariosRepositorio.buscarPorId(pool, datos.responsable_id);
   if (!responsable) {
     throw new ErrorResponsableInvalido();
+  }
+  if (datos.cotizacion_id) {
+    await validarCotizacion(pool, datos.cotizacion_id, datos.cliente_id);
   }
 
   const codigoPry = await generarCodigoPry(pool);
@@ -80,6 +97,9 @@ async function actualizarProyecto(pool, id, datos, usuarioId) {
     if (!responsable) {
       throw new ErrorResponsableInvalido();
     }
+  }
+  if (datos.cotizacion_id) {
+    await validarCotizacion(pool, datos.cotizacion_id, anterior.cliente_id);
   }
 
   await proyectosRepositorio.actualizar(pool, id, datos);
