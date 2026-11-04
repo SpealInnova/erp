@@ -142,4 +142,94 @@ describirSiHayBD("CRUD de Proyectos (integración contra BD real)", () => {
     const obtener = await request(app).get(`/proyectos/${proyectoId}`).set(autorizacion());
     expect(obtener.status).toBe(404);
   });
+
+  describe("enganche de cotizacion_id", () => {
+    let cotizacionAceptadaId;
+    let cotizacionBorradorId;
+    let otroClienteId;
+    let cotizacionOtroClienteId;
+
+    beforeAll(async () => {
+      const sufijo = Date.now().toString().slice(-8);
+
+      const [cotizacionAceptada] = await pool.query(
+        `INSERT INTO cotizaciones (numero_cotizacion, cliente_id, asesor_comercial_id, estado, created_by)
+         VALUES (?, ?, ?, 'aceptada', ?)`,
+        [`COT-TA-${sufijo}`, clienteId, usuarioId, usuarioId]
+      );
+      cotizacionAceptadaId = cotizacionAceptada.insertId;
+
+      const [cotizacionBorrador] = await pool.query(
+        `INSERT INTO cotizaciones (numero_cotizacion, cliente_id, asesor_comercial_id, estado, created_by)
+         VALUES (?, ?, ?, 'borrador', ?)`,
+        [`COT-TB-${sufijo}`, clienteId, usuarioId, usuarioId]
+      );
+      cotizacionBorradorId = cotizacionBorrador.insertId;
+
+      const [otroCliente] = await pool.query(
+        `INSERT INTO clientes (nombre_razon_social, tipo_identificacion, numero_identificacion, created_by)
+         VALUES (?, 'NIT', ?, ?)`,
+        ["Otro cliente para Proyectos", `PRY-TO-${sufijo}`, usuarioId]
+      );
+      otroClienteId = otroCliente.insertId;
+
+      const [cotizacionOtroCliente] = await pool.query(
+        `INSERT INTO cotizaciones (numero_cotizacion, cliente_id, asesor_comercial_id, estado, created_by)
+         VALUES (?, ?, ?, 'aceptada', ?)`,
+        [`COT-TC-${sufijo}`, otroClienteId, usuarioId, usuarioId]
+      );
+      cotizacionOtroClienteId = cotizacionOtroCliente.insertId;
+    });
+
+    afterAll(async () => {
+      await pool.query("DELETE FROM cotizaciones WHERE id IN (?, ?, ?)", [
+        cotizacionAceptadaId,
+        cotizacionBorradorId,
+        cotizacionOtroClienteId,
+      ]);
+      await pool.query("DELETE FROM clientes WHERE id = ?", [otroClienteId]);
+    });
+
+    test("rechaza crear un proyecto con una cotización que no está aceptada", async () => {
+      const respuesta = await request(app)
+        .post("/proyectos")
+        .set(autorizacion())
+        .send({
+          cliente_id: clienteId,
+          responsable_id: usuarioId,
+          nombre_proyecto: "Proyecto con cotización en borrador",
+          cotizacion_id: cotizacionBorradorId,
+        });
+      expect(respuesta.status).toBe(400);
+    });
+
+    test("rechaza crear un proyecto con una cotización aceptada de otro cliente", async () => {
+      const respuesta = await request(app)
+        .post("/proyectos")
+        .set(autorizacion())
+        .send({
+          cliente_id: clienteId,
+          responsable_id: usuarioId,
+          nombre_proyecto: "Proyecto con cotización de otro cliente",
+          cotizacion_id: cotizacionOtroClienteId,
+        });
+      expect(respuesta.status).toBe(400);
+    });
+
+    test("crea un proyecto enganchado a una cotización aceptada del mismo cliente", async () => {
+      const respuesta = await request(app)
+        .post("/proyectos")
+        .set(autorizacion())
+        .send({
+          cliente_id: clienteId,
+          responsable_id: usuarioId,
+          nombre_proyecto: "Proyecto enganchado a cotización",
+          cotizacion_id: cotizacionAceptadaId,
+        });
+      expect(respuesta.status).toBe(201);
+      expect(respuesta.body.proyecto.cotizacion_id).toBe(cotizacionAceptadaId);
+
+      await pool.query("DELETE FROM proyectos WHERE id = ?", [respuesta.body.proyecto.id]);
+    });
+  });
 });

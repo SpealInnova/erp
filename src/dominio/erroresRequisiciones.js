@@ -22,9 +22,16 @@ class ErrorItemsVacios extends Error {
   }
 }
 
+class ErrorNumeroRequisicionDuplicado extends Error {
+  constructor() {
+    super("Ya existe una requisición con ese número");
+  }
+}
+
 module.exports = {
   ErrorRequisicionNoEncontrada,
   ErrorProyectoNoExiste,
   ErrorRequisicionNoEditable,
   ErrorItemsVacios,
+  ErrorNumeroRequisicionDuplicado,
 };

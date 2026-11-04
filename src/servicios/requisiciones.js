@@ -2,31 +2,16 @@ const requisicionesRepositorio = require("../repositorios/requisicionesRepositor
 const requisicionItemsRepositorio = require("../repositorios/requisicionItemsRepositorio");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const auditoria = require("./auditoria");
-const { formatearCodigoReq } = require("../dominio/codigoRequisicion");
 const { transicionar, ESTADOS } = require("../dominio/estadoRequisicion");
 const {
   ErrorRequisicionNoEncontrada,
   ErrorProyectoNoExiste,
   ErrorRequisicionNoEditable,
   ErrorItemsVacios,
+  ErrorNumeroRequisicionDuplicado,
 } = require("../dominio/erroresRequisiciones");
 
 const TABLA = "requisiciones";
-const MAX_INTENTOS_CODIGO = 3;
-
-async function generarNumeroRequisicion(pool) {
-  const anio = new Date().getFullYear();
-  const cantidadBase = await requisicionesRepositorio.contarPorAnio(pool, anio);
-
-  for (let intento = 0; intento < MAX_INTENTOS_CODIGO; intento += 1) {
-    const candidato = formatearCodigoReq(anio, cantidadBase + 1 + intento);
-    const existente = await requisicionesRepositorio.buscarPorNumero(pool, candidato);
-    if (!existente) {
-      return candidato;
-    }
-  }
-  throw new Error("No se pudo generar un número de requisición único");
-}
 
 async function obtenerConItems(pool, id) {
   const requisicion = await requisicionesRepositorio.obtenerPorId(pool, id);
@@ -45,10 +30,13 @@ async function crearRequisicion(pool, datos, usuarioId) {
   if (!proyecto) {
     throw new ErrorProyectoNoExiste();
   }
+  const existente = await requisicionesRepositorio.buscarPorNumero(pool, datos.numero_requisicion);
+  if (existente) {
+    throw new ErrorNumeroRequisicionDuplicado();
+  }
 
-  const numero = await generarNumeroRequisicion(pool);
   const id = await requisicionesRepositorio.crear(pool, {
-    numero_requisicion: numero,
+    numero_requisicion: datos.numero_requisicion,
     proyecto_id: datos.proyecto_id,
     solicitante_id: usuarioId,
     procedencia: datos.procedencia,

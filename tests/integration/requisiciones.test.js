@@ -16,7 +16,7 @@ describirSiHayBD("CRUD de Requisiciones (integración contra BD real)", () => {
   let proyectoId;
   let token;
   const correoUsuario = `requisiciones-test-${Date.now()}@speal.test`;
-  const anioActual = new Date().getFullYear();
+  const numeroRequisicion = `REQ-TEST-${sufijoUnico()}`;
 
   beforeAll(async () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || "secreto-de-pruebas";
@@ -72,6 +72,7 @@ describirSiHayBD("CRUD de Requisiciones (integración contra BD real)", () => {
       .post("/requisiciones")
       .set(autorizacion())
       .send({
+        numero_requisicion: `${numeroRequisicion}-x`,
         proyecto_id: 999999999,
         procedencia: "nacional",
         items: [{ descripcion: "Tubería PVC", cantidad: 10, unidad: "metros" }],
@@ -84,6 +85,7 @@ describirSiHayBD("CRUD de Requisiciones (integración contra BD real)", () => {
       .post("/requisiciones")
       .set(autorizacion())
       .send({
+        numero_requisicion: numeroRequisicion,
         proyecto_id: proyectoId,
         procedencia: "nacional",
         items: [{ descripcion: "Tubería PVC", cantidad: 10, unidad: "metros" }],
@@ -91,11 +93,35 @@ describirSiHayBD("CRUD de Requisiciones (integración contra BD real)", () => {
 
     expect(respuesta.status).toBe(201);
     requisicionId = respuesta.body.requisicion.id;
-    expect(respuesta.body.requisicion.numero_requisicion).toMatch(
-      new RegExp(`^REQ-${anioActual}-\\d{3}$`)
-    );
+    expect(respuesta.body.requisicion.numero_requisicion).toBe(numeroRequisicion);
     expect(respuesta.body.requisicion.solicitante_id).toBe(usuarioId);
     expect(respuesta.body.requisicion.estado).toBe("solicitada");
+  });
+
+  test("rechaza crear con un número de requisición ya usado", async () => {
+    const respuesta = await request(app)
+      .post("/requisiciones")
+      .set(autorizacion())
+      .send({
+        numero_requisicion: numeroRequisicion,
+        proyecto_id: proyectoId,
+        procedencia: "nacional",
+        items: [{ descripcion: "Otra tubería", cantidad: 5, unidad: "metros" }],
+      });
+    expect(respuesta.status).toBe(409);
+  });
+
+  test("rechaza un ítem con cantidad decimal", async () => {
+    const respuesta = await request(app)
+      .post("/requisiciones")
+      .set(autorizacion())
+      .send({
+        numero_requisicion: `${numeroRequisicion}-decimal`,
+        proyecto_id: proyectoId,
+        procedencia: "nacional",
+        items: [{ descripcion: "Tubería PVC", cantidad: 2.5, unidad: "metros" }],
+      });
+    expect(respuesta.status).toBe(400);
   });
 
   test("rechaza un salto de estado inválido", async () => {

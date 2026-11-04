@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS actas_entrega_equipos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  numero_acta VARCHAR(20) NOT NULL,
+  proyecto_id INT UNSIGNED NOT NULL,
+  cliente_id INT UNSIGNED NOT NULL,
+  numero_contrato_oc VARCHAR(100) NULL,
+  objeto TEXT NOT NULL,
+  lugar_entrega VARCHAR(255) NULL,
+  entregante_id INT UNSIGNED NOT NULL,
+  receptor_nombre VARCHAR(150) NOT NULL,
+  receptor_identificacion VARCHAR(50) NULL,
+  receptor_cargo VARCHAR(100) NULL,
+  observaciones TEXT NULL,
+  fecha_elaboracion DATE NOT NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  UNIQUE KEY uq_actas_entrega_equipos_numero (numero_acta),
+  CONSTRAINT fk_actas_entrega_equipos_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_actas_entrega_equipos_cliente FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+  CONSTRAINT fk_actas_entrega_equipos_entregante FOREIGN KEY (entregante_id) REFERENCES usuarios(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -3,11 +3,12 @@ const { ESTADOS } = require("../dominio/estadoRequisicion");
 
 const itemSchema = z.object({
   descripcion: z.string().min(1),
-  cantidad: z.coerce.number().positive(),
+  cantidad: z.coerce.number().int().positive(),
   unidad: z.string().min(1),
 });
 
 const crearRequisicionSchema = z.object({
+  numero_requisicion: z.string().min(1),
   proyecto_id: z.coerce.number().int().positive(),
   procedencia: z.enum(["nacional", "importacion", "almacen"]),
   items: z.array(itemSchema).min(1),
