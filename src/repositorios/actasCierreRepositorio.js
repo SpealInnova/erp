@@ -17,14 +17,15 @@ async function buscarPorNumero(pool, numero) {
 async function crear(pool, datos) {
   const [resultado] = await pool.query(
     `INSERT INTO actas_cierre_satisfaccion
-      (numero_acta, proyecto_id, cliente_id, tipo_entrega, tipo_documento_referencia,
+      (numero_acta, proyecto_id, cliente_id, acta_entrega_id, tipo_entrega, tipo_documento_referencia,
        numero_documento_referencia, objeto, responsable_entrega_id, receptor_cliente_nombre,
        receptor_cliente_cargo, fecha_elaboracion, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       datos.numero_acta,
       datos.proyecto_id,
       datos.cliente_id,
+      datos.acta_entrega_id || null,
       datos.tipo_entrega,
       datos.tipo_documento_referencia,
       datos.numero_documento_referencia || null,

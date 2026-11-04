@@ -51,4 +51,113 @@ describirSiHayBD("Listado de usuarios (integración contra BD real)", () => {
     expect(encontrado).toBeDefined();
     expect(encontrado.password_hash).toBeUndefined();
   });
+
+  describe("creación de usuarios (POST /usuarios)", () => {
+    let tokenAdmin;
+    let adminId;
+    let nuevoUsuarioId;
+    const sufijo = Date.now().toString().slice(-8);
+    const correoNuevo = `nuevo-usuario-${sufijo}@speal.test`;
+    const cedulaNueva = `CC-${sufijo}`;
+
+    beforeAll(async () => {
+      const passwordHashAdmin = await bcrypt.hash("ClaveSegura123", 10);
+      const [admin] = await pool.query(
+        "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, ?, 'admin', 1)",
+        ["Admin de prueba", `admin-test-${sufijo}@speal.test`, passwordHashAdmin]
+      );
+      adminId = admin.insertId;
+      tokenAdmin = jwt.sign(
+        { id: adminId, correo: `admin-test-${sufijo}@speal.test`, rol: "admin" },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+    });
+
+    afterAll(async () => {
+      await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [adminId]);
+      if (nuevoUsuarioId) {
+        await pool.query("DELETE FROM usuarios WHERE id = ?", [nuevoUsuarioId]);
+      }
+      await pool.query("DELETE FROM usuarios WHERE id = ?", [adminId]);
+    });
+
+    test("rechaza crear usuario sin rol admin", async () => {
+      const respuesta = await request(app)
+        .post("/usuarios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          nombre: "Usuario sin permiso",
+          correo: `sin-permiso-${sufijo}@speal.test`,
+          cedula: `CC-X-${sufijo}`,
+          password: "ClaveSegura123",
+          rol: "tester",
+          cargo: "Auxiliar contable",
+        });
+      expect(respuesta.status).toBe(403);
+    });
+
+    test("rechaza un cargo que no está en el catálogo cerrado", async () => {
+      const respuesta = await request(app)
+        .post("/usuarios")
+        .set("Authorization", `Bearer ${tokenAdmin}`)
+        .send({
+          nombre: "Usuario cargo inválido",
+          correo: `cargo-invalido-${sufijo}@speal.test`,
+          cedula: `CC-Y-${sufijo}`,
+          password: "ClaveSegura123",
+          rol: "tester",
+          cargo: "Cargo que no existe",
+        });
+      expect(respuesta.status).toBe(400);
+    });
+
+    test("crea un usuario con cedula y cargo del catálogo", async () => {
+      const respuesta = await request(app)
+        .post("/usuarios")
+        .set("Authorization", `Bearer ${tokenAdmin}`)
+        .send({
+          nombre: "Usuario Nuevo",
+          correo: correoNuevo,
+          cedula: cedulaNueva,
+          password: "ClaveSegura123",
+          rol: "tester",
+          cargo: "Auxiliar contable",
+        });
+      expect(respuesta.status).toBe(201);
+      nuevoUsuarioId = respuesta.body.usuario.id;
+      expect(respuesta.body.usuario.cargo).toBe("Auxiliar contable");
+      expect(respuesta.body.usuario.password_hash).toBeUndefined();
+    });
+
+    test("rechaza un correo duplicado", async () => {
+      const respuesta = await request(app)
+        .post("/usuarios")
+        .set("Authorization", `Bearer ${tokenAdmin}`)
+        .send({
+          nombre: "Otro usuario",
+          correo: correoNuevo,
+          cedula: `CC-Z-${sufijo}`,
+          password: "ClaveSegura123",
+          rol: "tester",
+          cargo: "Auxiliar contable",
+        });
+      expect(respuesta.status).toBe(409);
+    });
+
+    test("rechaza una cedula duplicada", async () => {
+      const respuesta = await request(app)
+        .post("/usuarios")
+        .set("Authorization", `Bearer ${tokenAdmin}`)
+        .send({
+          nombre: "Otro usuario más",
+          correo: `otro-mas-${sufijo}@speal.test`,
+          cedula: cedulaNueva,
+          password: "ClaveSegura123",
+          rol: "tester",
+          cargo: "Auxiliar contable",
+        });
+      expect(respuesta.status).toBe(409);
+    });
+  });
 });

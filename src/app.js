@@ -23,6 +23,7 @@ const {
 } = require("./rutas/reportesServicioTecnicoRutas");
 const { crearParametrosMedidosRutas } = require("./rutas/parametrosMedidosRutas");
 const { crearActasCierreRutas } = require("./rutas/actasCierreRutas");
+const { crearActasEntregaRutas } = require("./rutas/actasEntregaRutas");
 const { crearUsuariosRutas } = require("./rutas/usuariosRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
@@ -127,6 +128,7 @@ function crearApp() {
     crearParametrosMedidosRutas(pool)
   );
   app.use("/actas-cierre-satisfaccion", requireAuth, crearActasCierreRutas(pool));
+  app.use("/actas-entrega-equipos", requireAuth, crearActasEntregaRutas(pool));
   app.use("/usuarios", requireAuth, crearUsuariosRutas(pool));
 
   app.use(manejadorErrores);

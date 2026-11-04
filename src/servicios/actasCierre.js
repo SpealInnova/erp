@@ -2,6 +2,7 @@ const actasCierreRepositorio = require("../repositorios/actasCierreRepositorio")
 const actaItemsVerificadosRepositorio = require("../repositorios/actaItemsVerificadosRepositorio");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
+const actasEntregaRepositorio = require("../repositorios/actasEntregaRepositorio");
 const auditoria = require("./auditoria");
 const { formatearCodigoACS } = require("../dominio/codigoActaCierre");
 const {
@@ -9,6 +10,7 @@ const {
   ErrorProyectoNoExiste,
   ErrorClienteNoExiste,
   ErrorItemsVacios,
+  ErrorActaEntregaNoExiste,
 } = require("../dominio/erroresActasCierre");
 
 const TABLA = "actas_cierre_satisfaccion";
@@ -48,6 +50,12 @@ async function crearActa(pool, datos, usuarioId) {
   const cliente = await clientesRepositorio.obtenerPorId(pool, datos.cliente_id);
   if (!cliente) {
     throw new ErrorClienteNoExiste();
+  }
+  if (datos.acta_entrega_id) {
+    const actaEntrega = await actasEntregaRepositorio.obtenerPorId(pool, datos.acta_entrega_id);
+    if (!actaEntrega) {
+      throw new ErrorActaEntregaNoExiste();
+    }
   }
 
   const numero = await generarNumeroActa(pool);
@@ -93,6 +101,12 @@ async function actualizarActa(pool, id, datos, usuarioId) {
     const cliente = await clientesRepositorio.obtenerPorId(pool, datos.cliente_id);
     if (!cliente) {
       throw new ErrorClienteNoExiste();
+    }
+  }
+  if (datos.acta_entrega_id) {
+    const actaEntrega = await actasEntregaRepositorio.obtenerPorId(pool, datos.acta_entrega_id);
+    if (!actaEntrega) {
+      throw new ErrorActaEntregaNoExiste();
     }
   }
 

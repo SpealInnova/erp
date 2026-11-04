@@ -1,6 +1,7 @@
 async function listarActivos(pool) {
   const [filas] = await pool.query(
-    "SELECT id, nombre, correo, rol FROM usuarios WHERE deleted_at IS NULL AND activo = 1 ORDER BY nombre"
+    `SELECT id, nombre, correo, cedula, rol, cargo, activo
+     FROM usuarios WHERE deleted_at IS NULL AND activo = 1 ORDER BY nombre`
   );
   return filas;
 }
@@ -19,6 +20,23 @@ async function buscarPorCorreo(pool, correo) {
     [correo]
   );
   return filas[0] || null;
+}
+
+async function buscarPorCedula(pool, cedula) {
+  const [filas] = await pool.query(
+    "SELECT * FROM usuarios WHERE cedula = ? AND deleted_at IS NULL LIMIT 1",
+    [cedula]
+  );
+  return filas[0] || null;
+}
+
+async function crear(pool, datos) {
+  const [resultado] = await pool.query(
+    `INSERT INTO usuarios (nombre, correo, cedula, password_hash, rol, cargo, activo)
+     VALUES (?, ?, ?, ?, ?, ?, 1)`,
+    [datos.nombre, datos.correo, datos.cedula, datos.password_hash, datos.rol, datos.cargo]
+  );
+  return resultado.insertId;
 }
 
 async function buscarPorTokenRecuperacion(pool, token) {
@@ -64,6 +82,8 @@ module.exports = {
   listarActivos,
   buscarPorId,
   buscarPorCorreo,
+  buscarPorCedula,
+  crear,
   buscarPorTokenRecuperacion,
   registrarIntentoFallido,
   restablecerIntentosFallidos,

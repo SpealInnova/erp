@@ -142,4 +142,64 @@ describirSiHayBD("Acta de Cierre a Satisfacción (integración contra BD real)",
       .set(autorizacion());
     expect(obtener.status).toBe(404);
   });
+
+  describe("enganche con acta de entrega de equipos", () => {
+    let actaEntregaId;
+
+    beforeAll(async () => {
+      const [actaEntrega] = await pool.query(
+        `INSERT INTO actas_entrega_equipos
+          (numero_acta, proyecto_id, cliente_id, objeto, entregante_id, receptor_nombre, fecha_elaboracion, created_by)
+         VALUES (?, ?, ?, 'Entrega previa', ?, 'Receptor de prueba', CURDATE(), ?)`,
+        [`AEE-TEST-${sufijoUnico()}`, proyectoId, clienteId, usuarioId, usuarioId]
+      );
+      actaEntregaId = actaEntrega.insertId;
+    });
+
+    afterAll(async () => {
+      await pool.query("DELETE FROM actas_entrega_equipos WHERE id = ?", [actaEntregaId]);
+    });
+
+    test("rechaza un acta_entrega_id que no existe", async () => {
+      const respuesta = await request(app)
+        .post("/actas-cierre-satisfaccion")
+        .set(autorizacion())
+        .send({
+          proyecto_id: proyectoId,
+          cliente_id: clienteId,
+          acta_entrega_id: 999999999,
+          tipo_entrega: "venta",
+          tipo_documento_referencia: "orden_compra",
+          objeto: "Equipo HidroSpeal 500L",
+          receptor_cliente_nombre: "Juan Pérez",
+          items: [{ elemento: "Equipo HidroSpeal 500L", cantidad: 1, cumple: "si" }],
+        });
+      expect(respuesta.status).toBe(400);
+    });
+
+    test("crea un acta de cierre enlazada a un acta de entrega real", async () => {
+      const respuesta = await request(app)
+        .post("/actas-cierre-satisfaccion")
+        .set(autorizacion())
+        .send({
+          proyecto_id: proyectoId,
+          cliente_id: clienteId,
+          acta_entrega_id: actaEntregaId,
+          tipo_entrega: "venta",
+          tipo_documento_referencia: "orden_compra",
+          objeto: "Equipo HidroSpeal 500L",
+          receptor_cliente_nombre: "Juan Pérez",
+          items: [{ elemento: "Equipo HidroSpeal 500L", cantidad: 1, cumple: "si" }],
+        });
+      expect(respuesta.status).toBe(201);
+      expect(respuesta.body.acta.acta_entrega_id).toBe(actaEntregaId);
+
+      await pool.query("DELETE FROM acta_items_verificados WHERE acta_id = ?", [
+        respuesta.body.acta.id,
+      ]);
+      await pool.query("DELETE FROM actas_cierre_satisfaccion WHERE id = ?", [
+        respuesta.body.acta.id,
+      ]);
+    });
+  });
 });
