@@ -2273,7 +2273,383 @@ async function vistaExpedienteForm(id) {
 
     bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
+
+    for (const config of subrecursosExpediente(opcionesUsuarios)) {
+      const seccion = await renderSeccionSubrecurso(id, config, editable);
+      contenido.append(seccion);
+    }
   }
+}
+
+const OPCIONES_SI_NO = [
+  { valor: "si", texto: "Sí" },
+  { valor: "no", texto: "No" },
+];
+
+const OPCIONES_ESTADO_CAMBIO_DISENO = [
+  { valor: "pendiente", texto: "Pendiente" },
+  { valor: "aprobado", texto: "Aprobado" },
+  { valor: "rechazado", texto: "Rechazado" },
+];
+
+function subrecursosExpediente(opcionesUsuarios) {
+  return [
+    {
+      ruta: "requisitos-entrada",
+      clave: "requisitos",
+      titulo: "Requisitos de entrada",
+      nombreSingular: "requisito",
+      campos: [
+        { nombre: "requisito", etiqueta: "Requisito", requerido: true },
+        { nombre: "valor", etiqueta: "Valor" },
+        { nombre: "fuente", etiqueta: "Fuente" },
+        { nombre: "criterio_aceptacion", etiqueta: "Criterio de aceptación" },
+        { nombre: "evidencia", etiqueta: "Evidencia" },
+        { nombre: "cumple", etiqueta: "Cumple", tipo: "select", opciones: OPCIONES_SI_NO },
+      ],
+    },
+    {
+      ruta: "salidas-diseno",
+      clave: "salidas",
+      titulo: "Salidas de diseño",
+      nombreSingular: "salida",
+      campos: [
+        { nombre: "salida", etiqueta: "Salida", requerido: true },
+        { nombre: "codigo_version", etiqueta: "Código / versión" },
+        {
+          nombre: "responsable_id",
+          etiqueta: "Responsable",
+          tipo: "select",
+          requerido: true,
+          opciones: opcionesUsuarios,
+        },
+        { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
+        { nombre: "estado", etiqueta: "Estado" },
+      ],
+    },
+    {
+      ruta: "verificaciones",
+      clave: "verificaciones",
+      titulo: "Verificaciones",
+      nombreSingular: "verificación",
+      campos: [
+        { nombre: "requisito_verificado", etiqueta: "Requisito verificado", requerido: true },
+        { nombre: "metodo", etiqueta: "Método" },
+        { nombre: "criterio", etiqueta: "Criterio" },
+        { nombre: "resultado", etiqueta: "Resultado" },
+        { nombre: "evidencia", etiqueta: "Evidencia" },
+      ],
+    },
+    {
+      ruta: "validaciones",
+      clave: "validaciones",
+      titulo: "Validaciones",
+      nombreSingular: "validación",
+      campos: [
+        { nombre: "aspecto_validado", etiqueta: "Aspecto validado", requerido: true },
+        { nombre: "metodo", etiqueta: "Método" },
+        { nombre: "condicion_prueba", etiqueta: "Condición de prueba" },
+        { nombre: "resultado", etiqueta: "Resultado" },
+      ],
+    },
+    {
+      ruta: "revisiones-diseno",
+      clave: "revisiones",
+      titulo: "Revisiones de diseño",
+      nombreSingular: "revisión",
+      campos: [
+        { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
+        { nombre: "hallazgos", etiqueta: "Hallazgos" },
+        { nombre: "acciones", etiqueta: "Acciones" },
+        {
+          nombre: "responsable_id",
+          etiqueta: "Responsable",
+          tipo: "select",
+          requerido: true,
+          opciones: opcionesUsuarios,
+        },
+        { nombre: "cierre", etiqueta: "Cierre", tipo: "select", opciones: OPCIONES_SI_NO },
+      ],
+    },
+    {
+      ruta: "riesgos-diseno",
+      clave: "riesgos",
+      titulo: "Riesgos de diseño",
+      nombreSingular: "riesgo",
+      campos: [
+        { nombre: "peligro", etiqueta: "Peligro", requerido: true },
+        { nombre: "situacion_peligrosa", etiqueta: "Situación peligrosa" },
+        { nombre: "dano_potencial", etiqueta: "Daño potencial" },
+        { nombre: "severidad", etiqueta: "Severidad" },
+        { nombre: "probabilidad", etiqueta: "Probabilidad" },
+        { nombre: "control", etiqueta: "Control" },
+        {
+          nombre: "responsable_id",
+          etiqueta: "Responsable",
+          tipo: "select",
+          requerido: true,
+          opciones: opcionesUsuarios,
+        },
+      ],
+    },
+    {
+      ruta: "cambios-diseno",
+      clave: "cambios",
+      titulo: "Cambios de diseño",
+      nombreSingular: "cambio",
+      campos: [
+        { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
+        { nombre: "descripcion", etiqueta: "Descripción" },
+        { nombre: "motivo", etiqueta: "Motivo" },
+        { nombre: "estado", etiqueta: "Estado", tipo: "select", opciones: OPCIONES_ESTADO_CAMBIO_DISENO },
+      ],
+    },
+    {
+      ruta: "transferencias",
+      clave: "transferencias",
+      titulo: "Transferencias",
+      nombreSingular: "transferencia",
+      campos: [
+        { nombre: "elemento_transferido", etiqueta: "Elemento transferido", requerido: true },
+        { nombre: "area_receptora", etiqueta: "Área receptora" },
+        {
+          nombre: "responsable_id",
+          etiqueta: "Responsable",
+          tipo: "select",
+          requerido: true,
+          opciones: opcionesUsuarios,
+        },
+        { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
+        { nombre: "cumple", etiqueta: "Cumple", tipo: "select", opciones: OPCIONES_SI_NO },
+      ],
+    },
+  ];
+}
+
+function valorMostrableSubrecurso(config, valor) {
+  if (valor === null || valor === undefined || valor === "") return "—";
+  if (config.tipo === "select") {
+    const encontrada = normalizarOpciones(config.opciones).find(
+      (o) => String(o.valor) === String(valor)
+    );
+    return encontrada ? encontrada.texto : valor;
+  }
+  if (config.tipo === "date" && typeof valor === "string") return valor.substring(0, 10);
+  return valor;
+}
+
+function construirInputCeldaSubrecurso(config, valor) {
+  let input;
+  if (config.tipo === "select") {
+    input = document.createElement("select");
+    normalizarOpciones(config.opciones).forEach((op) => {
+      const o = document.createElement("option");
+      o.value = op.valor;
+      o.textContent = op.texto;
+      input.append(o);
+    });
+    input.value = valor !== null && valor !== undefined ? String(valor) : normalizarOpciones(config.opciones)[0].valor;
+  } else {
+    input = document.createElement("input");
+    input.type = config.tipo === "date" ? "date" : "text";
+    input.value = config.tipo === "date" && valor ? String(valor).substring(0, 10) : valor || "";
+  }
+  input.name = config.nombre;
+  input.setAttribute("aria-label", config.etiqueta);
+  if (config.requerido) input.required = true;
+  return input;
+}
+
+async function renderSeccionSubrecurso(expedienteId, config, editable) {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  tarjeta.style.marginTop = "24px";
+
+  const h3 = document.createElement("h3");
+  h3.style.margin = "0 0 16px";
+  h3.style.fontSize = "1.125rem";
+  h3.textContent = config.titulo;
+
+  const mensaje = document.createElement("div");
+
+  const tabla = document.createElement("table");
+  tabla.className = "tabla-items";
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  config.campos.forEach((c) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = c.etiqueta;
+    filaCabecera.append(th);
+  });
+  if (editable) {
+    const thAccion = document.createElement("th");
+    thAccion.scope = "col";
+    filaCabecera.append(thAccion);
+  }
+  thead.append(filaCabecera);
+  const tbody = document.createElement("tbody");
+  tabla.append(thead, tbody);
+
+  const formAgregar = document.createElement("form");
+  formAgregar.noValidate = true;
+  formAgregar.style.marginTop = "16px";
+  const gridAgregar = document.createElement("div");
+  gridAgregar.className = "formulario-grid";
+  config.campos.forEach((c) => {
+    gridAgregar.append(construirCampo({ ...c, nombre: `${config.ruta}__${c.nombre}` }, ""));
+  });
+  const agregarBtn = document.createElement("button");
+  agregarBtn.type = "submit";
+  agregarBtn.className = "boton boton-pequeno";
+  agregarBtn.textContent = `Agregar ${config.nombreSingular}`;
+  const mensajeAgregar = document.createElement("div");
+  formAgregar.append(gridAgregar, agregarBtn, mensajeAgregar);
+
+  async function cargar() {
+    mensaje.replaceChildren();
+    const r = await api("GET", `/expedientes-diseno/${expedienteId}/${config.ruta}`);
+    tbody.replaceChildren();
+    if (r.status !== 200) {
+      mensaje.append(alerta("error", `No se pudo cargar: ${config.titulo.toLowerCase()}.`));
+      return;
+    }
+    const lista = r.cuerpo[config.clave] || [];
+    if (lista.length === 0) {
+      const fila = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = config.campos.length + (editable ? 1 : 0);
+      td.className = "subtitulo";
+      td.textContent = "Sin registros.";
+      fila.append(td);
+      tbody.append(fila);
+      return;
+    }
+    lista.forEach((registro) => renderFila(registro));
+  }
+
+  function renderFila(registro) {
+    const fila = document.createElement("tr");
+
+    function renderVista() {
+      fila.replaceChildren();
+      config.campos.forEach((c) => {
+        const td = document.createElement("td");
+        td.textContent = valorMostrableSubrecurso(c, registro[c.nombre]);
+        fila.append(td);
+      });
+      if (!editable) return;
+      const tdAccion = document.createElement("td");
+      const editarBtn = boton("Editar", () => renderEdicion(), true);
+      const eliminarBtn = boton(
+        "Eliminar",
+        async () => {
+          if (!window.confirm(`¿Eliminar este/a ${config.nombreSingular}?`)) return;
+          const r = await api(
+            "DELETE",
+            `/expedientes-diseno/${expedienteId}/${config.ruta}/${registro.id}`
+          );
+          if (r.status === 204) {
+            cargar();
+            return;
+          }
+          mensaje.replaceChildren(alerta("error", r.cuerpo?.error || "No se pudo eliminar."));
+        },
+        true
+      );
+      tdAccion.append(editarBtn, eliminarBtn);
+      fila.append(tdAccion);
+    }
+
+    function renderEdicion() {
+      fila.replaceChildren();
+      const inputs = {};
+      config.campos.forEach((c) => {
+        const td = document.createElement("td");
+        const input = construirInputCeldaSubrecurso(c, registro[c.nombre]);
+        inputs[c.nombre] = input;
+        td.append(input);
+        fila.append(td);
+      });
+      const tdAccion = document.createElement("td");
+      const guardarBtn = boton("Guardar", async () => {
+        const datos = {};
+        config.campos.forEach((c) => {
+          const valor = inputs[c.nombre].value.trim();
+          if (valor !== "") datos[c.nombre] = valor;
+        });
+        const faltantes = config.campos.filter((c) => c.requerido && !datos[c.nombre]);
+        if (faltantes.length > 0) {
+          mensaje.replaceChildren(alerta("error", "Completa los campos obligatorios."));
+          return;
+        }
+        const r = await api(
+          "PUT",
+          `/expedientes-diseno/${expedienteId}/${config.ruta}/${registro.id}`,
+          datos
+        );
+        if (r.status === 200) {
+          cargar();
+          return;
+        }
+        if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+          const mensajes = mostrarErroresValidacion(formAgregar, config.campos, r.cuerpo.detalles);
+          mensaje.replaceChildren(alerta("error", mensajes.join(" · ")));
+        } else {
+          mensaje.replaceChildren(alerta("error", r.cuerpo?.error || "No se pudo guardar."));
+        }
+      });
+      const cancelarBtn = boton("Cancelar", () => renderVista(), true);
+      tdAccion.append(guardarBtn, cancelarBtn);
+      fila.append(tdAccion);
+    }
+
+    renderVista();
+    tbody.append(fila);
+  }
+
+  if (editable) {
+    formAgregar.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      mensajeAgregar.replaceChildren();
+      const datos = {};
+      config.campos.forEach((c) => {
+        const valor = formAgregar.elements[`${config.ruta}__${c.nombre}`].value.trim();
+        if (valor !== "") datos[c.nombre] = valor;
+      });
+      const faltantes = config.campos.filter((c) => c.requerido && !datos[c.nombre]);
+      if (faltantes.length > 0) {
+        mensajeAgregar.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+        return;
+      }
+      agregarBtn.disabled = true;
+      try {
+        const r = await api("POST", `/expedientes-diseno/${expedienteId}/${config.ruta}`, datos);
+        if (r.status === 201) {
+          formAgregar.reset();
+          cargar();
+          return;
+        }
+        if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+          const mensajes = mostrarErroresValidacion(formAgregar, config.campos, r.cuerpo.detalles);
+          mensajeAgregar.append(alerta("error", mensajes.join(" · ")));
+        } else {
+          mensajeAgregar.append(alerta("error", r.cuerpo?.error || "No se pudo agregar."));
+        }
+      } catch (error) {
+        if (error.message !== "sesion-expirada") {
+          mensajeAgregar.append(alerta("error", "No hay conexión con el servidor."));
+        }
+      } finally {
+        agregarBtn.disabled = false;
+      }
+    });
+  }
+
+  tarjeta.append(h3, mensaje, tabla);
+  if (editable) tarjeta.append(formAgregar);
+  await cargar();
+  return tarjeta;
 }
 
 const TIPOS_SERVICIO = [
