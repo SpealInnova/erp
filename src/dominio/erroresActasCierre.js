@@ -22,4 +22,16 @@ class ErrorItemsVacios extends Error {
   }
 }
 
-module.exports = { ErrorActaNoEncontrada, ErrorProyectoNoExiste, ErrorClienteNoExiste, ErrorItemsVacios };
+class ErrorActaEntregaNoExiste extends Error {
+  constructor() {
+    super("El acta de entrega de equipos indicada no existe");
+  }
+}
+
+module.exports = {
+  ErrorActaNoEncontrada,
+  ErrorProyectoNoExiste,
+  ErrorClienteNoExiste,
+  ErrorItemsVacios,
+  ErrorActaEntregaNoExiste,
+};

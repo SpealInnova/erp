@@ -9,6 +9,7 @@ const itemSchema = z.object({
 const crearActaSchema = z.object({
   proyecto_id: z.coerce.number().int().positive(),
   cliente_id: z.coerce.number().int().positive(),
+  acta_entrega_id: z.coerce.number().int().positive().optional(),
   tipo_entrega: z.enum(["venta", "demostracion", "piloto"]),
   tipo_documento_referencia: z.enum([
     "orden_compra",
@@ -28,6 +29,7 @@ const crearActaSchema = z.object({
 const actualizarActaSchema = z.object({
   proyecto_id: z.coerce.number().int().positive().optional(),
   cliente_id: z.coerce.number().int().positive().optional(),
+  acta_entrega_id: z.coerce.number().int().positive().optional(),
   tipo_entrega: z.enum(["venta", "demostracion", "piloto"]).optional(),
   tipo_documento_referencia: z
     .enum(["orden_compra", "contrato", "consorcio", "union_temporal", "otro"])

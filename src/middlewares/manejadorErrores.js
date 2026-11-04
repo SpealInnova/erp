@@ -62,8 +62,15 @@ const {
   ErrorProyectoNoExiste: ErrorProyectoNoExisteActa,
   ErrorClienteNoExiste: ErrorClienteNoExisteActa,
   ErrorItemsVacios: ErrorItemsVaciosActa,
+  ErrorActaEntregaNoExiste,
 } = require("../dominio/erroresActasCierre");
 const { ErrorCorreoDuplicado, ErrorCedulaDuplicada } = require("../dominio/erroresUsuarios");
+const {
+  ErrorActaEntregaNoEncontrada,
+  ErrorProyectoNoExiste: ErrorProyectoNoExisteActaEntrega,
+  ErrorClienteNoExiste: ErrorClienteNoExisteActaEntrega,
+  ErrorItemsVacios: ErrorItemsVaciosActaEntrega,
+} = require("../dominio/erroresActasEntrega");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -200,12 +207,23 @@ function manejadorErrores(error, req, res, next) {
   if (
     error instanceof ErrorProyectoNoExisteActa ||
     error instanceof ErrorClienteNoExisteActa ||
-    error instanceof ErrorItemsVaciosActa
+    error instanceof ErrorItemsVaciosActa ||
+    error instanceof ErrorActaEntregaNoExiste
   ) {
     return res.status(400).json({ error: error.message });
   }
   if (error instanceof ErrorCorreoDuplicado || error instanceof ErrorCedulaDuplicada) {
     return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorActaEntregaNoEncontrada) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorProyectoNoExisteActaEntrega ||
+    error instanceof ErrorClienteNoExisteActaEntrega ||
+    error instanceof ErrorItemsVaciosActaEntrega
+  ) {
+    return res.status(400).json({ error: error.message });
   }
 
   console.error(error);
