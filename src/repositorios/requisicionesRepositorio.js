@@ -1,11 +1,3 @@
-async function contarPorAnio(pool, anio) {
-  const [filas] = await pool.query(
-    "SELECT COUNT(*) AS total FROM requisiciones WHERE numero_requisicion LIKE ?",
-    [`REQ-${anio}-%`]
-  );
-  return filas[0].total;
-}
-
 async function buscarPorNumero(pool, numero) {
   const [filas] = await pool.query("SELECT id FROM requisiciones WHERE numero_requisicion = ?", [
     numero,
@@ -57,7 +49,6 @@ async function softDelete(pool, id) {
 }
 
 module.exports = {
-  contarPorAnio,
   buscarPorNumero,
   crear,
   obtenerPorId,

@@ -16,4 +16,15 @@ class ErrorResponsableInvalido extends Error {
   }
 }
 
-module.exports = { ErrorProyectoNoEncontrado, ErrorClienteInvalido, ErrorResponsableInvalido };
+class ErrorCotizacionInvalida extends Error {
+  constructor() {
+    super("La cotización indicada no existe, no está aceptada, o no corresponde al cliente del proyecto");
+  }
+}
+
+module.exports = {
+  ErrorProyectoNoEncontrado,
+  ErrorClienteInvalido,
+  ErrorResponsableInvalido,
+  ErrorCotizacionInvalida,
+};

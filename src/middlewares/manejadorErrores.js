@@ -10,6 +10,7 @@ const {
   ErrorProyectoNoEncontrado,
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
+  ErrorCotizacionInvalida,
 } = require("../dominio/erroresProyectos");
 const { ErrorTransicionInvalida } = require("../dominio/erroresEstado");
 const {
@@ -25,6 +26,7 @@ const {
   ErrorProyectoNoExiste,
   ErrorRequisicionNoEditable,
   ErrorItemsVacios: ErrorItemsVaciosRequisicion,
+  ErrorNumeroRequisicionDuplicado,
 } = require("../dominio/erroresRequisiciones");
 const {
   ErrorOrdenCompraNoEncontrada,
@@ -88,7 +90,11 @@ function manejadorErrores(error, req, res, next) {
   if (error instanceof ErrorProyectoNoEncontrado) {
     return res.status(404).json({ error: error.message });
   }
-  if (error instanceof ErrorClienteInvalido || error instanceof ErrorResponsableInvalido) {
+  if (
+    error instanceof ErrorClienteInvalido ||
+    error instanceof ErrorResponsableInvalido ||
+    error instanceof ErrorCotizacionInvalida
+  ) {
     return res.status(400).json({ error: error.message });
   }
   if (error instanceof ErrorTransicionInvalida) {
@@ -124,6 +130,9 @@ function manejadorErrores(error, req, res, next) {
     return res.status(400).json({ error: error.message });
   }
   if (error instanceof ErrorRequisicionNoEditable) {
+    return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorNumeroRequisicionDuplicado) {
     return res.status(409).json({ error: error.message });
   }
   if (error instanceof ErrorOrdenCompraNoEncontrada) {
