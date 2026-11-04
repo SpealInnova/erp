@@ -63,6 +63,7 @@ const {
   ErrorClienteNoExiste: ErrorClienteNoExisteActa,
   ErrorItemsVacios: ErrorItemsVaciosActa,
 } = require("../dominio/erroresActasCierre");
+const { ErrorCorreoDuplicado, ErrorCedulaDuplicada } = require("../dominio/erroresUsuarios");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -202,6 +203,9 @@ function manejadorErrores(error, req, res, next) {
     error instanceof ErrorItemsVaciosActa
   ) {
     return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorCorreoDuplicado || error instanceof ErrorCedulaDuplicada) {
+    return res.status(409).json({ error: error.message });
   }
 
   console.error(error);

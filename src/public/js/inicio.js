@@ -3178,6 +3178,177 @@ async function vistaActaCierreForm(id) {
   });
 }
 
+const CARGOS = [
+  "Gerente General",
+  "Asistente Gerencial General",
+  "Jefe Sistema Integrado De Gestion",
+  "Director Administrativo y Financiero",
+  "Asistente Gerencia Administrativa y Financiera",
+  "Contador General",
+  "Auxiliar contable",
+  "Coordinador de Talento Humano",
+  "Coordinador de Compras",
+  "Auxiliar de compras y almacen",
+  "Coordinador de Inventarios de gases",
+  "Coordinador de Almacén / Almacenista",
+  "Director de Operaciones y Producción",
+  "Jefe de Produccion e Instalaciones",
+  "Jefe de Soporte Tecnico y mantenimiento",
+  "Jefe de I+D+i",
+  "Ingeniero de diseño y producción",
+  "TECNICO MANTENIMIENTO Y ENSAMBLE",
+  "Director Tecnico Comercial– Chile",
+  "Director Tecnico de Gases QF",
+  "Jefe de Control de Calidad",
+  "Jefe Produccion de Gases e instalaciones",
+  "Coordinador comercial de gases",
+  "Gestor Comercial - Gases",
+  "Operario de Planta",
+  "Auxiliar Administrativo y de Facturacion",
+  "Gerente Comercial",
+  "Coordinador Comercial",
+  "Coordinador de Marketing y Publicidad",
+  "Jefe de Proyectos",
+  "Jefe Produccion de Equipos",
+  "Gestor Comercial",
+  "Gestora Comercial de Licitaciones y Contratos",
+  "Auxiliar de ventas y logistica",
+  "Asistente Administrativa y contable",
+  "Líder de Marketing 360° y Creador de Contenido",
+];
+
+const CAMPOS_USUARIO = [
+  { nombre: "nombre", etiqueta: "Nombre completo", requerido: true },
+  { nombre: "correo", etiqueta: "Correo", tipo: "email", requerido: true },
+  { nombre: "cedula", etiqueta: "Cédula", requerido: true },
+  { nombre: "cargo", etiqueta: "Cargo", tipo: "select", requerido: true, opciones: CARGOS },
+  { nombre: "rol", etiqueta: "Rol en el sistema", requerido: true },
+  { nombre: "password", etiqueta: "Contraseña temporal", tipo: "password", requerido: true },
+];
+
+async function vistaUsuarios() {
+  marcarMenu("usuarios");
+  mostrarCargando();
+  const { status, cuerpo } = await api("GET", "/usuarios");
+  contenido.replaceChildren();
+
+  if (status !== 200) {
+    contenido.append(encabezado("Usuarios"), alerta("error", "No se pudieron cargar los usuarios."));
+    return;
+  }
+
+  const nuevo = boton("Nuevo usuario", () => (window.location.hash = "#/usuarios/nuevo"));
+  contenido.append(encabezado("Usuarios", [nuevo]));
+
+  const usuarios = cuerpo.usuarios;
+  if (usuarios.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay usuarios registrados.";
+    contenido.append(p);
+    return;
+  }
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Nombre", "Correo", "Cédula", "Cargo", "Rol"].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+
+  const tbody = document.createElement("tbody");
+  usuarios.forEach((u) => {
+    const fila = document.createElement("tr");
+    [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
+      const td = document.createElement("td");
+      td.textContent = valor;
+      fila.append(td);
+    });
+    tbody.append(fila);
+  });
+
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  contenido.append(tarjeta);
+}
+
+async function vistaUsuarioForm() {
+  marcarMenu("usuarios");
+  mostrarCargando();
+  contenido.replaceChildren();
+  const volver = boton("Volver a usuarios", () => (window.location.hash = "#/usuarios"), true);
+  contenido.append(encabezado("Nuevo usuario", [volver]));
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+
+  CAMPOS_USUARIO.forEach((config) => {
+    grid.append(construirCampo(config, ""));
+  });
+
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.textContent = "Crear usuario";
+
+  form.append(grid, guardar);
+  form.append(botonCancelar("#/usuarios"));
+  tarjeta.append(mensaje, form);
+  contenido.append(tarjeta);
+
+  form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    mensaje.replaceChildren();
+    const datos = {};
+    CAMPOS_USUARIO.forEach((config) => {
+      const valor = form.elements[config.nombre].value.trim();
+      if (valor !== "") datos[config.nombre] = valor;
+    });
+    const faltantes = CAMPOS_USUARIO.filter((c) => c.requerido && !datos[c.nombre]);
+    if (faltantes.length > 0) {
+      mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+      return;
+    }
+    if (!confirmarCreacion("este usuario")) return;
+
+    guardar.disabled = true;
+    try {
+      const r = await api("POST", "/usuarios", datos);
+      if (r.status === 201) {
+        window.location.hash = "#/usuarios";
+        return;
+      }
+      if (r.status === 409) {
+        mensaje.append(alerta("error", r.cuerpo?.error || "Ese correo o cédula ya está registrado."));
+      } else if (r.status === 403) {
+        mensaje.append(alerta("error", "No tienes permisos para crear usuarios."));
+      } else if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+        const mensajes = mostrarErroresValidacion(form, CAMPOS_USUARIO, r.cuerpo.detalles);
+        mensaje.append(alerta("error", mensajes.join(" · ")));
+      } else {
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo crear el usuario."));
+      }
+    } catch (error) {
+      if (error.message !== "sesion-expirada") {
+        mensaje.append(alerta("error", "No hay conexión con el servidor."));
+      }
+    } finally {
+      guardar.disabled = false;
+    }
+  });
+}
+
 function enrutar() {
   const ruta = window.location.hash || "#/clientes";
 
@@ -3225,6 +3396,9 @@ function enrutar() {
   const editarActa = ruta.match(/^#\/actas-cierre\/(\d+)$/);
   if (editarActa) return vistaActaCierreForm(editarActa[1]);
   if (/^#\/actas-cierre$/.test(ruta)) return vistaActasCierre();
+
+  if (/^#\/usuarios\/nuevo$/.test(ruta)) return vistaUsuarioForm();
+  if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
 
   return vistaClientes();
 }
