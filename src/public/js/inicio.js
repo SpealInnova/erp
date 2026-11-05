@@ -1189,6 +1189,16 @@ function textoClasificacionProveedor(valor) {
   return opcion ? opcion.texto : valor;
 }
 
+function tipoPillOrigenProveedor(valor) {
+  return valor === "nacional" ? "good" : "info";
+}
+
+function tipoPillClasificacionProveedor(valor) {
+  if (valor === "ambos") return "good";
+  if (valor === "servicios") return "mute";
+  return "info";
+}
+
 async function vistaProveedores() {
   marcarMenu("proveedores");
   mostrarCargando();
@@ -1228,14 +1238,12 @@ async function vistaProveedores() {
   const tbody = document.createElement("tbody");
   proveedores.forEach((p) => {
     const fila = document.createElement("tr");
-    [
-      p.razon_social,
-      p.nit_cc,
-      p.origen === "nacional" ? "Nacional" : "Extranjera",
-      textoClasificacionProveedor(p.clasificacion),
-    ].forEach((valor) => {
-      fila.append(celda(valor));
-    });
+    fila.append(celda(p.razon_social));
+    fila.append(celda(p.nit_cc));
+    fila.append(celda(estadoPill(p.origen === "nacional" ? "Nacional" : "Extranjera", tipoPillOrigenProveedor(p.origen))));
+    fila.append(
+      celda(estadoPill(textoClasificacionProveedor(p.clasificacion), tipoPillClasificacionProveedor(p.clasificacion)))
+    );
     const accion = document.createElement("td");
     const editar = boton(
       "Editar",
@@ -2523,6 +2531,20 @@ function valorMostrableSubrecurso(config, valor) {
   return valor;
 }
 
+function tipoPillSubrecurso(config, valor) {
+  if (config.opciones === OPCIONES_SI_NO) {
+    if (valor === "si") return "good";
+    if (valor === "no") return "crit";
+    return null;
+  }
+  if (config.opciones === OPCIONES_ESTADO_CAMBIO_DISENO) {
+    if (valor === "aprobado") return "good";
+    if (valor === "rechazado") return "crit";
+    if (valor === "pendiente") return "warn";
+  }
+  return null;
+}
+
 function construirInputCeldaSubrecurso(config, valor) {
   let input;
   if (config.tipo === "select") {
@@ -2620,7 +2642,10 @@ async function renderSeccionSubrecurso(expedienteId, config, editable) {
       fila.replaceChildren();
       config.campos.forEach((c) => {
         const td = document.createElement("td");
-        td.textContent = valorMostrableSubrecurso(c, registro[c.nombre]);
+        const texto = valorMostrableSubrecurso(c, registro[c.nombre]);
+        const tipo = tipoPillSubrecurso(c, registro[c.nombre]);
+        if (tipo) td.append(pill(texto, tipo));
+        else td.textContent = texto;
         fila.append(td);
       });
       if (!editable) return;
@@ -2752,6 +2777,12 @@ function textoTipoServicio(valor) {
   return encontrado ? encontrado.texto : valor;
 }
 
+function tipoPillTipoServicio(valor) {
+  if (valor === "mantenimiento_correctivo" || valor === "garantia") return "warn";
+  if (valor === "instalacion" || valor === "mantenimiento_preventivo") return "good";
+  return "info";
+}
+
 const CAMPOS_REPORTE = (clientes, proyectos) => [
   { nombre: "cliente_id", etiqueta: "Cliente", tipo: "select", requerido: true,
     opciones: clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social })) },
@@ -2813,14 +2844,10 @@ async function vistaReportesServicio() {
   const tbody = document.createElement("tbody");
   reportes.forEach((r) => {
     const fila = document.createElement("tr");
-    [
-      r.equipo_numero_serie,
-      nombreCliente(r.cliente_id),
-      textoTipoServicio(r.tipo_servicio),
-      r.fecha_servicio ? r.fecha_servicio.substring(0, 10) : "—",
-    ].forEach((valor) => {
-      fila.append(celda(valor));
-    });
+    fila.append(celda(r.equipo_numero_serie));
+    fila.append(celda(nombreCliente(r.cliente_id)));
+    fila.append(celda(estadoPill(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio))));
+    fila.append(celda(r.fecha_servicio ? r.fecha_servicio.substring(0, 10) : "—"));
     const accion = document.createElement("td");
     const editar = boton("Editar", () => (window.location.hash = `#/reportes-servicio/${r.id}`), true);
     editar.setAttribute("aria-label", `Editar reporte de ${r.equipo_numero_serie}`);
@@ -2951,6 +2978,12 @@ function textoTipoEntrega(valor) {
   return encontrado ? encontrado.texto : valor;
 }
 
+function tipoPillTipoEntrega(valor) {
+  if (valor === "venta") return "good";
+  if (valor === "piloto") return "warn";
+  return "info";
+}
+
 async function vistaActasCierre() {
   marcarMenu("actas-cierre");
   mostrarCargando();
@@ -2997,11 +3030,10 @@ async function vistaActasCierre() {
   const tbody = document.createElement("tbody");
   actas.forEach((a) => {
     const fila = document.createElement("tr");
-    [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id), textoTipoEntrega(a.tipo_entrega)].forEach(
-      (valor) => {
-        fila.append(celda(valor));
-      }
-    );
+    [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id)].forEach((valor) => {
+      fila.append(celda(valor));
+    });
+    fila.append(celda(estadoPill(textoTipoEntrega(a.tipo_entrega), tipoPillTipoEntrega(a.tipo_entrega))));
     const accion = document.createElement("td");
     const editar = boton("Ver / Editar", () => (window.location.hash = `#/actas-cierre/${a.id}`), true);
     editar.setAttribute("aria-label", `Ver acta ${a.numero_acta}`);
