@@ -29,7 +29,9 @@ Excel/Word dispersos (ver diccionario de datos en el repo de documentación, fue
 ## Ramas = entornos
 
 - `develop` → erp-dev.soluctiasas.com (desarrollo)
-- `staging` → erp-test.soluctiasas.com (pruebas)
+- `staging` → erp-test.speal-pad.com (pruebas — app en la cuenta de Hostinger de speal-pad.com,
+  BD sigue en la cuenta de soluctiasas.com, conexión remota con la IP del sitio en la whitelist
+  de Remote MySQL)
 - `main` → erp.soluctiasas.com (producción)
 
 Flujo: crear rama `feature/<nombre>` desde `develop`, PR a `develop`. Promoción entre entornos es

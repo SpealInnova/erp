@@ -36,6 +36,27 @@ function alerta(tipo, mensaje) {
   return div;
 }
 
+function pill(texto, tipo = "mute") {
+  const span = document.createElement("span");
+  span.className = `pill pill--${tipo}`;
+  span.textContent = texto;
+  return span;
+}
+
+function estadoPill(texto, tipo) {
+  return { pill: texto, tipo };
+}
+
+function celda(valor) {
+  const td = document.createElement("td");
+  if (valor && typeof valor === "object" && "pill" in valor) {
+    td.append(pill(valor.pill, valor.tipo));
+  } else {
+    td.textContent = valor;
+  }
+  return td;
+}
+
 function formatoEjemploCampo(config) {
   if (!config) return null;
   if (config.tipo === "email") return "ejemplo: nombre@dominio.com";
@@ -136,14 +157,32 @@ function mostrarCargando() {
 }
 
 function marcarMenu(modulo) {
+  const crumb = document.getElementById("crumb-modulo");
   document.querySelectorAll(".menu a[data-modulo]").forEach((a) => {
     if (a.dataset.modulo === modulo) {
       a.setAttribute("aria-current", "page");
+      if (crumb) crumb.textContent = a.querySelector(".lbl")?.textContent || modulo;
     } else {
       a.removeAttribute("aria-current");
     }
   });
 }
+
+function inicializarTopbar() {
+  const nombre = sessionStorage.getItem("erp_usuario");
+  if (!nombre) return;
+  const iniciales = nombre
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((parte) => parte[0].toUpperCase())
+    .join("");
+  const avatar = document.getElementById("topbar-avatar");
+  const nombreEl = document.getElementById("topbar-nombre");
+  if (avatar) avatar.textContent = iniciales || "--";
+  if (nombreEl) nombreEl.textContent = nombre;
+}
+inicializarTopbar();
 
 async function vistaClientes() {
   marcarMenu("clientes");
@@ -186,9 +225,7 @@ async function vistaClientes() {
     const fila = document.createElement("tr");
     [c.nombre_razon_social, c.tipo_identificacion, c.numero_identificacion, c.ciudad || "—"].forEach(
       (valor) => {
-        const td = document.createElement("td");
-        td.textContent = valor;
-        fila.append(td);
+        fila.append(celda(valor));
       }
     );
     const accion = document.createElement("td");
@@ -399,6 +436,12 @@ function textoEstadoProyecto(valor) {
   return encontrado ? encontrado.texto : valor;
 }
 
+function tipoPillProyecto(valor) {
+  if (valor === "cerrado") return "good";
+  if (valor === "cancelado") return "crit";
+  return "info";
+}
+
 async function vistaProyectos() {
   marcarMenu("proyectos");
   mostrarCargando();
@@ -449,12 +492,10 @@ async function vistaProyectos() {
       p.codigo_pry,
       p.nombre_proyecto,
       nombreCliente(p.cliente_id),
-      textoEstadoProyecto(p.estado),
+      estadoPill(textoEstadoProyecto(p.estado), tipoPillProyecto(p.estado)),
       nombreUsuario(p.responsable_id),
     ].forEach((valor) => {
-      const td = document.createElement("td");
-      td.textContent = valor;
-      fila.append(td);
+      fila.append(celda(valor));
     });
     const accion = document.createElement("td");
     const editar = boton(
@@ -677,6 +718,13 @@ function textoEstadoCotizacion(valor) {
   return encontrado ? encontrado.texto : valor;
 }
 
+function tipoPillCotizacion(valor) {
+  if (valor === "aceptada") return "good";
+  if (valor === "rechazada") return "crit";
+  if (valor === "borrador") return "mute";
+  return "info";
+}
+
 function calcularTotalItem(item) {
   const cantidad = Number(item.cantidad) || 0;
   const valorUnitario = Number(item.valor_unitario) || 0;
@@ -740,12 +788,10 @@ async function vistaCotizaciones() {
       c.numero_cotizacion,
       nombreCliente(c.cliente_id),
       nombreUsuario(c.asesor_comercial_id),
-      textoEstadoCotizacion(c.estado),
+      estadoPill(textoEstadoCotizacion(c.estado), tipoPillCotizacion(c.estado)),
       c.fecha_validez ? c.fecha_validez.substring(0, 10) : "—",
     ].forEach((valor) => {
-      const td = document.createElement("td");
-      td.textContent = valor;
-      fila.append(td);
+      fila.append(celda(valor));
     });
     const accion = document.createElement("td");
     const editar = boton(
@@ -1188,9 +1234,7 @@ async function vistaProveedores() {
       p.origen === "nacional" ? "Nacional" : "Extranjera",
       textoClasificacionProveedor(p.clasificacion),
     ].forEach((valor) => {
-      const td = document.createElement("td");
-      td.textContent = valor;
-      fila.append(td);
+      fila.append(celda(valor));
     });
     const accion = document.createElement("td");
     const editar = boton(
@@ -1300,6 +1344,13 @@ function textoEstadoRequisicion(valor) {
   return encontrado ? encontrado.texto : valor;
 }
 
+function tipoPillRequisicion(valor) {
+  if (valor === "cerrada") return "good";
+  if (valor === "convertida_oc") return "info";
+  if (valor === "solicitada") return "mute";
+  return "warn";
+}
+
 const OPCIONES_PROCEDENCIA = [
   { valor: "nacional", texto: "Nacional" },
   { valor: "importacion", texto: "Importación" },
@@ -1359,11 +1410,9 @@ async function vistaRequisiciones() {
       r.numero_requisicion,
       nombreProyecto(r.proyecto_id),
       textoProcedencia(r.procedencia),
-      textoEstadoRequisicion(r.estado),
+      estadoPill(textoEstadoRequisicion(r.estado), tipoPillRequisicion(r.estado)),
     ].forEach((valor) => {
-      const td = document.createElement("td");
-      td.textContent = valor;
-      fila.append(td);
+      fila.append(celda(valor));
     });
     const accion = document.createElement("td");
     const editar = boton(
@@ -1669,6 +1718,12 @@ function textoEstadoOrdenCompra(valor) {
   return encontrado ? encontrado.texto : valor;
 }
 
+function tipoPillOrdenCompra(valor) {
+  if (valor === "paga" || valor === "contabilizada") return "good";
+  if (valor === "pte_aprobar") return "warn";
+  return "info";
+}
+
 function calcularTotalItemOC(item) {
   return (Number(item.cantidad) || 0) * (Number(item.precio_unitario) || 0);
 }
@@ -1717,10 +1772,12 @@ async function vistaOrdenesCompra() {
   const tbody = document.createElement("tbody");
   ordenes.forEach((o) => {
     const fila = document.createElement("tr");
-    [o.numero_oc, nombreProveedor(o.proveedor_id), textoEstadoOrdenCompra(o.estado)].forEach((valor) => {
-      const td = document.createElement("td");
-      td.textContent = valor;
-      fila.append(td);
+    [
+      o.numero_oc,
+      nombreProveedor(o.proveedor_id),
+      estadoPill(textoEstadoOrdenCompra(o.estado), tipoPillOrdenCompra(o.estado)),
+    ].forEach((valor) => {
+      fila.append(celda(valor));
     });
     const accion = document.createElement("td");
     const editar = boton(
@@ -2050,6 +2107,13 @@ function textoEstadoExpediente(valor) {
   return encontrado ? encontrado.texto : valor;
 }
 
+function tipoPillExpediente(valor) {
+  if (valor === "aprobado") return "good";
+  if (valor === "rechazado") return "crit";
+  if (valor === "aprobado_con_restricciones") return "warn";
+  return "mute";
+}
+
 async function vistaExpedientes() {
   marcarMenu("expedientes-diseno");
   mostrarCargando();
@@ -2101,11 +2165,9 @@ async function vistaExpedientes() {
       e.producto_nombre,
       nombreProyecto(e.proyecto_id),
       nombreUsuario(e.responsable_diseno_id),
-      textoEstadoExpediente(e.estado_liberacion),
+      estadoPill(textoEstadoExpediente(e.estado_liberacion), tipoPillExpediente(e.estado_liberacion)),
     ].forEach((valor) => {
-      const td = document.createElement("td");
-      td.textContent = valor;
-      fila.append(td);
+      fila.append(celda(valor));
     });
     const accion = document.createElement("td");
     const editar = boton(
@@ -2757,9 +2819,7 @@ async function vistaReportesServicio() {
       textoTipoServicio(r.tipo_servicio),
       r.fecha_servicio ? r.fecha_servicio.substring(0, 10) : "—",
     ].forEach((valor) => {
-      const td = document.createElement("td");
-      td.textContent = valor;
-      fila.append(td);
+      fila.append(celda(valor));
     });
     const accion = document.createElement("td");
     const editar = boton("Editar", () => (window.location.hash = `#/reportes-servicio/${r.id}`), true);
@@ -2939,9 +2999,7 @@ async function vistaActasCierre() {
     const fila = document.createElement("tr");
     [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id), textoTipoEntrega(a.tipo_entrega)].forEach(
       (valor) => {
-        const td = document.createElement("td");
-        td.textContent = valor;
-        fila.append(td);
+        fila.append(celda(valor));
       }
     );
     const accion = document.createElement("td");
@@ -3248,9 +3306,7 @@ async function vistaActasEntrega() {
     const fila = document.createElement("tr");
     [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id), a.lugar_entrega || "—"].forEach(
       (valor) => {
-        const td = document.createElement("td");
-        td.textContent = valor;
-        fila.append(td);
+        fila.append(celda(valor));
       }
     );
     const accion = document.createElement("td");
@@ -3585,9 +3641,7 @@ async function vistaUsuarios() {
   usuarios.forEach((u) => {
     const fila = document.createElement("tr");
     [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
-      const td = document.createElement("td");
-      td.textContent = valor;
-      fila.append(td);
+      fila.append(celda(valor));
     });
     tbody.append(fila);
   });
