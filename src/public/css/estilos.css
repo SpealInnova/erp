@@ -733,6 +733,105 @@ body.app-body::before {
 .pill--info { background: var(--accent-tint); color: var(--accent-ink); }
 .pill--mute { background: #f0f2f8; color: var(--ink-soft); }
 
+/* ------------------------------------------------------------
+   Stage tracker — línea de fases (p. ej. fase de un proyecto)
+   ------------------------------------------------------------ */
+.stage-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  padding: 10px 2px 4px;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 92px;
+  position: relative;
+}
+
+.stage .stage-linea {
+  position: absolute;
+  top: 17px;
+  left: -50%;
+  width: 100%;
+  height: 2px;
+  background: var(--borde);
+  z-index: 0;
+}
+
+.stage:first-child .stage-linea {
+  display: none;
+}
+
+.stage .stage-punto {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 2px solid var(--borde);
+  color: var(--ink-mute);
+  z-index: 1;
+  font-family: var(--fuente-mono);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.stage .stage-nombre {
+  font-size: 0.7rem;
+  color: var(--ink-mute);
+  margin-top: 9px;
+  text-align: center;
+  max-width: 96px;
+  font-weight: 600;
+}
+
+.stage.hecha .stage-punto {
+  background: var(--good);
+  border-color: var(--good);
+  color: #fff;
+}
+
+.stage.hecha .stage-linea {
+  background: var(--good);
+}
+
+.stage.hecha .stage-nombre {
+  color: var(--ink);
+}
+
+.stage.actual .stage-punto {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 5px var(--accent-tint);
+  animation: stage-pulso 2.4s ease-in-out infinite;
+}
+
+.stage.actual .stage-nombre {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+@keyframes stage-pulso {
+  0%, 100% { box-shadow: 0 0 0 5px var(--accent-tint); }
+  50% { box-shadow: 0 0 0 8px var(--accent-tint); }
+}
+
+html[data-contraste="alto"] .stage.hecha .stage-punto,
+html[data-contraste="alto"] .stage.actual .stage-punto {
+  background: #000000;
+  border-color: #000000;
+  box-shadow: none;
+  animation: none;
+}
+
 @media (max-width: 900px) {
   .app {
     grid-template-columns: minmax(0, 1fr);

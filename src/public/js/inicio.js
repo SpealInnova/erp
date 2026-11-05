@@ -442,6 +442,42 @@ function tipoPillProyecto(valor) {
   return "info";
 }
 
+const ETAPAS_PROYECTO_LINEAL = ESTADOS_PROYECTO.filter((e) => e.valor !== "cancelado");
+
+function construirStageTrack(estadoActual) {
+  const track = document.createElement("div");
+  track.className = "stage-track";
+
+  if (estadoActual === "cancelado") {
+    track.append(pill("Proyecto cancelado", "crit"));
+    return track;
+  }
+
+  const indiceActual = ETAPAS_PROYECTO_LINEAL.findIndex((e) => e.valor === estadoActual);
+
+  ETAPAS_PROYECTO_LINEAL.forEach((etapa, indice) => {
+    const stage = document.createElement("div");
+    const clase = indice < indiceActual ? "hecha" : indice === indiceActual ? "actual" : "";
+    stage.className = clase ? `stage ${clase}` : "stage";
+
+    const linea = document.createElement("span");
+    linea.className = "stage-linea";
+
+    const punto = document.createElement("span");
+    punto.className = "stage-punto";
+    punto.textContent = indice < indiceActual ? "✓" : String(indice + 1);
+
+    const nombre = document.createElement("span");
+    nombre.className = "stage-nombre";
+    nombre.textContent = etapa.texto;
+
+    stage.append(linea, punto, nombre);
+    track.append(stage);
+  });
+
+  return track;
+}
+
 async function vistaProyectos() {
   marcarMenu("proyectos");
   mostrarCargando();
@@ -672,8 +708,8 @@ async function vistaProyectoForm(id) {
 
     const subtitulo = document.createElement("p");
     subtitulo.className = "subtitulo";
-    subtitulo.textContent = `Fase actual: ${textoEstadoProyecto(proyecto.estado)}`;
-    bloqueFase.append(subtitulo);
+    subtitulo.textContent = "Fase del proyecto";
+    bloqueFase.append(subtitulo, construirStageTrack(proyecto.estado));
 
     const mensajeFase = document.createElement("div");
     const filaFase = document.createElement("div");
