@@ -18,6 +18,7 @@ const actualizarProyectoSchema = z.object({
 
 const cambiarEstadoSchema = z.object({
   estado: z.nativeEnum(ESTADOS),
+  observacion: z.string().min(1).optional(),
 });
 
 const listarProyectosQuerySchema = z.object({
