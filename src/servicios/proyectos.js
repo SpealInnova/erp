@@ -3,6 +3,8 @@ const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const cotizacionesRepositorio = require("../repositorios/cotizacionesRepositorio");
 const auditoria = require("./auditoria");
+const proyectoActividadesServicio = require("./proyectoActividades");
+const notificacionesServicio = require("./notificaciones");
 const { formatearCodigoPry } = require("../dominio/codigoProyecto");
 const { transicionar, ESTADOS } = require("../dominio/estadoProyecto");
 const { ESTADOS: ESTADOS_COTIZACION } = require("../dominio/estadoCotizacion");
@@ -117,7 +119,7 @@ async function actualizarProyecto(pool, id, datos, usuarioId) {
   return actualizado;
 }
 
-async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId) {
+async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observacion) {
   const anterior = await obtenerProyecto(pool, id);
   transicionar(anterior.estado, estadoDestino);
 
@@ -130,7 +132,22 @@ async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId) {
     accion: "actualizar",
     usuarioId,
     datosAnteriores: anterior,
-    datosNuevos: actualizado,
+    datosNuevos: observacion ? { ...actualizado, observacion } : actualizado,
+  });
+
+  await proyectoActividadesServicio.generarActividadesParaFase(
+    pool,
+    id,
+    estadoDestino,
+    usuarioId
+  );
+
+  await notificacionesServicio.notificar(pool, {
+    usuarioId: actualizado.responsable_id,
+    tipo: "proyecto_cambio_fase",
+    mensaje: `El proyecto ${actualizado.codigo_pry} cambió de fase a "${estadoDestino}".`,
+    enlace: `#/proyectos/${id}`,
+    enviarCorreo: true,
   });
 
   return actualizado;

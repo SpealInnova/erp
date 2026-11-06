@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS proyecto_actividades (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  proyecto_id INT UNSIGNED NOT NULL,
+  fase VARCHAR(30) NOT NULL,
+  categoria VARCHAR(100) NOT NULL,
+  descripcion VARCHAR(200) NOT NULL,
+  orden INT UNSIGNED NOT NULL DEFAULT 0,
+  responsable_id INT UNSIGNED NULL,
+  estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+  completada_por INT UNSIGNED NULL,
+  completada_en DATETIME NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  CONSTRAINT fk_proyecto_actividades_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_proyecto_actividades_responsable FOREIGN KEY (responsable_id) REFERENCES usuarios(id),
+  CONSTRAINT fk_proyecto_actividades_completada_por FOREIGN KEY (completada_por) REFERENCES usuarios(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

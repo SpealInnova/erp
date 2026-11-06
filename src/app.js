@@ -5,6 +5,8 @@ const { verificarConexion } = require("./servicios/estadoBaseDatos");
 const { crearAuthRutas } = require("./rutas/authRutas");
 const { crearClientesRutas } = require("./rutas/clientesRutas");
 const { crearProyectosRutas } = require("./rutas/proyectosRutas");
+const { crearProyectoActividadesRutas } = require("./rutas/proyectoActividadesRutas");
+const { crearLineaTiempoRutas } = require("./rutas/lineaTiempoRutas");
 const { crearCotizacionesRutas } = require("./rutas/cotizacionesRutas");
 const { crearProveedoresRutas } = require("./rutas/proveedoresRutas");
 const { crearRequisicionesRutas } = require("./rutas/requisicionesRutas");
@@ -25,6 +27,7 @@ const { crearParametrosMedidosRutas } = require("./rutas/parametrosMedidosRutas"
 const { crearActasCierreRutas } = require("./rutas/actasCierreRutas");
 const { crearActasEntregaRutas } = require("./rutas/actasEntregaRutas");
 const { crearUsuariosRutas } = require("./rutas/usuariosRutas");
+const { crearNotificacionesRutas } = require("./rutas/notificacionesRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -72,6 +75,16 @@ function crearApp() {
   app.use("/auth", crearAuthRutas(pool));
   app.use("/clientes", requireAuth, crearClientesRutas(pool));
   app.use("/proyectos", requireAuth, crearProyectosRutas(pool));
+  app.use(
+    "/proyectos/:proyectoId/actividades",
+    requireAuth,
+    crearProyectoActividadesRutas(pool)
+  );
+  app.use(
+    "/proyectos/:proyectoId/linea-tiempo",
+    requireAuth,
+    crearLineaTiempoRutas(pool)
+  );
   app.use("/cotizaciones", requireAuth, crearCotizacionesRutas(pool));
   app.use("/proveedores", requireAuth, crearProveedoresRutas(pool));
   app.use("/requisiciones", requireAuth, crearRequisicionesRutas(pool));
@@ -130,6 +143,7 @@ function crearApp() {
   app.use("/actas-cierre-satisfaccion", requireAuth, crearActasCierreRutas(pool));
   app.use("/actas-entrega-equipos", requireAuth, crearActasEntregaRutas(pool));
   app.use("/usuarios", requireAuth, crearUsuariosRutas(pool));
+  app.use("/notificaciones", requireAuth, crearNotificacionesRutas(pool));
 
   app.use(manejadorErrores);
 

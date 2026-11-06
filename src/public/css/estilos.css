@@ -594,6 +594,95 @@ body.app-body::before {
   color: var(--ink-mute);
 }
 
+.campana-wrap {
+  position: relative;
+}
+
+.campana-boton {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--borde);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  flex: none;
+}
+
+.campana-boton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.campana-contador {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--crit);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-notificaciones {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  z-index: 40;
+  width: min(340px, calc(100vw - 40px));
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+}
+
+.panel-notificaciones .notificacion-vacio {
+  padding: 10px;
+  color: var(--ink-mute);
+  font-size: 0.8125rem;
+}
+
+.panel-notificaciones .notificacion-item {
+  display: block;
+  padding: 10px;
+  border-radius: var(--r-sm);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.panel-notificaciones .notificacion-item:hover {
+  background: var(--borde-suave);
+}
+
+.panel-notificaciones .notificacion-item.no-leida {
+  background: var(--accent-tint);
+}
+
+.panel-notificaciones .notificacion-mensaje {
+  font-size: 0.8125rem;
+  display: block;
+}
+
+.panel-notificaciones .notificacion-fecha {
+  font-size: 0.7rem;
+  color: var(--ink-mute);
+  display: block;
+  margin-top: 2px;
+}
+
 .contenido {
   padding: 28px 28px 60px;
   min-width: 0;

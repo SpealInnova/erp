@@ -34,12 +34,13 @@ function crearProyectosControlador(pool) {
 
   async function cambiarEstado(req, res) {
     const id = Number(req.params.id);
-    const { estado } = cambiarEstadoSchema.parse(req.body);
+    const { estado, observacion } = cambiarEstadoSchema.parse(req.body);
     const proyecto = await proyectosServicio.cambiarEstadoProyecto(
       pool,
       id,
       estado,
-      req.usuario.id
+      req.usuario.id,
+      observacion
     );
     res.status(200).json({ proyecto });
   }
