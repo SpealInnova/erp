@@ -31,6 +31,16 @@ function normalizarEvento(fila, nombresPorUsuario) {
     };
   }
 
+  if (fila.tabla === "proyecto_equipo") {
+    const miembroUsuarioId = nuevo?.usuario_id || anterior?.usuario_id || null;
+    return {
+      ...base,
+      miembro_usuario_id: miembroUsuarioId,
+      miembro_nombre: miembroUsuarioId ? nombresPorUsuario.get(miembroUsuarioId) || null : null,
+      miembro_rol: nuevo?.rol_en_proyecto || anterior?.rol_en_proyecto || null,
+    };
+  }
+
   if (fila.tabla === "proyecto_actividades") {
     const cambioEstado =
       anterior && nuevo && anterior.estado !== nuevo.estado
@@ -54,7 +64,15 @@ async function obtenerLineaTiempoProyecto(pool, proyectoId) {
   }
 
   const eventos = await lineaTiempoRepositorio.listarEventosProyecto(pool, proyectoId);
-  const idsUsuarios = [...new Set(eventos.map((e) => e.usuario_id).filter(Boolean))];
+  const idsUsuarios = [
+    ...new Set(
+      eventos.flatMap((e) => [
+        e.usuario_id,
+        e.tabla === "proyecto_equipo" ? e.datos_nuevos?.usuario_id : null,
+        e.tabla === "proyecto_equipo" ? e.datos_anteriores?.usuario_id : null,
+      ])
+    ),
+  ].filter(Boolean);
   const usuarios = await lineaTiempoRepositorio.listarUsuariosPorIds(pool, idsUsuarios);
   const nombresPorUsuario = new Map(usuarios.map((u) => [u.id, u.nombre]));
 

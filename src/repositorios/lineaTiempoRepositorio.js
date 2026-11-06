@@ -6,8 +6,11 @@ async function listarEventosProyecto(pool, proyectoId) {
         OR (a.tabla = 'proyecto_actividades' AND a.registro_id IN (
               SELECT id FROM proyecto_actividades WHERE proyecto_id = ?
             ))
+        OR (a.tabla = 'proyecto_equipo' AND a.registro_id IN (
+              SELECT id FROM proyecto_equipo WHERE proyecto_id = ?
+            ))
      ORDER BY a.creado_en DESC, a.id DESC`,
-    [proyectoId, proyectoId]
+    [proyectoId, proyectoId, proyectoId]
   );
   return filas;
 }

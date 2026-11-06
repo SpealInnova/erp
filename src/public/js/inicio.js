@@ -783,6 +783,130 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   return tarjeta;
 }
 
+async function renderSeccionEquipoProyecto(proyectoId, opcionesUsuarios) {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  tarjeta.style.marginTop = "24px";
+
+  const h3 = document.createElement("h3");
+  h3.style.margin = "0 0 16px";
+  h3.style.fontSize = "1.125rem";
+  h3.textContent = "Equipo del proyecto";
+  tarjeta.append(h3);
+
+  const mensaje = document.createElement("div");
+  const tabla = document.createElement("table");
+  tabla.className = "tabla-items";
+  tarjeta.append(mensaje, tabla);
+
+  async function cargar() {
+    mensaje.replaceChildren();
+    tabla.replaceChildren();
+    const r = await api("GET", `/proyectos/${proyectoId}/equipo`);
+    if (r.status !== 200) {
+      mensaje.append(alerta("error", "No se pudo cargar el equipo."));
+      return;
+    }
+    const equipo = r.cuerpo.equipo;
+
+    const thead = document.createElement("thead");
+    const filaCabecera = document.createElement("tr");
+    ["Integrante", "Rol en el proyecto", ""].forEach((texto) => {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.textContent = texto;
+      filaCabecera.append(th);
+    });
+    thead.append(filaCabecera);
+    tabla.append(thead);
+
+    const tbody = document.createElement("tbody");
+    if (equipo.length === 0) {
+      const fila = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 3;
+      td.className = "subtitulo";
+      td.textContent = "Aún no hay integrantes asignados.";
+      fila.append(td);
+      tbody.append(fila);
+    }
+    equipo.forEach((miembro) => {
+      const fila = document.createElement("tr");
+      fila.append(celda(miembro.usuario_nombre), celda(miembro.rol_en_proyecto));
+
+      const tdAccion = document.createElement("td");
+      const quitarBtn = boton(
+        "Quitar",
+        async () => {
+          if (!window.confirm(`¿Quitar a ${miembro.usuario_nombre} del equipo?`)) return;
+          const r2 = await api("DELETE", `/proyectos/${proyectoId}/equipo/${miembro.id}`);
+          if (r2.status === 204) {
+            cargar();
+            return;
+          }
+          mensaje.replaceChildren(
+            alerta("error", r2.cuerpo?.error || "No se pudo quitar al integrante.")
+          );
+        },
+        true
+      );
+      tdAccion.append(quitarBtn);
+      fila.append(tdAccion);
+
+      tbody.append(fila);
+    });
+    tabla.append(tbody);
+  }
+
+  const formAgregar = document.createElement("form");
+  formAgregar.noValidate = true;
+  formAgregar.style.marginTop = "16px";
+  const gridAgregar = document.createElement("div");
+  gridAgregar.className = "formulario-grid";
+  gridAgregar.append(
+    construirCampo(
+      {
+        nombre: "equipo_usuario_id",
+        etiqueta: "Integrante",
+        tipo: "select",
+        requerido: true,
+        opciones: opcionesUsuarios,
+      },
+      ""
+    ),
+    construirCampo({ nombre: "equipo_rol", etiqueta: "Rol en el proyecto", requerido: true }, "")
+  );
+  const agregarBtn = document.createElement("button");
+  agregarBtn.type = "submit";
+  agregarBtn.className = "boton boton-pequeno";
+  agregarBtn.textContent = "Agregar al equipo";
+  formAgregar.append(gridAgregar, agregarBtn);
+
+  formAgregar.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const usuarioId = formAgregar.elements.equipo_usuario_id.value;
+    const rol = formAgregar.elements.equipo_rol.value.trim();
+    if (!usuarioId || !rol) return;
+    const r = await api("POST", `/proyectos/${proyectoId}/equipo`, {
+      usuario_id: Number(usuarioId),
+      rol_en_proyecto: rol,
+    });
+    if (r.status !== 201) {
+      mensaje.replaceChildren(
+        alerta("error", r.cuerpo?.error || "No se pudo agregar al integrante.")
+      );
+      return;
+    }
+    formAgregar.reset();
+    cargar();
+  });
+
+  tarjeta.append(formAgregar);
+
+  await cargar();
+  return tarjeta;
+}
+
 function describirEventoLineaTiempo(evento) {
   if (evento.tabla === "proyectos") {
     if (evento.accion === "crear") return "Proyecto creado";
@@ -792,6 +916,12 @@ function describirEventoLineaTiempo(evento) {
       return texto;
     }
     return "Datos del proyecto actualizados";
+  }
+  if (evento.tabla === "proyecto_equipo") {
+    const nombre = evento.miembro_nombre || "un usuario";
+    if (evento.accion === "crear") return `${nombre} se unió al equipo como ${evento.miembro_rol}`;
+    if (evento.accion === "eliminar") return `${nombre} salió del equipo del proyecto`;
+    return `Equipo actualizado: ${nombre}`;
   }
   if (evento.tabla === "proyecto_actividades") {
     const descripcion = evento.actividad_descripcion || "actividad";
@@ -1132,6 +1262,7 @@ async function vistaProyectoForm(id) {
     tarjeta.append(bloqueFase);
 
     tarjeta.append(await renderSeccionActividadesProyecto(id, opcionesUsuarios));
+    tarjeta.append(await renderSeccionEquipoProyecto(id, opcionesUsuarios));
     tarjeta.append(await renderSeccionLineaTiempoProyecto(id));
   }
 }

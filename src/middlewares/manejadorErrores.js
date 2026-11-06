@@ -68,6 +68,11 @@ const {
 const { ErrorCorreoDuplicado, ErrorCedulaDuplicada } = require("../dominio/erroresUsuarios");
 const { ErrorNotificacionNoEncontrada } = require("../dominio/erroresNotificaciones");
 const {
+  ErrorMiembroYaEnEquipo,
+  ErrorMiembroNoEncontrado,
+  ErrorUsuarioInvalido,
+} = require("../dominio/erroresProyectoEquipo");
+const {
   ErrorActaEntregaNoEncontrada,
   ErrorProyectoNoExiste: ErrorProyectoNoExisteActaEntrega,
   ErrorClienteNoExiste: ErrorClienteNoExisteActaEntrega,
@@ -233,6 +238,16 @@ function manejadorErrores(error, req, res, next) {
 
   if (error instanceof ErrorNotificacionNoEncontrada) {
     return res.status(404).json({ error: error.message });
+  }
+
+  if (error instanceof ErrorMiembroNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorMiembroYaEnEquipo) {
+    return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorUsuarioInvalido) {
+    return res.status(400).json({ error: error.message });
   }
 
   console.error(error);
