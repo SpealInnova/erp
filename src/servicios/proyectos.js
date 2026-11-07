@@ -85,6 +85,12 @@ async function obtenerProyecto(pool, id) {
   return proyecto;
 }
 
+async function obtenerProyectoConResumen(pool, id) {
+  const proyecto = await obtenerProyecto(pool, id);
+  const gastoReal = await proyectosRepositorio.obtenerGastoReal(pool, id);
+  return { ...proyecto, gasto_real: gastoReal };
+}
+
 async function listarProyectos(pool, { pagina, tamanoPagina }) {
   const limite = tamanoPagina;
   const offset = (pagina - 1) * tamanoPagina;
@@ -170,6 +176,7 @@ async function eliminarProyecto(pool, id, usuarioId) {
 module.exports = {
   crearProyecto,
   obtenerProyecto,
+  obtenerProyectoConResumen,
   listarProyectos,
   actualizarProyecto,
   cambiarEstadoProyecto,

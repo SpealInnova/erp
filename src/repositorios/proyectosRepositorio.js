@@ -14,19 +14,32 @@ async function buscarPorCodigoPry(pool, codigoPry) {
 async function crear(pool, datos) {
   const [resultado] = await pool.query(
     `INSERT INTO proyectos
-      (codigo_pry, cliente_id, cotizacion_id, linea_negocio, nombre_proyecto, estado, responsable_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (codigo_pry, cliente_id, cotizacion_id, linea_negocio, presupuesto_estimado, nombre_proyecto, estado, responsable_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       datos.codigo_pry,
       datos.cliente_id,
       datos.cotizacion_id || null,
       datos.linea_negocio || null,
+      datos.presupuesto_estimado ?? null,
       datos.nombre_proyecto,
       datos.estado,
       datos.responsable_id,
     ]
   );
   return resultado.insertId;
+}
+
+async function obtenerGastoReal(pool, proyectoId) {
+  const [filas] = await pool.query(
+    `SELECT COALESCE(SUM(oci.cantidad * oci.precio_unitario), 0) AS total
+     FROM orden_compra_items oci
+     JOIN ordenes_compra oc ON oc.id = oci.orden_compra_id
+     JOIN requisiciones r ON r.id = oc.requisicion_id
+     WHERE r.proyecto_id = ? AND oc.deleted_at IS NULL AND r.deleted_at IS NULL`,
+    [proyectoId]
+  );
+  return Number(filas[0].total);
 }
 
 async function obtenerPorId(pool, id) {
@@ -68,6 +81,7 @@ module.exports = {
   buscarPorCodigoPry,
   crear,
   obtenerPorId,
+  obtenerGastoReal,
   listar,
   actualizar,
   actualizarEstado,

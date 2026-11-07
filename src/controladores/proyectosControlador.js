@@ -21,7 +21,7 @@ function crearProyectosControlador(pool) {
 
   async function obtener(req, res) {
     const id = Number(req.params.id);
-    const proyecto = await proyectosServicio.obtenerProyecto(pool, id);
+    const proyecto = await proyectosServicio.obtenerProyectoConResumen(pool, id);
     res.status(200).json({ proyecto });
   }
 
