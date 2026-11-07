@@ -13,6 +13,7 @@ const {
   ErrorCotizacionInvalida,
 } = require("../dominio/erroresProyectos");
 const { ErrorTransicionInvalida } = require("../dominio/erroresEstado");
+const { ErrorActividadNoEncontrada } = require("../dominio/erroresProyectoActividades");
 const {
   ErrorCotizacionNoEncontrada,
   ErrorClienteNoExiste,
@@ -65,6 +66,12 @@ const {
   ErrorActaEntregaNoExiste,
 } = require("../dominio/erroresActasCierre");
 const { ErrorCorreoDuplicado, ErrorCedulaDuplicada } = require("../dominio/erroresUsuarios");
+const { ErrorNotificacionNoEncontrada } = require("../dominio/erroresNotificaciones");
+const {
+  ErrorMiembroYaEnEquipo,
+  ErrorMiembroNoEncontrado,
+  ErrorUsuarioInvalido,
+} = require("../dominio/erroresProyectoEquipo");
 const {
   ErrorActaEntregaNoEncontrada,
   ErrorProyectoNoExiste: ErrorProyectoNoExisteActaEntrega,
@@ -104,6 +111,9 @@ function manejadorErrores(error, req, res, next) {
     error instanceof ErrorCotizacionInvalida
   ) {
     return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorActividadNoEncontrada) {
+    return res.status(404).json({ error: error.message });
   }
   if (error instanceof ErrorTransicionInvalida) {
     return res.status(409).json({
@@ -223,6 +233,20 @@ function manejadorErrores(error, req, res, next) {
     error instanceof ErrorClienteNoExisteActaEntrega ||
     error instanceof ErrorItemsVaciosActaEntrega
   ) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  if (error instanceof ErrorNotificacionNoEncontrada) {
+    return res.status(404).json({ error: error.message });
+  }
+
+  if (error instanceof ErrorMiembroNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorMiembroYaEnEquipo) {
+    return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorUsuarioInvalido) {
     return res.status(400).json({ error: error.message });
   }
 

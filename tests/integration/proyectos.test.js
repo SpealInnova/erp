@@ -45,8 +45,13 @@ describirSiHayBD("CRUD de Proyectos (integración contra BD real)", () => {
 
   afterAll(async () => {
     await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [usuarioId]);
+    await pool.query(
+      "DELETE FROM proyecto_actividades WHERE proyecto_id IN (SELECT id FROM proyectos WHERE responsable_id = ?)",
+      [usuarioId]
+    );
     await pool.query("DELETE FROM proyectos WHERE responsable_id = ?", [usuarioId]);
     await pool.query("DELETE FROM clientes WHERE id = ?", [clienteId]);
+    await pool.query("DELETE FROM notificaciones WHERE usuario_id = ?", [usuarioId]);
     await pool.query("DELETE FROM usuarios WHERE id = ?", [usuarioId]);
     await pool.end();
   });

@@ -184,6 +184,111 @@ function inicializarTopbar() {
 }
 inicializarTopbar();
 
+const INTERVALO_NOTIFICACIONES_MS = 45000;
+
+function inicializarNotificaciones() {
+  const boton = document.getElementById("btn-notificaciones");
+  const contador = document.getElementById("campana-contador");
+  const panel = document.getElementById("panel-notificaciones");
+  if (!boton || !panel) return;
+
+  function pintarContador(noLeidas) {
+    if (noLeidas > 0) {
+      contador.hidden = false;
+      contador.textContent = noLeidas > 99 ? "99+" : String(noLeidas);
+    } else {
+      contador.hidden = true;
+    }
+  }
+
+  async function actualizarContador() {
+    try {
+      const r = await api("GET", "/notificaciones");
+      if (r.status === 200) pintarContador(r.cuerpo.no_leidas);
+    } catch {
+      // silencioso: no interrumpe la navegación por un fallo de red puntual
+    }
+  }
+
+  function renderPanel(notificaciones) {
+    panel.replaceChildren();
+
+    if (notificaciones.length === 0) {
+      const vacio = document.createElement("p");
+      vacio.className = "notificacion-vacio";
+      vacio.textContent = "No tienes notificaciones.";
+      panel.append(vacio);
+      return;
+    }
+
+    const marcarTodas = document.createElement("button");
+    marcarTodas.type = "button";
+    marcarTodas.className = "boton boton-pequeno boton-secundario";
+    marcarTodas.style.margin = "0 0 8px";
+    marcarTodas.textContent = "Marcar todas como leídas";
+    marcarTodas.addEventListener("click", async () => {
+      await api("PATCH", "/notificaciones/leer-todas");
+      await cargarYRenderizar();
+    });
+    panel.append(marcarTodas);
+
+    notificaciones.forEach((notificacion) => {
+      const item = document.createElement("a");
+      item.className = notificacion.leida_en ? "notificacion-item" : "notificacion-item no-leida";
+      item.href = notificacion.enlace || "#";
+
+      const mensaje = document.createElement("span");
+      mensaje.className = "notificacion-mensaje";
+      mensaje.textContent = notificacion.mensaje;
+
+      const fecha = document.createElement("span");
+      fecha.className = "notificacion-fecha";
+      fecha.textContent = formatoFechaHora(notificacion.created_at);
+
+      item.append(mensaje, fecha);
+      item.addEventListener("click", async () => {
+        if (!notificacion.leida_en) {
+          await api("PATCH", `/notificaciones/${notificacion.id}/leida`);
+        }
+        abrir(false);
+      });
+      panel.append(item);
+    });
+  }
+
+  async function cargarYRenderizar() {
+    const r = await api("GET", "/notificaciones");
+    if (r.status !== 200) return;
+    pintarContador(r.cuerpo.no_leidas);
+    renderPanel(r.cuerpo.notificaciones);
+  }
+
+  function abrir(abierto) {
+    panel.classList.toggle("oculto", !abierto);
+    boton.setAttribute("aria-expanded", String(abierto));
+    if (abierto) cargarYRenderizar();
+  }
+
+  boton.addEventListener("click", () => abrir(panel.classList.contains("oculto")));
+
+  document.addEventListener("click", (evento) => {
+    if (!panel.classList.contains("oculto") && !panel.contains(evento.target) && evento.target !== boton) {
+      abrir(false);
+    }
+  });
+
+  document.addEventListener("keydown", (evento) => {
+    if (evento.key === "Escape" && !panel.classList.contains("oculto")) {
+      abrir(false);
+      boton.focus();
+    }
+  });
+
+  actualizarContador();
+  setInterval(actualizarContador, INTERVALO_NOTIFICACIONES_MS);
+}
+inicializarNotificaciones();
+
 async function vistaClientes() {
   marcarMenu("clientes");
   mostrarCargando();
@@ -442,6 +547,459 @@ function tipoPillProyecto(valor) {
   return "info";
 }
 
+const ETAPAS_PROYECTO_LINEAL = ESTADOS_PROYECTO.filter((e) => e.valor !== "cancelado");
+
+function construirStageTrack(estadoActual) {
+  const track = document.createElement("div");
+  track.className = "stage-track";
+
+  if (estadoActual === "cancelado") {
+    track.append(pill("Proyecto cancelado", "crit"));
+    return track;
+  }
+
+  const indiceActual = ETAPAS_PROYECTO_LINEAL.findIndex((e) => e.valor === estadoActual);
+
+  ETAPAS_PROYECTO_LINEAL.forEach((etapa, indice) => {
+    const stage = document.createElement("div");
+    const clase = indice < indiceActual ? "hecha" : indice === indiceActual ? "actual" : "";
+    stage.className = clase ? `stage ${clase}` : "stage";
+
+    const linea = document.createElement("span");
+    linea.className = "stage-linea";
+
+    const punto = document.createElement("span");
+    punto.className = "stage-punto";
+    punto.textContent = indice < indiceActual ? "✓" : String(indice + 1);
+
+    const nombre = document.createElement("span");
+    nombre.className = "stage-nombre";
+    nombre.textContent = etapa.texto;
+
+    stage.append(linea, punto, nombre);
+    track.append(stage);
+  });
+
+  return track;
+}
+
+async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  tarjeta.style.marginTop = "24px";
+
+  const h3 = document.createElement("h3");
+  h3.style.margin = "0 0 16px";
+  h3.style.fontSize = "1.125rem";
+  h3.textContent = "Actividades por fase";
+  tarjeta.append(h3);
+
+  const mensaje = document.createElement("div");
+  const contenedorGrupos = document.createElement("div");
+  tarjeta.append(mensaje, contenedorGrupos);
+
+  async function cargar() {
+    mensaje.replaceChildren();
+    contenedorGrupos.replaceChildren();
+    const r = await api("GET", `/proyectos/${proyectoId}/actividades`);
+    if (r.status !== 200) {
+      mensaje.append(alerta("error", "No se pudieron cargar las actividades."));
+      return;
+    }
+    const actividades = r.cuerpo.actividades;
+    if (actividades.length === 0) {
+      const p = document.createElement("p");
+      p.className = "subtitulo";
+      p.textContent = "Aún no hay actividades generadas para este proyecto.";
+      contenedorGrupos.append(p);
+      return;
+    }
+
+    const porFase = new Map();
+    actividades.forEach((actividad) => {
+      if (!porFase.has(actividad.fase)) porFase.set(actividad.fase, []);
+      porFase.get(actividad.fase).push(actividad);
+    });
+
+    const fasesOrdenadas = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter((fase) =>
+      porFase.has(fase)
+    );
+    const ultimaFase = fasesOrdenadas[fasesOrdenadas.length - 1];
+
+    fasesOrdenadas.forEach((fase) => {
+      const lista = porFase.get(fase);
+      const completadas = lista.filter((actividad) => actividad.estado === "completada").length;
+
+      const detalles = document.createElement("details");
+      detalles.open = fase === ultimaFase;
+      detalles.style.marginBottom = "12px";
+
+      const resumen = document.createElement("summary");
+      resumen.style.cursor = "pointer";
+      resumen.style.fontWeight = "700";
+      resumen.append(document.createTextNode(`${textoEstadoProyecto(fase)} `));
+      resumen.append(
+        pill(`${completadas}/${lista.length}`, completadas === lista.length ? "good" : "info")
+      );
+      detalles.append(resumen);
+
+      const tabla = document.createElement("table");
+      tabla.className = "tabla-items";
+      const thead = document.createElement("thead");
+      const filaCabecera = document.createElement("tr");
+      ["", "Categoría", "Actividad", "Responsable", ""].forEach((texto) => {
+        const th = document.createElement("th");
+        th.scope = "col";
+        th.textContent = texto;
+        filaCabecera.append(th);
+      });
+      thead.append(filaCabecera);
+      const tbody = document.createElement("tbody");
+
+      lista.forEach((actividad) => {
+        const fila = document.createElement("tr");
+
+        const tdCheck = document.createElement("td");
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.checked = actividad.estado === "completada";
+        check.setAttribute("aria-label", `Marcar "${actividad.descripcion}" como completada`);
+        check.addEventListener("change", async () => {
+          const deseado = check.checked;
+          check.disabled = true;
+          const r2 = await api("PUT", `/proyectos/${proyectoId}/actividades/${actividad.id}`, {
+            estado: deseado ? "completada" : "pendiente",
+          });
+          if (r2.status !== 200) {
+            mensaje.replaceChildren(
+              alerta("error", r2.cuerpo?.error || "No se pudo actualizar la actividad.")
+            );
+            check.disabled = false;
+            return;
+          }
+          cargar();
+        });
+        tdCheck.append(check);
+        fila.append(tdCheck);
+
+        fila.append(celda(actividad.categoria));
+
+        const tdDescripcion = document.createElement("td");
+        tdDescripcion.textContent = actividad.descripcion;
+        if (actividad.estado === "completada") {
+          tdDescripcion.style.textDecoration = "line-through";
+          tdDescripcion.style.color = "var(--ink-mute)";
+        }
+        fila.append(tdDescripcion);
+
+        const tdResponsable = document.createElement("td");
+        const selectResponsable = document.createElement("select");
+        selectResponsable.setAttribute("aria-label", `Responsable de "${actividad.descripcion}"`);
+        const vacio = document.createElement("option");
+        vacio.value = "";
+        vacio.textContent = "— Sin asignar —";
+        selectResponsable.append(vacio);
+        opcionesUsuarios.forEach((op) => {
+          const o = document.createElement("option");
+          o.value = op.valor;
+          o.textContent = op.texto;
+          selectResponsable.append(o);
+        });
+        selectResponsable.value = actividad.responsable_id ? String(actividad.responsable_id) : "";
+        selectResponsable.addEventListener("change", async () => {
+          await api("PUT", `/proyectos/${proyectoId}/actividades/${actividad.id}`, {
+            responsable_id: Number(selectResponsable.value) || undefined,
+          });
+        });
+        tdResponsable.append(selectResponsable);
+        fila.append(tdResponsable);
+
+        const tdAccion = document.createElement("td");
+        const quitarBtn = boton(
+          "Quitar",
+          async () => {
+            if (!window.confirm("¿Quitar esta actividad?")) return;
+            const r2 = await api(
+              "DELETE",
+              `/proyectos/${proyectoId}/actividades/${actividad.id}`
+            );
+            if (r2.status === 204) {
+              cargar();
+              return;
+            }
+            mensaje.replaceChildren(
+              alerta("error", r2.cuerpo?.error || "No se pudo quitar la actividad.")
+            );
+          },
+          true
+        );
+        tdAccion.append(quitarBtn);
+        fila.append(tdAccion);
+
+        tbody.append(fila);
+      });
+
+      tabla.append(thead, tbody);
+      detalles.append(tabla);
+      contenedorGrupos.append(detalles);
+    });
+  }
+
+  const formAgregar = document.createElement("form");
+  formAgregar.noValidate = true;
+  formAgregar.style.marginTop = "16px";
+  const gridAgregar = document.createElement("div");
+  gridAgregar.className = "formulario-grid";
+  gridAgregar.append(
+    construirCampo({ nombre: "categoria", etiqueta: "Categoría", requerido: true }, ""),
+    construirCampo({ nombre: "descripcion", etiqueta: "Actividad", requerido: true }, "")
+  );
+  const agregarBtn = document.createElement("button");
+  agregarBtn.type = "submit";
+  agregarBtn.className = "boton boton-pequeno";
+  agregarBtn.textContent = "Agregar actividad";
+  formAgregar.append(gridAgregar, agregarBtn);
+
+  formAgregar.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const categoria = formAgregar.elements.categoria.value.trim();
+    const descripcion = formAgregar.elements.descripcion.value.trim();
+    if (!categoria || !descripcion) return;
+    const r = await api("POST", `/proyectos/${proyectoId}/actividades`, {
+      categoria,
+      descripcion,
+    });
+    if (r.status !== 201) {
+      mensaje.replaceChildren(alerta("error", r.cuerpo?.error || "No se pudo agregar la actividad."));
+      return;
+    }
+    formAgregar.reset();
+    cargar();
+  });
+
+  tarjeta.append(formAgregar);
+
+  await cargar();
+  return tarjeta;
+}
+
+async function renderSeccionEquipoProyecto(proyectoId, opcionesUsuarios) {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  tarjeta.style.marginTop = "24px";
+
+  const h3 = document.createElement("h3");
+  h3.style.margin = "0 0 16px";
+  h3.style.fontSize = "1.125rem";
+  h3.textContent = "Equipo del proyecto";
+  tarjeta.append(h3);
+
+  const mensaje = document.createElement("div");
+  const tabla = document.createElement("table");
+  tabla.className = "tabla-items";
+  tarjeta.append(mensaje, tabla);
+
+  async function cargar() {
+    mensaje.replaceChildren();
+    tabla.replaceChildren();
+    const r = await api("GET", `/proyectos/${proyectoId}/equipo`);
+    if (r.status !== 200) {
+      mensaje.append(alerta("error", "No se pudo cargar el equipo."));
+      return;
+    }
+    const equipo = r.cuerpo.equipo;
+
+    const thead = document.createElement("thead");
+    const filaCabecera = document.createElement("tr");
+    ["Integrante", "Rol en el proyecto", ""].forEach((texto) => {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.textContent = texto;
+      filaCabecera.append(th);
+    });
+    thead.append(filaCabecera);
+    tabla.append(thead);
+
+    const tbody = document.createElement("tbody");
+    if (equipo.length === 0) {
+      const fila = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 3;
+      td.className = "subtitulo";
+      td.textContent = "Aún no hay integrantes asignados.";
+      fila.append(td);
+      tbody.append(fila);
+    }
+    equipo.forEach((miembro) => {
+      const fila = document.createElement("tr");
+      fila.append(celda(miembro.usuario_nombre), celda(miembro.rol_en_proyecto));
+
+      const tdAccion = document.createElement("td");
+      const quitarBtn = boton(
+        "Quitar",
+        async () => {
+          if (!window.confirm(`¿Quitar a ${miembro.usuario_nombre} del equipo?`)) return;
+          const r2 = await api("DELETE", `/proyectos/${proyectoId}/equipo/${miembro.id}`);
+          if (r2.status === 204) {
+            cargar();
+            return;
+          }
+          mensaje.replaceChildren(
+            alerta("error", r2.cuerpo?.error || "No se pudo quitar al integrante.")
+          );
+        },
+        true
+      );
+      tdAccion.append(quitarBtn);
+      fila.append(tdAccion);
+
+      tbody.append(fila);
+    });
+    tabla.append(tbody);
+  }
+
+  const formAgregar = document.createElement("form");
+  formAgregar.noValidate = true;
+  formAgregar.style.marginTop = "16px";
+  const gridAgregar = document.createElement("div");
+  gridAgregar.className = "formulario-grid";
+  gridAgregar.append(
+    construirCampo(
+      {
+        nombre: "equipo_usuario_id",
+        etiqueta: "Integrante",
+        tipo: "select",
+        requerido: true,
+        opciones: opcionesUsuarios,
+      },
+      ""
+    ),
+    construirCampo({ nombre: "equipo_rol", etiqueta: "Rol en el proyecto", requerido: true }, "")
+  );
+  const agregarBtn = document.createElement("button");
+  agregarBtn.type = "submit";
+  agregarBtn.className = "boton boton-pequeno";
+  agregarBtn.textContent = "Agregar al equipo";
+  formAgregar.append(gridAgregar, agregarBtn);
+
+  formAgregar.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const usuarioId = formAgregar.elements.equipo_usuario_id.value;
+    const rol = formAgregar.elements.equipo_rol.value.trim();
+    if (!usuarioId || !rol) return;
+    const r = await api("POST", `/proyectos/${proyectoId}/equipo`, {
+      usuario_id: Number(usuarioId),
+      rol_en_proyecto: rol,
+    });
+    if (r.status !== 201) {
+      mensaje.replaceChildren(
+        alerta("error", r.cuerpo?.error || "No se pudo agregar al integrante.")
+      );
+      return;
+    }
+    formAgregar.reset();
+    cargar();
+  });
+
+  tarjeta.append(formAgregar);
+
+  await cargar();
+  return tarjeta;
+}
+
+function describirEventoLineaTiempo(evento) {
+  if (evento.tabla === "proyectos") {
+    if (evento.accion === "crear") return "Proyecto creado";
+    if (evento.cambio_estado) {
+      let texto = `Cambio de fase: ${textoEstadoProyecto(evento.cambio_estado.de)} → ${textoEstadoProyecto(evento.cambio_estado.a)}`;
+      if (evento.observacion) texto += ` — "${evento.observacion}"`;
+      return texto;
+    }
+    return "Datos del proyecto actualizados";
+  }
+  if (evento.tabla === "proyecto_equipo") {
+    const nombre = evento.miembro_nombre || "un usuario";
+    if (evento.accion === "crear") return `${nombre} se unió al equipo como ${evento.miembro_rol}`;
+    if (evento.accion === "eliminar") return `${nombre} salió del equipo del proyecto`;
+    return `Equipo actualizado: ${nombre}`;
+  }
+  if (evento.tabla === "proyecto_actividades") {
+    const descripcion = evento.actividad_descripcion || "actividad";
+    if (evento.accion === "crear") return `Actividad creada: ${descripcion}`;
+    if (evento.accion === "eliminar") return `Actividad eliminada: ${descripcion}`;
+    if (evento.actividad_cambio_estado) {
+      return evento.actividad_cambio_estado.a === "completada"
+        ? `Actividad completada: ${descripcion}`
+        : `Actividad marcada como pendiente: ${descripcion}`;
+    }
+    return `Actividad actualizada: ${descripcion}`;
+  }
+  return "Evento registrado";
+}
+
+function formatoFechaHora(valor) {
+  return new Date(valor).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
+}
+
+async function renderSeccionLineaTiempoProyecto(proyectoId) {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  tarjeta.style.marginTop = "24px";
+
+  const h3 = document.createElement("h3");
+  h3.style.margin = "0 0 16px";
+  h3.style.fontSize = "1.125rem";
+  h3.textContent = "Línea de tiempo";
+  tarjeta.append(h3);
+
+  const mensaje = document.createElement("div");
+  const lista = document.createElement("ul");
+  lista.style.listStyle = "none";
+  lista.style.margin = "0";
+  lista.style.padding = "0";
+  tarjeta.append(mensaje, lista);
+
+  const r = await api("GET", `/proyectos/${proyectoId}/linea-tiempo`);
+  if (r.status !== 200) {
+    mensaje.append(alerta("error", "No se pudo cargar la línea de tiempo."));
+    return tarjeta;
+  }
+
+  const eventos = r.cuerpo.eventos;
+  if (eventos.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay eventos registrados para este proyecto.";
+    lista.append(p);
+    return tarjeta;
+  }
+
+  eventos.forEach((evento) => {
+    const item = document.createElement("li");
+    item.style.padding = "10px 0";
+    item.style.borderBottom = "1px solid var(--borde)";
+
+    const fila = document.createElement("div");
+    fila.style.display = "flex";
+    fila.style.justifyContent = "space-between";
+    fila.style.gap = "12px";
+
+    const texto = document.createElement("span");
+    texto.textContent = describirEventoLineaTiempo(evento);
+
+    const meta = document.createElement("span");
+    meta.className = "subtitulo";
+    meta.style.whiteSpace = "nowrap";
+    meta.textContent = `${evento.usuario_nombre || "—"} · ${formatoFechaHora(evento.creado_en)}`;
+
+    fila.append(texto, meta);
+    item.append(fila);
+    lista.append(item);
+  });
+
+  return tarjeta;
+}
+
 async function vistaProyectos() {
   marcarMenu("proyectos");
   mostrarCargando();
@@ -672,8 +1230,8 @@ async function vistaProyectoForm(id) {
 
     const subtitulo = document.createElement("p");
     subtitulo.className = "subtitulo";
-    subtitulo.textContent = `Fase actual: ${textoEstadoProyecto(proyecto.estado)}`;
-    bloqueFase.append(subtitulo);
+    subtitulo.textContent = "Fase del proyecto";
+    bloqueFase.append(subtitulo, construirStageTrack(proyecto.estado));
 
     const mensajeFase = document.createElement("div");
     const filaFase = document.createElement("div");
@@ -682,12 +1240,17 @@ async function vistaProyectoForm(id) {
       construirCampo(
         { nombre: "nueva_fase", etiqueta: "Cambiar a la fase", tipo: "select", opciones: ESTADOS_PROYECTO },
         proyecto.estado
-      )
+      ),
+      construirCampo({ nombre: "observacion_fase", etiqueta: "Observación (opcional)" }, "")
     );
     const botonFase = boton("Actualizar fase", async () => {
       mensajeFase.replaceChildren();
       const nuevaFase = document.getElementById("nueva_fase").value;
-      const r = await api("PATCH", `/proyectos/${id}/estado`, { estado: nuevaFase });
+      const observacion = document.getElementById("observacion_fase").value.trim();
+      const r = await api("PATCH", `/proyectos/${id}/estado`, {
+        estado: nuevaFase,
+        observacion: observacion || undefined,
+      });
       if (r.status === 200) {
         vistaProyectoForm(id);
         return;
@@ -697,6 +1260,10 @@ async function vistaProyectoForm(id) {
 
     bloqueFase.append(filaFase, botonFase, mensajeFase);
     tarjeta.append(bloqueFase);
+
+    tarjeta.append(await renderSeccionActividadesProyecto(id, opcionesUsuarios));
+    tarjeta.append(await renderSeccionEquipoProyecto(id, opcionesUsuarios));
+    tarjeta.append(await renderSeccionLineaTiempoProyecto(id));
   }
 }
 
