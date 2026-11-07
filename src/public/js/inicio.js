@@ -583,6 +583,59 @@ function construirStageTrack(estadoActual) {
   return track;
 }
 
+function renderSeccionPresupuestoProyecto(proyecto) {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  tarjeta.style.marginTop = "24px";
+
+  const h3 = document.createElement("h3");
+  h3.style.margin = "0 0 16px";
+  h3.style.fontSize = "1.125rem";
+  h3.textContent = "Presupuesto";
+  tarjeta.append(h3);
+
+  const presupuesto =
+    proyecto.presupuesto_estimado === null || proyecto.presupuesto_estimado === undefined
+      ? null
+      : Number(proyecto.presupuesto_estimado);
+  const gastoReal = Number(proyecto.gasto_real || 0);
+
+  const fila = document.createElement("div");
+  fila.style.display = "flex";
+  fila.style.gap = "24px";
+  fila.style.flexWrap = "wrap";
+
+  function dato(etiqueta, valor, pillTipo) {
+    const bloque = document.createElement("div");
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.style.margin = "0 0 4px";
+    p.textContent = etiqueta;
+    bloque.append(p);
+    bloque.append(pillTipo ? pill(valor, pillTipo) : document.createTextNode(valor));
+    return bloque;
+  }
+
+  fila.append(
+    dato("Estimado", presupuesto !== null ? `$${formatearMoneda(presupuesto)}` : "— Sin definir —")
+  );
+  fila.append(dato("Gastado (vía OC)", `$${formatearMoneda(gastoReal)}`));
+
+  if (presupuesto !== null) {
+    const diferencia = presupuesto - gastoReal;
+    fila.append(
+      dato(
+        "Diferencia",
+        `${diferencia < 0 ? "-" : ""}$${formatearMoneda(Math.abs(diferencia))}`,
+        diferencia < 0 ? "crit" : "good"
+      )
+    );
+  }
+
+  tarjeta.append(fila);
+  return tarjeta;
+}
+
 async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -1135,6 +1188,7 @@ async function vistaProyectoForm(id) {
         },
         { nombre: "nombre_proyecto", etiqueta: "Nombre del proyecto", requerido: true },
         { nombre: "linea_negocio", etiqueta: "Línea de negocio" },
+        { nombre: "presupuesto_estimado", etiqueta: "Presupuesto estimado", tipo: "number" },
         { nombre: "cotizacion_id", etiqueta: "Cotización de origen", tipo: "select", opciones: opcionesCotizacion },
       ]
     : [
@@ -1154,6 +1208,7 @@ async function vistaProyectoForm(id) {
         },
         { nombre: "nombre_proyecto", etiqueta: "Nombre del proyecto", requerido: true },
         { nombre: "linea_negocio", etiqueta: "Línea de negocio" },
+        { nombre: "presupuesto_estimado", etiqueta: "Presupuesto estimado", tipo: "number" },
         { nombre: "cotizacion_id", etiqueta: "Cotización de origen", tipo: "select", opciones: opcionesCotizacion },
       ];
 
@@ -1261,6 +1316,7 @@ async function vistaProyectoForm(id) {
     bloqueFase.append(filaFase, botonFase, mensajeFase);
     tarjeta.append(bloqueFase);
 
+    tarjeta.append(renderSeccionPresupuestoProyecto(proyecto));
     tarjeta.append(await renderSeccionActividadesProyecto(id, opcionesUsuarios));
     tarjeta.append(await renderSeccionEquipoProyecto(id, opcionesUsuarios));
     tarjeta.append(await renderSeccionLineaTiempoProyecto(id));

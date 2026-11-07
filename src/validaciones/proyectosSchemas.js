@@ -7,6 +7,7 @@ const crearProyectoSchema = z.object({
   nombre_proyecto: z.string().min(1),
   linea_negocio: z.string().optional(),
   cotizacion_id: z.coerce.number().int().positive().optional(),
+  presupuesto_estimado: z.coerce.number().nonnegative().optional(),
 });
 
 const actualizarProyectoSchema = z.object({
@@ -14,6 +15,7 @@ const actualizarProyectoSchema = z.object({
   linea_negocio: z.string().optional(),
   responsable_id: z.coerce.number().int().positive().optional(),
   cotizacion_id: z.coerce.number().int().positive().optional(),
+  presupuesto_estimado: z.coerce.number().nonnegative().optional(),
 });
 
 const cambiarEstadoSchema = z.object({
