@@ -22,7 +22,9 @@ Excel/Word dispersos (ver diccionario de datos en el repo de documentación, fue
   servicios.
 - Integración: endpoints contra una BD de prueba real (no mocks), verificando también que
   auditoría y permisos quedaron escritos.
-- E2E (Playwright): flujos críticos completos, corridos en `staging` antes de pasar a producción.
+- E2E (Playwright, `tests/e2e/`): flujos críticos completos. Corren contra un servidor local +
+  BD de prueba (Docker), no contra `staging` real — esa BD está conectada a la cuenta real de
+  soluctiasas.com y no se usa para generar datos de prueba. Wireados en CI tras los tests de Jest.
 - CI (`.github/workflows/ci.yml`) corre lint + test en cada push/PR a `develop`/`staging`/`main`.
   Un PR no se aprueba si CI falla. Sin excepciones.
 
@@ -51,7 +53,6 @@ Flujo: crear rama `feature/<nombre>` desde `develop`, PR a `develop`. Promoción
 ## Pendientes conocidos (no asumir que ya existen)
 
 - Catálogos cerrados (productos, clientes, proveedores) aún no entregados por el usuario.
-- Formato FO-CL-008 (Acta de Entrega de Equipos) detectado pero aún no diccionado.
 - El diccionario de datos vive en `documentacion/DICCIONARIO_DE_DATOS.txt`, en el repo de
   documentación del proyecto (no en este repo de código).
 
