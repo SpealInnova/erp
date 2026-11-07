@@ -1,4 +1,5 @@
 const { ZodError } = require("zod");
+const multer = require("multer");
 const {
   ErrorCredencialesInvalidas,
   ErrorUsuarioInactivo,
@@ -78,6 +79,13 @@ const {
   ErrorClienteNoExiste: ErrorClienteNoExisteActaEntrega,
   ErrorItemsVacios: ErrorItemsVaciosActaEntrega,
 } = require("../dominio/erroresActasEntrega");
+const {
+  ErrorTablaNoPermitida,
+  ErrorRegistroNoExiste,
+  ErrorArchivoNoEncontrado,
+  ErrorArchivoRequerido,
+  ErrorTipoArchivoNoPermitido,
+} = require("../dominio/erroresArchivosAdjuntos");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -247,6 +255,23 @@ function manejadorErrores(error, req, res, next) {
     return res.status(409).json({ error: error.message });
   }
   if (error instanceof ErrorUsuarioInvalido) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  if (error instanceof ErrorArchivoNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorRegistroNoExiste) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorTablaNoPermitida ||
+    error instanceof ErrorArchivoRequerido ||
+    error instanceof ErrorTipoArchivoNoPermitido
+  ) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof multer.MulterError) {
     return res.status(400).json({ error: error.message });
   }
 

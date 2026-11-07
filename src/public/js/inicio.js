@@ -636,6 +636,148 @@ function renderSeccionPresupuestoProyecto(proyecto) {
   return tarjeta;
 }
 
+async function apiSubirArchivo(ruta, formData) {
+  const respuesta = await fetch(ruta, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (respuesta.status === 401) {
+    cerrarSesion();
+    throw new Error("sesion-expirada");
+  }
+  const texto = respuesta.status === 204 ? null : await respuesta.json().catch(() => null);
+  return { status: respuesta.status, cuerpo: texto };
+}
+
+function contenidoEvidencias(tabla, registroId) {
+  const contenedor = document.createElement("div");
+  const mensaje = document.createElement("div");
+  const lista = document.createElement("ul");
+  lista.style.listStyle = "none";
+  lista.style.margin = "0 0 12px";
+  lista.style.padding = "0";
+  contenedor.append(mensaje, lista);
+
+  async function cargar() {
+    mensaje.replaceChildren();
+    lista.replaceChildren();
+    const r = await api("GET", `/archivos-adjuntos?tabla=${tabla}&registro_id=${registroId}`);
+    if (r.status !== 200) {
+      mensaje.append(alerta("error", "No se pudieron cargar las evidencias."));
+      return;
+    }
+    const archivos = r.cuerpo.archivos;
+    if (archivos.length === 0) {
+      const li = document.createElement("li");
+      li.className = "subtitulo";
+      li.textContent = "Aún no hay evidencias cargadas.";
+      lista.append(li);
+      return;
+    }
+    archivos.forEach((archivo) => {
+      const li = document.createElement("li");
+      li.style.display = "flex";
+      li.style.alignItems = "center";
+      li.style.gap = "8px";
+      li.style.padding = "4px 0";
+
+      const enlace = document.createElement("a");
+      enlace.href = archivo.drive_enlace || "#";
+      enlace.target = "_blank";
+      enlace.rel = "noopener noreferrer";
+      enlace.textContent = archivo.nombre_archivo;
+      li.append(enlace);
+
+      li.append(
+        boton(
+          "Quitar",
+          async () => {
+            if (!window.confirm(`¿Quitar la evidencia "${archivo.nombre_archivo}"?`)) return;
+            const r2 = await api("DELETE", `/archivos-adjuntos/${archivo.id}`);
+            if (r2.status === 204) {
+              cargar();
+              return;
+            }
+            mensaje.replaceChildren(
+              alerta("error", r2.cuerpo?.error || "No se pudo quitar la evidencia.")
+            );
+          },
+          true
+        )
+      );
+      lista.append(li);
+    });
+  }
+
+  const formSubir = document.createElement("form");
+  formSubir.noValidate = true;
+  formSubir.style.display = "flex";
+  formSubir.style.gap = "8px";
+  formSubir.style.alignItems = "center";
+  formSubir.style.flexWrap = "wrap";
+
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/png,image/jpeg,image/webp,image/gif,application/pdf";
+  input.setAttribute("aria-label", "Archivo de evidencia");
+  formSubir.append(input);
+
+  const subirBtn = document.createElement("button");
+  subirBtn.type = "submit";
+  subirBtn.className = "boton boton-pequeno";
+  subirBtn.textContent = "Subir evidencia";
+  formSubir.append(subirBtn);
+
+  formSubir.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    mensaje.replaceChildren();
+    const archivo = input.files[0];
+    if (!archivo) {
+      mensaje.append(alerta("error", "Selecciona un archivo primero."));
+      return;
+    }
+    const formData = new FormData();
+    formData.append("tabla", tabla);
+    formData.append("registro_id", String(registroId));
+    formData.append("archivo", archivo);
+
+    subirBtn.disabled = true;
+    try {
+      const r = await apiSubirArchivo("/archivos-adjuntos", formData);
+      if (r.status !== 201) {
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo subir la evidencia."));
+        return;
+      }
+      formSubir.reset();
+      cargar();
+    } catch (error) {
+      if (error.message !== "sesion-expirada") {
+        mensaje.append(alerta("error", "No hay conexión con el servidor."));
+      }
+    } finally {
+      subirBtn.disabled = false;
+    }
+  });
+
+  contenedor.append(formSubir);
+
+  cargar();
+  return contenedor;
+}
+
+function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  tarjeta.style.marginTop = "24px";
+  const h3 = document.createElement("h3");
+  h3.style.margin = "0 0 16px";
+  h3.style.fontSize = "1.125rem";
+  h3.textContent = titulo;
+  tarjeta.append(h3, contenidoEvidencias(tabla, registroId));
+  return tarjeta;
+}
+
 async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -700,7 +842,7 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       tabla.className = "tabla-items";
       const thead = document.createElement("thead");
       const filaCabecera = document.createElement("tr");
-      ["", "Categoría", "Actividad", "Responsable", ""].forEach((texto) => {
+      ["", "Categoría", "Actividad", "Responsable", "", ""].forEach((texto) => {
         const th = document.createElement("th");
         th.scope = "col";
         th.textContent = texto;
@@ -767,6 +909,36 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
         tdResponsable.append(selectResponsable);
         fila.append(tdResponsable);
 
+        const filaEvidencias = document.createElement("tr");
+        filaEvidencias.style.display = "none";
+        const tdEvidenciasContenido = document.createElement("td");
+        tdEvidenciasContenido.colSpan = 6;
+        filaEvidencias.append(tdEvidenciasContenido);
+        let evidenciasCargadas = false;
+
+        const tdEvidencias = document.createElement("td");
+        tdEvidencias.append(
+          boton(
+            "Evidencias",
+            () => {
+              const abierta = filaEvidencias.style.display !== "none";
+              if (abierta) {
+                filaEvidencias.style.display = "none";
+                return;
+              }
+              if (!evidenciasCargadas) {
+                tdEvidenciasContenido.append(
+                  contenidoEvidencias("proyecto_actividades", actividad.id)
+                );
+                evidenciasCargadas = true;
+              }
+              filaEvidencias.style.display = "";
+            },
+            true
+          )
+        );
+        fila.append(tdEvidencias);
+
         const tdAccion = document.createElement("td");
         const quitarBtn = boton(
           "Quitar",
@@ -789,7 +961,7 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
         tdAccion.append(quitarBtn);
         fila.append(tdAccion);
 
-        tbody.append(fila);
+        tbody.append(fila, filaEvidencias);
       });
 
       tabla.append(thead, tbody);
@@ -1319,6 +1491,7 @@ async function vistaProyectoForm(id) {
     tarjeta.append(renderSeccionPresupuestoProyecto(proyecto));
     tarjeta.append(await renderSeccionActividadesProyecto(id, opcionesUsuarios));
     tarjeta.append(await renderSeccionEquipoProyecto(id, opcionesUsuarios));
+    tarjeta.append(renderSeccionEvidencias("proyectos", id, "Evidencias del proyecto"));
     tarjeta.append(await renderSeccionLineaTiempoProyecto(id));
   }
 }
@@ -2334,6 +2507,7 @@ async function vistaRequisicionForm(id) {
 
     bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
+    tarjeta.append(renderSeccionEvidencias("requisiciones", id, "Evidencias / soportes"));
   }
 }
 
@@ -2723,6 +2897,7 @@ async function vistaOrdenCompraForm(id) {
 
     bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
+    tarjeta.append(renderSeccionEvidencias("ordenes_compra", id, "Evidencias / soportes"));
   }
 }
 
