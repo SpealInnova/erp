@@ -55,6 +55,11 @@ Flujo: crear rama `feature/<nombre>` desde `develop`, PR a `develop`. Promoción
 - Catálogos cerrados (productos, clientes, proveedores) aún no entregados por el usuario.
 - El diccionario de datos vive en `documentacion/DICCIONARIO_DE_DATOS.txt`, en el repo de
   documentación del proyecto (no en este repo de código).
+- Evidencias/archivos adjuntos (sube a Google Drive, `src/servicios/archivosDrive.js`): el
+  `GMAIL_REFRESH_TOKEN` real en `staging`/`main` todavía NO tiene el scope de Drive
+  (`drive.file`) — solo el de Gmail. Subir un archivo en esos entornos fallará con 500 hasta
+  que el usuario regenere ese token autorizando ambos scopes a la vez y se actualice la
+  variable de entorno en el servidor (y se configure `DRIVE_FOLDER_ID`).
 
 ## Qué puede resolver un agente sin supervisión directa
 
