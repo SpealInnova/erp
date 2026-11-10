@@ -778,6 +778,54 @@ function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
   return tarjeta;
 }
 
+function formatearFechaISO(fecha) {
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dia = String(fecha.getDate()).padStart(2, "0");
+  return `${anio}-${mes}-${dia}`;
+}
+
+function renderizarGantt(contenedor, actividades, proyectoId) {
+  contenedor.replaceChildren();
+  if (typeof window.Gantt === "undefined" || actividades.length === 0) {
+    return;
+  }
+
+  const hoy = new Date();
+  const tareas = actividades.map((actividad, indice) => {
+    let inicio = actividad.fecha_inicio;
+    let fin = actividad.fecha_fin;
+    if (!inicio) {
+      const base = new Date(hoy);
+      base.setDate(base.getDate() + indice);
+      inicio = formatearFechaISO(base);
+    }
+    if (!fin) {
+      const base = new Date(`${inicio}T00:00:00`);
+      base.setDate(base.getDate() + 1);
+      fin = formatearFechaISO(base);
+    }
+    return {
+      id: String(actividad.id),
+      name: `${textoEstadoProyecto(actividad.fase)}: ${actividad.descripcion}`,
+      start: inicio,
+      end: fin,
+      progress: actividad.estado === "completada" ? 100 : 0,
+    };
+  });
+
+  new window.Gantt(contenedor, tareas, {
+    view_mode: "Week",
+    language: "es",
+    on_date_change: async (tarea, inicio, fin) => {
+      await api("PUT", `/proyectos/${proyectoId}/actividades/${tarea.id}`, {
+        fecha_inicio: formatearFechaISO(inicio),
+        fecha_fin: formatearFechaISO(fin),
+      });
+    },
+  });
+}
+
 async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -790,11 +838,15 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   tarjeta.append(h3);
 
   const mensaje = document.createElement("div");
+  const contenedorGantt = document.createElement("div");
+  contenedorGantt.style.marginBottom = "24px";
+  contenedorGantt.style.overflowX = "auto";
   const contenedorGrupos = document.createElement("div");
-  tarjeta.append(mensaje, contenedorGrupos);
+  tarjeta.append(mensaje, contenedorGantt, contenedorGrupos);
 
   async function cargar() {
     mensaje.replaceChildren();
+    contenedorGantt.replaceChildren();
     contenedorGrupos.replaceChildren();
     const r = await api("GET", `/proyectos/${proyectoId}/actividades`);
     if (r.status !== 200) {
@@ -809,6 +861,8 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       contenedorGrupos.append(p);
       return;
     }
+
+    renderizarGantt(contenedorGantt, actividades, proyectoId);
 
     const porFase = new Map();
     actividades.forEach((actividad) => {
