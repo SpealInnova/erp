@@ -8,6 +8,7 @@ jest.mock("../../src/servicios/archivosDrive", () => ({
     driveFileId: "fake-drive-id",
     driveEnlace: "https://drive.google.com/file/d/fake-drive-id/view",
   }),
+  crearCarpeta: jest.fn().mockResolvedValue({ id: "fake-folder-id" }),
 }));
 
 const { crearApp } = require("../../src/app");
@@ -63,6 +64,7 @@ describirSiHayBD("Archivos adjuntos / evidencias (integración contra BD real)",
       proyectoId,
     ]);
     await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [usuarioId]);
+    await pool.query("DELETE FROM proyecto_drive_carpetas WHERE proyecto_id = ?", [proyectoId]);
     await pool.query("DELETE FROM proyectos WHERE id = ?", [proyectoId]);
     await pool.query("DELETE FROM clientes WHERE id = ?", [clienteId]);
     await pool.query("DELETE FROM usuarios WHERE id = ?", [usuarioId]);

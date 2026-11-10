@@ -9,12 +9,16 @@ function crearClienteGmail() {
   return google.gmail({ version: "v1", auth: oAuth2Client });
 }
 
+function codificarAsunto(asunto) {
+  return `=?UTF-8?B?${Buffer.from(asunto, "utf8").toString("base64")}?=`;
+}
+
 function construirMensajeBase64(destinatario, asunto, textoPlano) {
   const remitente = process.env.GMAIL_SENDER_EMAIL;
   const mensaje = [
     `From: SPEAL Project Control <${remitente}>`,
     `To: ${destinatario}`,
-    `Subject: ${asunto}`,
+    `Subject: ${codificarAsunto(asunto)}`,
     "Content-Type: text/plain; charset=utf-8",
     "",
     textoPlano,
