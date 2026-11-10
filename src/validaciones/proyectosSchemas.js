@@ -11,6 +11,10 @@ const crearProyectoSchema = z.object({
 });
 
 const actualizarProyectoSchema = z.object({
+  codigo_pry: z
+    .string()
+    .regex(/^PRY-\d{4}-\d{3}$/, "Formato esperado: PRY-AAAA-NNN")
+    .optional(),
   nombre_proyecto: z.string().min(1).optional(),
   linea_negocio: z.string().optional(),
   responsable_id: z.coerce.number().int().positive().optional(),

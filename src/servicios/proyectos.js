@@ -5,6 +5,7 @@ const cotizacionesRepositorio = require("../repositorios/cotizacionesRepositorio
 const auditoria = require("./auditoria");
 const proyectoActividadesServicio = require("./proyectoActividades");
 const notificacionesServicio = require("./notificaciones");
+const archivosDrive = require("./archivosDrive");
 const { formatearCodigoPry } = require("../dominio/codigoProyecto");
 const { transicionar, ESTADOS } = require("../dominio/estadoProyecto");
 const { ESTADOS: ESTADOS_COTIZACION } = require("../dominio/estadoCotizacion");
@@ -13,6 +14,7 @@ const {
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
   ErrorCotizacionInvalida,
+  ErrorCodigoPryDuplicado,
 } = require("../dominio/erroresProyectos");
 
 const TABLA = "proyectos";
@@ -109,9 +111,22 @@ async function actualizarProyecto(pool, id, datos, usuarioId) {
   if (datos.cotizacion_id) {
     await validarCotizacion(pool, datos.cotizacion_id, anterior.cliente_id);
   }
+  if (datos.codigo_pry && datos.codigo_pry !== anterior.codigo_pry) {
+    const existente = await proyectosRepositorio.buscarPorCodigoPry(pool, datos.codigo_pry);
+    if (existente && existente.id !== id) {
+      throw new ErrorCodigoPryDuplicado();
+    }
+  }
 
   await proyectosRepositorio.actualizar(pool, id, datos);
   const actualizado = await proyectosRepositorio.obtenerPorId(pool, id);
+
+  if (datos.codigo_pry && datos.codigo_pry !== anterior.codigo_pry && anterior.drive_folder_id) {
+    await archivosDrive.renombrarCarpeta({
+      carpetaId: anterior.drive_folder_id,
+      nombre: datos.codigo_pry,
+    });
+  }
 
   await auditoria.registrar(pool, {
     tabla: TABLA,

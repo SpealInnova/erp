@@ -22,9 +22,16 @@ class ErrorCotizacionInvalida extends Error {
   }
 }
 
+class ErrorCodigoPryDuplicado extends Error {
+  constructor() {
+    super("Ya existe un proyecto con ese código");
+  }
+}
+
 module.exports = {
   ErrorProyectoNoEncontrado,
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
   ErrorCotizacionInvalida,
+  ErrorCodigoPryDuplicado,
 };
