@@ -10,12 +10,13 @@ function crearClienteDrive() {
   return google.drive({ version: "v3", auth: oAuth2Client });
 }
 
-async function subirArchivo({ nombre, mimeType, buffer }) {
+async function subirArchivo({ nombre, mimeType, buffer, parentId }) {
   const drive = crearClienteDrive();
+  const carpetaDestino = parentId || process.env.DRIVE_FOLDER_ID;
   const respuesta = await drive.files.create({
     requestBody: {
       name: nombre,
-      parents: process.env.DRIVE_FOLDER_ID ? [process.env.DRIVE_FOLDER_ID] : undefined,
+      parents: carpetaDestino ? [carpetaDestino] : undefined,
     },
     media: {
       mimeType,
@@ -26,4 +27,17 @@ async function subirArchivo({ nombre, mimeType, buffer }) {
   return { driveFileId: respuesta.data.id, driveEnlace: respuesta.data.webViewLink };
 }
 
-module.exports = { subirArchivo };
+async function crearCarpeta({ nombre, parentId }) {
+  const drive = crearClienteDrive();
+  const respuesta = await drive.files.create({
+    requestBody: {
+      name: nombre,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: parentId ? [parentId] : undefined,
+    },
+    fields: "id",
+  });
+  return { id: respuesta.data.id };
+}
+
+module.exports = { subirArchivo, crearCarpeta };

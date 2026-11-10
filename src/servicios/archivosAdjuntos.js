@@ -1,5 +1,6 @@
 const archivosAdjuntosRepositorio = require("../repositorios/archivosAdjuntosRepositorio");
 const archivosDrive = require("./archivosDrive");
+const proyectoCarpetasDrive = require("./proyectoCarpetasDrive");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const proyectoActividadesRepositorio = require("../repositorios/proyectoActividadesRepositorio");
 const requisicionesRepositorio = require("../repositorios/requisicionesRepositorio");
@@ -34,25 +35,31 @@ async function verificarRegistroExiste(pool, tabla, registroId) {
   if (!verificador) {
     throw new ErrorTablaNoPermitida();
   }
-  const registro = await verificador(pool, registroId);
-  if (!registro) {
+  const registroPadre = await verificador(pool, registroId);
+  if (!registroPadre) {
     throw new ErrorRegistroNoExiste();
   }
+  return registroPadre;
 }
 
 async function subirArchivo(pool, { tabla, registroId, archivo }, usuarioId) {
-  await verificarRegistroExiste(pool, tabla, registroId);
+  const registroPadre = await verificarRegistroExiste(pool, tabla, registroId);
 
   if (!MIME_TYPES_PERMITIDOS.includes(archivo.mimetype)) {
     throw new ErrorTipoArchivoNoPermitido();
   }
 
   const nombreArchivo = Buffer.from(archivo.originalname, "latin1").toString("utf8");
+  const carpetaId = await proyectoCarpetasDrive.obtenerCarpetaParaArchivo(pool, {
+    tabla,
+    registro: registroPadre,
+  });
 
   const { driveFileId, driveEnlace } = await archivosDrive.subirArchivo({
     nombre: nombreArchivo,
     mimeType: archivo.mimetype,
     buffer: archivo.buffer,
+    parentId: carpetaId,
   });
 
   const id = await archivosAdjuntosRepositorio.crear(pool, {
