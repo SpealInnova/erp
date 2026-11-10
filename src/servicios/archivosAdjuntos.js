@@ -47,8 +47,10 @@ async function subirArchivo(pool, { tabla, registroId, archivo }, usuarioId) {
     throw new ErrorTipoArchivoNoPermitido();
   }
 
+  const nombreArchivo = Buffer.from(archivo.originalname, "latin1").toString("utf8");
+
   const { driveFileId, driveEnlace } = await archivosDrive.subirArchivo({
-    nombre: archivo.originalname,
+    nombre: nombreArchivo,
     mimeType: archivo.mimetype,
     buffer: archivo.buffer,
   });
@@ -56,7 +58,7 @@ async function subirArchivo(pool, { tabla, registroId, archivo }, usuarioId) {
   const id = await archivosAdjuntosRepositorio.crear(pool, {
     tabla,
     registroId,
-    nombreArchivo: archivo.originalname,
+    nombreArchivo,
     mimeType: archivo.mimetype,
     tamanoBytes: archivo.size,
     driveFileId,
