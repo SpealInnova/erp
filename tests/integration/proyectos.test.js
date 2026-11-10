@@ -1,6 +1,12 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
+
+jest.mock("../../src/servicios/archivosDrive", () => ({
+  renombrarCarpeta: jest.fn().mockResolvedValue(undefined),
+}));
+
+const archivosDrive = require("../../src/servicios/archivosDrive");
 const { crearApp } = require("../../src/app");
 const { crearPool } = require("../../src/config/db");
 
@@ -121,6 +127,64 @@ describirSiHayBD("CRUD de Proyectos (integración contra BD real)", () => {
       .send({ nombre_proyecto: "Piloto Hospital Actualizado" });
     expect(respuesta.status).toBe(200);
     expect(respuesta.body.proyecto.nombre_proyecto).toBe("Piloto Hospital Actualizado");
+  });
+
+  test("rechaza cambiar el código a uno que ya usa otro proyecto", async () => {
+    const otro = await request(app)
+      .post("/proyectos")
+      .set(autorizacion())
+      .send({
+        cliente_id: clienteId,
+        responsable_id: usuarioId,
+        nombre_proyecto: "Proyecto para choque de código",
+      });
+    const codigoOtro = otro.body.proyecto.codigo_pry;
+
+    const respuesta = await request(app)
+      .put(`/proyectos/${proyectoId}`)
+      .set(autorizacion())
+      .send({ codigo_pry: codigoOtro });
+    expect(respuesta.status).toBe(409);
+
+    await pool.query("DELETE FROM proyectos WHERE id = ?", [otro.body.proyecto.id]);
+  });
+
+  test("rechaza un código con formato inválido", async () => {
+    const respuesta = await request(app)
+      .put(`/proyectos/${proyectoId}`)
+      .set(autorizacion())
+      .send({ codigo_pry: "cualquier-cosa" });
+    expect(respuesta.status).toBe(400);
+  });
+
+  test("permite cambiar el código del proyecto a uno nuevo y único", async () => {
+    const nuevoCodigo = `PRY-${anioActual}-999`;
+    const respuesta = await request(app)
+      .put(`/proyectos/${proyectoId}`)
+      .set(autorizacion())
+      .send({ codigo_pry: nuevoCodigo });
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.proyecto.codigo_pry).toBe(nuevoCodigo);
+    expect(archivosDrive.renombrarCarpeta).not.toHaveBeenCalled();
+  });
+
+  test("si el proyecto ya tiene carpeta en Drive, la renombra al cambiar el código", async () => {
+    await pool.query("UPDATE proyectos SET drive_folder_id = ? WHERE id = ?", [
+      "carpeta-drive-existente",
+      proyectoId,
+    ]);
+    const nuevoCodigo = `PRY-${anioActual}-998`;
+
+    const respuesta = await request(app)
+      .put(`/proyectos/${proyectoId}`)
+      .set(autorizacion())
+      .send({ codigo_pry: nuevoCodigo });
+
+    expect(respuesta.status).toBe(200);
+    expect(archivosDrive.renombrarCarpeta).toHaveBeenCalledWith({
+      carpetaId: "carpeta-drive-existente",
+      nombre: nuevoCodigo,
+    });
   });
 
   test("rechaza una transición de estado inválida (saltar fases)", async () => {

@@ -12,6 +12,7 @@ const {
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
   ErrorCotizacionInvalida,
+  ErrorCodigoPryDuplicado,
 } = require("../dominio/erroresProyectos");
 const { ErrorTransicionInvalida } = require("../dominio/erroresEstado");
 const { ErrorActividadNoEncontrada } = require("../dominio/erroresProyectoActividades");
@@ -119,6 +120,9 @@ function manejadorErrores(error, req, res, next) {
     error instanceof ErrorCotizacionInvalida
   ) {
     return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorCodigoPryDuplicado) {
+    return res.status(409).json({ error: error.message });
   }
   if (error instanceof ErrorActividadNoEncontrada) {
     return res.status(404).json({ error: error.message });

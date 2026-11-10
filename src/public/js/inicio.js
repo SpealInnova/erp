@@ -1351,6 +1351,7 @@ async function vistaProyectoForm(id) {
   const camposProyecto = id
     ? [
         { nombre: "cliente", etiqueta: "Cliente", tipo: "estatico" },
+        { nombre: "codigo_pry", etiqueta: "Código del proyecto", requerido: true },
         {
           nombre: "responsable_id",
           etiqueta: "Responsable",
