@@ -40,4 +40,9 @@ async function crearCarpeta({ nombre, parentId }) {
   return { id: respuesta.data.id };
 }
 
-module.exports = { subirArchivo, crearCarpeta };
+async function renombrarCarpeta({ carpetaId, nombre }) {
+  const drive = crearClienteDrive();
+  await drive.files.update({ fileId: carpetaId, requestBody: { name: nombre } });
+}
+
+module.exports = { subirArchivo, crearCarpeta, renombrarCarpeta };
