@@ -4607,36 +4607,84 @@ async function vistaUsuarios() {
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
   const thead = document.createElement("thead");
-  const filaCabecera = document.createElement("tr");
-  ["Nombre", "Correo", "Cédula", "Cargo", "Rol", ""].forEach((texto) => {
-    const th = document.createElement("th");
-    th.scope = "col";
-    th.textContent = texto;
-    filaCabecera.append(th);
-  });
-  thead.append(filaCabecera);
-
   const tbody = document.createElement("tbody");
-  usuarios.forEach((u) => {
-    const fila = document.createElement("tr");
-    [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
-      fila.append(celda(valor));
-    });
-    const accion = document.createElement("td");
-    const editar = boton(
-      "Editar",
-      () => (window.location.hash = `#/usuarios/${u.id}/editar`),
-      true
-    );
-    editar.setAttribute("aria-label", `Editar usuario ${u.nombre}`);
-    accion.append(editar);
-    fila.append(accion);
-    tbody.append(fila);
-  });
-
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
   contenido.append(tarjeta);
+
+  const COLUMNAS_ORDENABLES = [
+    { texto: "Nombre", campo: "nombre" },
+    { texto: "Correo", campo: "correo" },
+    { texto: "Cédula", campo: "cedula" },
+    { texto: "Cargo", campo: "cargo" },
+    { texto: "Rol", campo: "rol" },
+  ];
+
+  let campoOrden = "nombre";
+  let ascendente = true;
+
+  function renderTabla() {
+    const ordenados = [...usuarios].sort((a, b) => {
+      const valorA = (a[campoOrden] || "").toString();
+      const valorB = (b[campoOrden] || "").toString();
+      return ascendente
+        ? valorA.localeCompare(valorB, "es")
+        : valorB.localeCompare(valorA, "es");
+    });
+
+    filaCabecera.replaceChildren();
+    COLUMNAS_ORDENABLES.forEach((columna) => {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.style.cursor = "pointer";
+      th.setAttribute("role", "button");
+      th.setAttribute("tabindex", "0");
+      const indicador = columna.campo === campoOrden ? (ascendente ? " ▲" : " ▼") : "";
+      th.textContent = columna.texto + indicador;
+      const activar = () => {
+        if (campoOrden === columna.campo) {
+          ascendente = !ascendente;
+        } else {
+          campoOrden = columna.campo;
+          ascendente = true;
+        }
+        renderTabla();
+      };
+      th.addEventListener("click", activar);
+      th.addEventListener("keydown", (evento) => {
+        if (evento.key === "Enter" || evento.key === " ") {
+          evento.preventDefault();
+          activar();
+        }
+      });
+      filaCabecera.append(th);
+    });
+    const thAcciones = document.createElement("th");
+    thAcciones.scope = "col";
+    filaCabecera.append(thAcciones);
+
+    tbody.replaceChildren();
+    ordenados.forEach((u) => {
+      const fila = document.createElement("tr");
+      [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
+        fila.append(celda(valor));
+      });
+      const accion = document.createElement("td");
+      const editar = boton(
+        "Editar",
+        () => (window.location.hash = `#/usuarios/${u.id}/editar`),
+        true
+      );
+      editar.setAttribute("aria-label", `Editar usuario ${u.nombre}`);
+      accion.append(editar);
+      fila.append(accion);
+      tbody.append(fila);
+    });
+  }
+
+  const filaCabecera = document.createElement("tr");
+  thead.append(filaCabecera);
+  renderTabla();
 }
 
 async function vistaUsuarioForm(id) {
