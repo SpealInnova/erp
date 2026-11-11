@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { ESTADOS } = require("../dominio/estadoProyecto");
 
 const FECHA_ISO = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado: AAAA-MM-DD");
 
@@ -6,6 +7,7 @@ const crearActividadSchema = z.object({
   categoria: z.string().min(1),
   descripcion: z.string().min(1),
   responsable_id: z.coerce.number().int().positive().optional(),
+  fase: z.nativeEnum(ESTADOS).optional(),
 });
 
 const actualizarActividadSchema = z

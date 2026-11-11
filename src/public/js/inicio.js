@@ -838,15 +838,11 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   tarjeta.append(h3);
 
   const mensaje = document.createElement("div");
-  const contenedorGantt = document.createElement("div");
-  contenedorGantt.style.marginBottom = "24px";
-  contenedorGantt.style.overflowX = "auto";
   const contenedorGrupos = document.createElement("div");
-  tarjeta.append(mensaje, contenedorGantt, contenedorGrupos);
+  tarjeta.append(mensaje, contenedorGrupos);
 
   async function cargar() {
     mensaje.replaceChildren();
-    contenedorGantt.replaceChildren();
     contenedorGrupos.replaceChildren();
     const r = await api("GET", `/proyectos/${proyectoId}/actividades`);
     if (r.status !== 200) {
@@ -854,15 +850,6 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       return;
     }
     const actividades = r.cuerpo.actividades;
-    if (actividades.length === 0) {
-      const p = document.createElement("p");
-      p.className = "subtitulo";
-      p.textContent = "Aún no hay actividades generadas para este proyecto.";
-      contenedorGrupos.append(p);
-      return;
-    }
-
-    renderizarGantt(contenedorGantt, actividades, proyectoId);
 
     const porFase = new Map();
     actividades.forEach((actividad) => {
@@ -870,13 +857,14 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       porFase.get(actividad.fase).push(actividad);
     });
 
-    const fasesOrdenadas = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter((fase) =>
-      porFase.has(fase)
+    const fasesConActividades = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter(
+      (fase) => (porFase.get(fase) || []).length > 0
     );
-    const ultimaFase = fasesOrdenadas[fasesOrdenadas.length - 1];
+    const ultimaFase = fasesConActividades[fasesConActividades.length - 1];
 
-    fasesOrdenadas.forEach((fase) => {
-      const lista = porFase.get(fase);
+    ETAPAS_PROYECTO_LINEAL.forEach((etapa) => {
+      const fase = etapa.valor;
+      const lista = porFase.get(fase) || [];
       const completadas = lista.filter((actividad) => actividad.estado === "completada").length;
 
       const detalles = document.createElement("details");
@@ -887,10 +875,34 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       resumen.style.cursor = "pointer";
       resumen.style.fontWeight = "700";
       resumen.append(document.createTextNode(`${textoEstadoProyecto(fase)} `));
-      resumen.append(
-        pill(`${completadas}/${lista.length}`, completadas === lista.length ? "good" : "info")
-      );
+      if (lista.length > 0) {
+        resumen.append(
+          pill(`${completadas}/${lista.length}`, completadas === lista.length ? "good" : "info")
+        );
+        const conFechas = lista.filter((a) => a.fecha_inicio && a.fecha_fin);
+        if (conFechas.length > 0) {
+          const inicios = conFechas.map((a) => String(a.fecha_inicio).slice(0, 10)).sort();
+          const fines = conFechas.map((a) => String(a.fecha_fin).slice(0, 10)).sort();
+          const rango = document.createElement("span");
+          rango.className = "subtitulo";
+          rango.style.marginLeft = "8px";
+          rango.style.fontWeight = "400";
+          rango.textContent = `${inicios[0]} → ${fines[fines.length - 1]}`;
+          resumen.append(rango);
+        }
+      }
       detalles.append(resumen);
+
+      const contenidoFase = document.createElement("div");
+      contenidoFase.style.padding = "8px 0 0";
+
+      if (lista.length > 0) {
+        const contenedorGanttFase = document.createElement("div");
+        contenedorGanttFase.style.marginBottom = "16px";
+        contenedorGanttFase.style.overflowX = "auto";
+        contenidoFase.append(contenedorGanttFase);
+        renderizarGantt(contenedorGanttFase, lista, proyectoId);
+      }
 
       const tabla = document.createElement("table");
       tabla.className = "tabla-items";
@@ -1018,45 +1030,57 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
         tbody.append(fila, filaEvidencias);
       });
 
-      tabla.append(thead, tbody);
-      detalles.append(tabla);
+      if (lista.length > 0) {
+        tabla.append(thead, tbody);
+        contenidoFase.append(tabla);
+      }
+
+      const filaAgregar = document.createElement("div");
+      filaAgregar.style.marginTop = "8px";
+      const mostrarFormAgregar = () => {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Nombre de la subactividad";
+        input.setAttribute("aria-label", `Nueva subactividad en ${textoEstadoProyecto(fase)}`);
+        input.style.marginRight = "8px";
+        const confirmar = boton(
+          "Agregar",
+          async () => {
+            const nombre = input.value.trim();
+            if (!nombre) return;
+            const r2 = await api("POST", `/proyectos/${proyectoId}/actividades`, {
+              categoria: "General",
+              descripcion: nombre,
+              fase,
+            });
+            if (r2.status !== 201) {
+              mensaje.replaceChildren(
+                alerta("error", r2.cuerpo?.error || "No se pudo agregar la subactividad.")
+              );
+              return;
+            }
+            cargar();
+          },
+          true
+        );
+        const cancelar = boton(
+          "Cancelar",
+          () => {
+            filaAgregar.replaceChildren(botonMas);
+          },
+          true
+        );
+        filaAgregar.replaceChildren(input, confirmar, cancelar);
+        input.focus();
+      };
+      const botonMas = boton("+ Agregar subactividad", mostrarFormAgregar, true);
+      filaAgregar.append(botonMas);
+      contenidoFase.append(filaAgregar);
+
+      detalles.append(contenidoFase);
       contenedorGrupos.append(detalles);
     });
   }
-
-  const formAgregar = document.createElement("form");
-  formAgregar.noValidate = true;
-  formAgregar.style.marginTop = "16px";
-  const gridAgregar = document.createElement("div");
-  gridAgregar.className = "formulario-grid";
-  gridAgregar.append(
-    construirCampo({ nombre: "categoria", etiqueta: "Categoría", requerido: true }, ""),
-    construirCampo({ nombre: "descripcion", etiqueta: "Actividad", requerido: true }, "")
-  );
-  const agregarBtn = document.createElement("button");
-  agregarBtn.type = "submit";
-  agregarBtn.className = "boton boton-pequeno";
-  agregarBtn.textContent = "Agregar actividad";
-  formAgregar.append(gridAgregar, agregarBtn);
-
-  formAgregar.addEventListener("submit", async (evento) => {
-    evento.preventDefault();
-    const categoria = formAgregar.elements.categoria.value.trim();
-    const descripcion = formAgregar.elements.descripcion.value.trim();
-    if (!categoria || !descripcion) return;
-    const r = await api("POST", `/proyectos/${proyectoId}/actividades`, {
-      categoria,
-      descripcion,
-    });
-    if (r.status !== 201) {
-      mensaje.replaceChildren(alerta("error", r.cuerpo?.error || "No se pudo agregar la actividad."));
-      return;
-    }
-    formAgregar.reset();
-    cargar();
-  });
-
-  tarjeta.append(formAgregar);
 
   await cargar();
   return tarjeta;
@@ -4667,5 +4691,32 @@ function enrutar() {
 }
 
 document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion);
+
+(function inicializarMenuColapsable() {
+  const app = document.querySelector(".app");
+  const btn = document.getElementById("btn-colapsar-menu");
+  let colapsado = false;
+  try {
+    colapsado = window.localStorage.getItem("menu-colapsado") === "1";
+  } catch {
+    colapsado = false;
+  }
+  const aplicar = () => {
+    app.classList.toggle("menu-colapsado", colapsado);
+    btn.setAttribute("aria-expanded", String(!colapsado));
+    btn.setAttribute("aria-label", colapsado ? "Expandir menú" : "Contraer menú");
+  };
+  aplicar();
+  btn.addEventListener("click", () => {
+    colapsado = !colapsado;
+    aplicar();
+    try {
+      window.localStorage.setItem("menu-colapsado", colapsado ? "1" : "0");
+    } catch {
+      // almacenamiento no disponible; la preferencia solo dura esta sesión
+    }
+  });
+})();
+
 window.addEventListener("hashchange", enrutar);
 enrutar();

@@ -423,6 +423,11 @@ body.app-body::before {
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 0.18s ease;
+}
+
+.app.menu-colapsado {
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 .menu {
@@ -435,9 +440,55 @@ body.app-body::before {
   gap: 3px;
 }
 
+.menu-colapsar-boton {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-md);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.menu-colapsar-boton:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.menu-colapsar-boton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .menu .marca {
   margin: 6px 10px 20px;
   font-size: 1.1rem;
+}
+
+.app.menu-colapsado .menu {
+  padding: 20px 10px;
+}
+
+.app.menu-colapsado .marca {
+  font-size: 0;
+  gap: 0;
+  justify-content: center;
+}
+
+.app.menu-colapsado .menu a {
+  justify-content: center;
+}
+
+.app.menu-colapsado .menu a .lbl,
+.app.menu-colapsado .menu .nav-section-label,
+.app.menu-colapsado #btn-accesibilidad,
+.app.menu-colapsado #cerrar-sesion {
+  display: none;
 }
 
 .menu .marca::before {
@@ -523,7 +574,6 @@ body.app-body::before {
 .ic-usuarios { background: linear-gradient(145deg, #aeb9d6, #626f91); }
 
 .main {
-  margin-left: var(--sidebar-w);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -928,10 +978,6 @@ html[data-contraste="alto"] .stage.actual .stage-punto {
 
   .menu {
     display: none;
-  }
-
-  .main {
-    margin-left: 0;
   }
 
   .topbar {

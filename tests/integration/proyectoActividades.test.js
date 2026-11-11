@@ -147,6 +147,15 @@ describirSiHayBD("Actividades de proyecto por fase (integración contra BD real)
     expect(respuesta.body.actividad.estado).toBe("pendiente");
   });
 
+  test("agrega una subactividad en una fase explícita distinta a la actual del proyecto", async () => {
+    const respuesta = await request(app)
+      .post(`/proyectos/${proyectoId}/actividades`)
+      .set(autorizacion())
+      .send({ categoria: "General", descripcion: "Planeación anticipada", fase: "planeacion" });
+    expect(respuesta.status).toBe(201);
+    expect(respuesta.body.actividad.fase).toBe("planeacion");
+  });
+
   test("rechaza agregar actividades a un proyecto inexistente", async () => {
     const respuesta = await request(app)
       .post("/proyectos/999999999/actividades")
