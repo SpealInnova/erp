@@ -1365,23 +1365,87 @@ async function vistaProyectos() {
       true
     );
     editar.setAttribute("aria-label", `Ver proyecto ${p.codigo_pry}`);
-    const eliminar = boton(
-      "Eliminar",
+    const filaConfirmacion = document.createElement("tr");
+    filaConfirmacion.style.display = "none";
+    const tdConfirmacion = document.createElement("td");
+    tdConfirmacion.colSpan = 6;
+
+    const formEliminar = document.createElement("div");
+    formEliminar.style.display = "flex";
+    formEliminar.style.flexDirection = "column";
+    formEliminar.style.gap = "8px";
+    formEliminar.style.padding = "12px 0";
+    formEliminar.style.maxWidth = "420px";
+
+    const nota = document.createElement("p");
+    nota.className = "subtitulo";
+    nota.textContent =
+      "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
+      "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
+    formEliminar.append(nota);
+
+    const inputPassword = document.createElement("input");
+    inputPassword.type = "password";
+    inputPassword.placeholder = "Tu contraseña";
+    inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
+
+    const textareaJustificacion = document.createElement("textarea");
+    textareaJustificacion.rows = 2;
+    textareaJustificacion.placeholder = "Justificación de la eliminación";
+    textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
+
+    const mensajeEliminar = document.createElement("div");
+
+    const confirmarEliminar = boton(
+      "Confirmar eliminación",
       async () => {
-        if (!window.confirm(`¿Eliminar el proyecto ${p.codigo_pry}?`)) return;
-        const r = await api("DELETE", `/proyectos/${p.id}`);
+        const password = inputPassword.value;
+        const justificacion = textareaJustificacion.value.trim();
+        mensajeEliminar.replaceChildren();
+        if (!password || !justificacion) {
+          mensajeEliminar.append(
+            alerta("error", "La contraseña y la justificación son obligatorias.")
+          );
+          return;
+        }
+        const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
         if (r.status === 204) {
           vistaProyectos();
           return;
         }
-        window.alert(r.cuerpo?.error || "No se pudo eliminar el proyecto.");
+        mensajeEliminar.replaceChildren(
+          alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
+        );
+      },
+      true
+    );
+
+    const cancelarEliminar = boton(
+      "Cancelar",
+      () => {
+        filaConfirmacion.style.display = "none";
+        inputPassword.value = "";
+        textareaJustificacion.value = "";
+        mensajeEliminar.replaceChildren();
+      },
+      true
+    );
+
+    formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
+    tdConfirmacion.append(formEliminar);
+    filaConfirmacion.append(tdConfirmacion);
+
+    const eliminar = boton(
+      "Eliminar",
+      () => {
+        filaConfirmacion.style.display = filaConfirmacion.style.display === "none" ? "" : "none";
       },
       true
     );
     eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
     accion.append(editar, eliminar);
     fila.append(accion);
-    tbody.append(fila);
+    tbody.append(fila, filaConfirmacion);
   });
 
   tabla.append(thead, tbody);

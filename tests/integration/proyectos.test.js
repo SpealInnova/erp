@@ -204,8 +204,24 @@ describirSiHayBD("CRUD de Proyectos (integración contra BD real)", () => {
     expect(respuesta.body.proyecto.estado).toBe("planeacion");
   });
 
-  test("elimina (soft-delete) el proyecto", async () => {
+  test("rechaza eliminar sin contraseña ni justificación", async () => {
     const respuesta = await request(app).delete(`/proyectos/${proyectoId}`).set(autorizacion());
+    expect(respuesta.status).toBe(400);
+  });
+
+  test("rechaza eliminar con la contraseña incorrecta", async () => {
+    const respuesta = await request(app)
+      .delete(`/proyectos/${proyectoId}`)
+      .set(autorizacion())
+      .send({ password: "ClaveIncorrecta", justificacion: "Proyecto de prueba duplicado" });
+    expect(respuesta.status).toBe(403);
+  });
+
+  test("elimina (soft-delete) el proyecto con contraseña y justificación válidas", async () => {
+    const respuesta = await request(app)
+      .delete(`/proyectos/${proyectoId}`)
+      .set(autorizacion())
+      .send({ password: "ClaveSegura123", justificacion: "Proyecto de prueba duplicado" });
     expect(respuesta.status).toBe(204);
 
     const obtener = await request(app).get(`/proyectos/${proyectoId}`).set(autorizacion());

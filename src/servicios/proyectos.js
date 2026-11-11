@@ -1,3 +1,4 @@
+const bcrypt = require("bcryptjs");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
@@ -15,6 +16,7 @@ const {
   ErrorResponsableInvalido,
   ErrorCotizacionInvalida,
   ErrorCodigoPryDuplicado,
+  ErrorPasswordInvalida,
 } = require("../dominio/erroresProyectos");
 
 const TABLA = "proyectos";
@@ -174,8 +176,15 @@ async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observa
   return actualizado;
 }
 
-async function eliminarProyecto(pool, id, usuarioId) {
+async function eliminarProyecto(pool, id, { password, justificacion }, usuarioId) {
   const anterior = await obtenerProyecto(pool, id);
+
+  const usuario = await usuariosRepositorio.buscarPorId(pool, usuarioId);
+  const passwordValida = usuario && (await bcrypt.compare(password, usuario.password_hash));
+  if (!passwordValida) {
+    throw new ErrorPasswordInvalida();
+  }
+
   await proyectosRepositorio.softDelete(pool, id);
 
   await auditoria.registrar(pool, {
@@ -184,7 +193,7 @@ async function eliminarProyecto(pool, id, usuarioId) {
     accion: "eliminar",
     usuarioId,
     datosAnteriores: anterior,
-    datosNuevos: null,
+    datosNuevos: { justificacion },
   });
 }
 
