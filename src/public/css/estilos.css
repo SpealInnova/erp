@@ -1004,3 +1004,40 @@ html[data-contraste="alto"] .stage.actual .stage-punto {
     bottom: auto;
   }
 }
+
+/* Diagrama de Gantt (Frappe Gantt) */
+.gantt-controles {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tarjeta-ancha .gantt .tick {
+  stroke: #9aa3ad;
+  stroke-width: 1;
+}
+
+.tarjeta-ancha .gantt .tick.thick {
+  stroke: #6b7684;
+  stroke-width: 1.5;
+}
+
+.tarjeta-ancha .gantt .bar {
+  fill: var(--gold);
+  stroke: #8a6508;
+  stroke-width: 0;
+}
+
+.tarjeta-ancha .gantt .bar-progress {
+  fill: #8a6508;
+}
+
+.tarjeta-ancha .gantt .bar-wrapper:hover .bar,
+.tarjeta-ancha .gantt .bar-wrapper.active .bar {
+  fill: #e0ac1f;
+}
+
+.tarjeta-ancha .gantt .bar-wrapper:hover .bar-progress,
+.tarjeta-ancha .gantt .bar-wrapper.active .bar-progress {
+  fill: #6b4d06;
+}
