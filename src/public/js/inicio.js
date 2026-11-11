@@ -783,7 +783,10 @@ function renderizarGantt(contenedor, actividades, proyectoId) {
     return;
   }
 
+  const UN_DIA_MS = 24 * 60 * 60 * 1000;
   const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
   const tareas = actividades.map((actividad, indice) => {
     let inicio = actividad.fecha_inicio;
     let fin = actividad.fecha_fin;
@@ -806,8 +809,22 @@ function renderizarGantt(contenedor, actividades, proyectoId) {
     };
   });
 
-  new window.Gantt(contenedor, tareas, {
-    view_mode: "Week",
+  let inicioReal = null;
+  let finReal = null;
+  tareas.forEach((tarea) => {
+    const ini = new Date(`${tarea.start}T00:00:00`);
+    const fin = new Date(`${tarea.end}T00:00:00`);
+    if (!inicioReal || ini < inicioReal) inicioReal = ini;
+    if (!finReal || fin > finReal) finReal = fin;
+  });
+
+  const controles = document.createElement("div");
+  controles.className = "gantt-controles";
+  const lienzo = document.createElement("div");
+  contenedor.append(controles, lienzo);
+
+  const gantt = new window.Gantt(lienzo, tareas, {
+    view_mode: "Day",
     language: "es",
     on_date_change: async (tarea, inicio, fin) => {
       await api("PUT", `/proyectos/${proyectoId}/actividades/${tarea.id}`, {
@@ -816,6 +833,36 @@ function renderizarGantt(contenedor, actividades, proyectoId) {
       });
     },
   });
+
+  function redibujarConLimites(nuevoInicio, nuevoFin) {
+    gantt.gantt_start = nuevoInicio;
+    gantt.gantt_end = nuevoFin;
+    gantt.setup_date_values();
+    gantt.render();
+  }
+
+  // Frappe agrega hasta ±1 mes de relleno automático alrededor de las
+  // actividades; lo reemplazamos por un margen corto y nunca mostramos
+  // días anteriores a hoy.
+  const margen = 2;
+  redibujarConLimites(
+    new Date(Math.max(hoy.getTime(), inicioReal.getTime() - margen * UN_DIA_MS)),
+    new Date(finReal.getTime() + (margen + 1) * UN_DIA_MS)
+  );
+
+  function ajustarRango(dias) {
+    if (dias < 0) {
+      const propuesto = new Date(gantt.gantt_start.getTime() + dias * UN_DIA_MS);
+      redibujarConLimites(propuesto < hoy ? new Date(hoy) : propuesto, gantt.gantt_end);
+    } else {
+      redibujarConLimites(gantt.gantt_start, new Date(gantt.gantt_end.getTime() + dias * UN_DIA_MS));
+    }
+  }
+
+  controles.append(
+    boton("+ Días atrás", () => ajustarRango(-7), true),
+    boton("+ Días adelante", () => ajustarRango(7), true)
+  );
 }
 
 async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
