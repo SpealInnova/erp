@@ -133,15 +133,7 @@ function boton(texto, onClick, secundario = false) {
 }
 
 function botonCancelar(rutaVolver) {
-  return boton(
-    "Cancelar",
-    () => {
-      if (window.confirm("¿Deseas cancelar? Se perderán los datos ingresados.")) {
-        window.location.hash = rutaVolver;
-      }
-    },
-    true
-  );
+  return boton("Cancelar", () => (window.location.hash = rutaVolver), true);
 }
 
 function confirmarCreacion(nombreObjeto) {
@@ -4829,5 +4821,54 @@ document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion)
   });
 })();
 
-window.addEventListener("hashchange", enrutar);
+let formularioSucio = false;
+let rutaActual = window.location.hash || "#/";
+let revirtiendoHash = false;
+
+const observadorFormularios = new MutationObserver(() => {
+  contenido.querySelectorAll("form").forEach((form) => {
+    if (form.dataset.sucioVigilado) return;
+    form.dataset.sucioVigilado = "1";
+    form.addEventListener("input", () => {
+      formularioSucio = true;
+    });
+    form.addEventListener("change", () => {
+      formularioSucio = true;
+    });
+    form.addEventListener("submit", () => {
+      formularioSucio = false;
+    });
+  });
+});
+observadorFormularios.observe(contenido, { childList: true, subtree: true });
+
+window.addEventListener("beforeunload", (evento) => {
+  if (formularioSucio) {
+    evento.preventDefault();
+    evento.returnValue = "";
+  }
+});
+
+function manejarCambioHash() {
+  if (revirtiendoHash) {
+    revirtiendoHash = false;
+    return;
+  }
+  const nuevaRuta = window.location.hash;
+  if (formularioSucio && nuevaRuta !== rutaActual) {
+    const continuar = window.confirm(
+      "Tienes cambios sin guardar en este formulario. Si continúas, se perderán. ¿Deseas continuar?"
+    );
+    if (!continuar) {
+      revirtiendoHash = true;
+      window.location.hash = rutaActual;
+      return;
+    }
+  }
+  formularioSucio = false;
+  rutaActual = nuevaRuta;
+  enrutar();
+}
+
+window.addEventListener("hashchange", manejarCambioHash);
 enrutar();
