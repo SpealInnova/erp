@@ -3,6 +3,11 @@ const { PASSWORD, USUARIO_PRINCIPAL } = require("./fixtures");
 const { iniciarSesionComo } = require("./helpers");
 
 test.describe("Aviso de cambios sin guardar", () => {
+  // La primera carga real de /proyectos/nuevo dispara 3 llamadas en paralelo
+  // (clientes, usuarios, cotizaciones); en CI, con CPU compartida, puede
+  // tardar más que el timeout por defecto.
+  test.describe.configure({ timeout: 60000 });
+
   test("avisa y permite cancelar la navegación al salir de un formulario con cambios", async ({
     page,
   }) => {
