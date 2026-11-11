@@ -68,7 +68,11 @@ const {
   ErrorItemsVacios: ErrorItemsVaciosActa,
   ErrorActaEntregaNoExiste,
 } = require("../dominio/erroresActasCierre");
-const { ErrorCorreoDuplicado, ErrorCedulaDuplicada } = require("../dominio/erroresUsuarios");
+const {
+  ErrorCorreoDuplicado,
+  ErrorCedulaDuplicada,
+  ErrorUsuarioNoEncontrado,
+} = require("../dominio/erroresUsuarios");
 const { ErrorNotificacionNoEncontrada } = require("../dominio/erroresNotificaciones");
 const {
   ErrorMiembroYaEnEquipo,
@@ -242,6 +246,9 @@ function manejadorErrores(error, req, res, next) {
   }
   if (error instanceof ErrorCorreoDuplicado || error instanceof ErrorCedulaDuplicada) {
     return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorUsuarioNoEncontrado) {
+    return res.status(404).json({ error: error.message });
   }
   if (error instanceof ErrorActaEntregaNoEncontrada) {
     return res.status(404).json({ error: error.message });

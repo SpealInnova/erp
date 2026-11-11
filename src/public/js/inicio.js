@@ -4541,42 +4541,42 @@ async function vistaActaEntregaForm(id) {
 }
 
 const CARGOS = [
-  "Gerente General",
-  "Asistente Gerencial General",
-  "Jefe Sistema Integrado De Gestion",
-  "Director Administrativo y Financiero",
+  "Asistente Administrativa y contable",
   "Asistente Gerencia Administrativa y Financiera",
-  "Contador General",
+  "Asistente Gerencial General",
+  "Auxiliar Administrativo y de Facturacion",
   "Auxiliar contable",
-  "Coordinador de Talento Humano",
-  "Coordinador de Compras",
   "Auxiliar de compras y almacen",
-  "Coordinador de Inventarios de gases",
+  "Auxiliar de ventas y logistica",
+  "Contador General",
+  "Coordinador Comercial",
+  "Coordinador comercial de gases",
   "Coordinador de Almacén / Almacenista",
+  "Coordinador de Compras",
+  "Coordinador de Inventarios de gases",
+  "Coordinador de Marketing y Publicidad",
+  "Coordinador de Talento Humano",
+  "Director Administrativo y Financiero",
   "Director de Operaciones y Producción",
-  "Jefe de Produccion e Instalaciones",
-  "Jefe de Soporte Tecnico y mantenimiento",
-  "Jefe de I+D+i",
-  "Ingeniero de diseño y producción",
-  "TECNICO MANTENIMIENTO Y ENSAMBLE",
   "Director Tecnico Comercial– Chile",
   "Director Tecnico de Gases QF",
-  "Jefe de Control de Calidad",
-  "Jefe Produccion de Gases e instalaciones",
-  "Coordinador comercial de gases",
-  "Gestor Comercial - Gases",
-  "Operario de Planta",
-  "Auxiliar Administrativo y de Facturacion",
   "Gerente Comercial",
-  "Coordinador Comercial",
-  "Coordinador de Marketing y Publicidad",
-  "Jefe de Proyectos",
-  "Jefe Produccion de Equipos",
+  "Gerente General",
   "Gestor Comercial",
+  "Gestor Comercial - Gases",
   "Gestora Comercial de Licitaciones y Contratos",
-  "Auxiliar de ventas y logistica",
-  "Asistente Administrativa y contable",
+  "Ingeniero de diseño y producción",
+  "Jefe de Control de Calidad",
+  "Jefe de I+D+i",
+  "Jefe de Produccion e Instalaciones",
+  "Jefe de Proyectos",
+  "Jefe de Soporte Tecnico y mantenimiento",
+  "Jefe Produccion de Equipos",
+  "Jefe Produccion de Gases e instalaciones",
+  "Jefe Sistema Integrado De Gestion",
   "Líder de Marketing 360° y Creador de Contenido",
+  "Operario de Planta",
+  "Técnico Mantenimiento y Ensamble",
 ];
 
 const CAMPOS_USUARIO = [
@@ -4616,7 +4616,7 @@ async function vistaUsuarios() {
   const tabla = document.createElement("table");
   const thead = document.createElement("thead");
   const filaCabecera = document.createElement("tr");
-  ["Nombre", "Correo", "Cédula", "Cargo", "Rol"].forEach((texto) => {
+  ["Nombre", "Correo", "Cédula", "Cargo", "Rol", ""].forEach((texto) => {
     const th = document.createElement("th");
     th.scope = "col";
     th.textContent = texto;
@@ -4630,6 +4630,15 @@ async function vistaUsuarios() {
     [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
       fila.append(celda(valor));
     });
+    const accion = document.createElement("td");
+    const editar = boton(
+      "Editar",
+      () => (window.location.hash = `#/usuarios/${u.id}/editar`),
+      true
+    );
+    editar.setAttribute("aria-label", `Editar usuario ${u.nombre}`);
+    accion.append(editar);
+    fila.append(accion);
     tbody.append(fila);
   });
 
@@ -4638,12 +4647,32 @@ async function vistaUsuarios() {
   contenido.append(tarjeta);
 }
 
-async function vistaUsuarioForm() {
+async function vistaUsuarioForm(id) {
   marcarMenu("usuarios");
   mostrarCargando();
   contenido.replaceChildren();
+
+  let usuario = null;
+  if (id) {
+    const r = await api("GET", "/usuarios");
+    if (r.status !== 200) {
+      contenido.append(
+        encabezado("Usuario"),
+        alerta("error", "No se pudieron cargar los usuarios.")
+      );
+      return;
+    }
+    usuario = r.cuerpo.usuarios.find((u) => String(u.id) === String(id));
+    if (!usuario) {
+      contenido.append(encabezado("Usuario"), alerta("error", "Usuario no encontrado."));
+      return;
+    }
+  }
+
+  const campos = id ? CAMPOS_USUARIO.filter((c) => c.nombre !== "password") : CAMPOS_USUARIO;
+
   const volver = boton("Volver a usuarios", () => (window.location.hash = "#/usuarios"), true);
-  contenido.append(encabezado("Nuevo usuario", [volver]));
+  contenido.append(encabezado(id ? `Editar ${usuario.nombre}` : "Nuevo usuario", [volver]));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -4653,17 +4682,17 @@ async function vistaUsuarioForm() {
   const grid = document.createElement("div");
   grid.className = "formulario-grid";
 
-  CAMPOS_USUARIO.forEach((config) => {
-    grid.append(construirCampo(config, ""));
+  campos.forEach((config) => {
+    grid.append(construirCampo(config, usuario ? usuario[config.nombre] ?? "" : ""));
   });
 
   const guardar = document.createElement("button");
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
-  guardar.textContent = "Crear usuario";
+  guardar.textContent = id ? "Guardar cambios" : "Crear usuario";
 
   form.append(grid, guardar);
-  form.append(botonCancelar("#/usuarios"));
+  if (!id) form.append(botonCancelar("#/usuarios"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -4671,33 +4700,35 @@ async function vistaUsuarioForm() {
     evento.preventDefault();
     mensaje.replaceChildren();
     const datos = {};
-    CAMPOS_USUARIO.forEach((config) => {
+    campos.forEach((config) => {
       const valor = form.elements[config.nombre].value.trim();
       if (valor !== "") datos[config.nombre] = valor;
     });
-    const faltantes = CAMPOS_USUARIO.filter((c) => c.requerido && !datos[c.nombre]);
+    const faltantes = campos.filter((c) => c.requerido && !datos[c.nombre]);
     if (faltantes.length > 0) {
       mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
       return;
     }
-    if (!confirmarCreacion("este usuario")) return;
+    if (!id && !confirmarCreacion("este usuario")) return;
 
     guardar.disabled = true;
     try {
-      const r = await api("POST", "/usuarios", datos);
-      if (r.status === 201) {
+      const r = id
+        ? await api("PUT", `/usuarios/${id}`, datos)
+        : await api("POST", "/usuarios", datos);
+      if (r.status === 200 || r.status === 201) {
         window.location.hash = "#/usuarios";
         return;
       }
       if (r.status === 409) {
         mensaje.append(alerta("error", r.cuerpo?.error || "Ese correo o cédula ya está registrado."));
       } else if (r.status === 403) {
-        mensaje.append(alerta("error", "No tienes permisos para crear usuarios."));
+        mensaje.append(alerta("error", "No tienes permisos para esta acción."));
       } else if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
-        const mensajes = mostrarErroresValidacion(form, CAMPOS_USUARIO, r.cuerpo.detalles);
+        const mensajes = mostrarErroresValidacion(form, campos, r.cuerpo.detalles);
         mensaje.append(alerta("error", mensajes.join(" · ")));
       } else {
-        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo crear el usuario."));
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el usuario."));
       }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
@@ -4763,6 +4794,8 @@ function enrutar() {
   if (/^#\/actas-entrega$/.test(ruta)) return vistaActasEntrega();
 
   if (/^#\/usuarios\/nuevo$/.test(ruta)) return vistaUsuarioForm();
+  const editarUsuario = ruta.match(/^#\/usuarios\/(\d+)\/editar$/);
+  if (editarUsuario) return vistaUsuarioForm(editarUsuario[1]);
   if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
 
   return vistaClientes();

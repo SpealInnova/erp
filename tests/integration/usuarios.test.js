@@ -159,5 +159,43 @@ describirSiHayBD("Listado de usuarios (integración contra BD real)", () => {
         });
       expect(respuesta.status).toBe(409);
     });
+
+    describe("edición de usuarios (PUT /usuarios/:id)", () => {
+      test("rechaza editar sin rol admin", async () => {
+        const respuesta = await request(app)
+          .put(`/usuarios/${nuevoUsuarioId}`)
+          .set("Authorization", `Bearer ${token}`)
+          .send({ nombre: "Intento sin permiso" });
+        expect(respuesta.status).toBe(403);
+      });
+
+      test("actualiza el nombre, cargo y rol de un usuario", async () => {
+        const respuesta = await request(app)
+          .put(`/usuarios/${nuevoUsuarioId}`)
+          .set("Authorization", `Bearer ${tokenAdmin}`)
+          .send({ nombre: "Usuario Editado", cargo: "Jefe de Control de Calidad", rol: "calidad" });
+        expect(respuesta.status).toBe(200);
+        expect(respuesta.body.usuario.nombre).toBe("Usuario Editado");
+        expect(respuesta.body.usuario.cargo).toBe("Jefe de Control de Calidad");
+        expect(respuesta.body.usuario.rol).toBe("calidad");
+        expect(respuesta.body.usuario.password_hash).toBeUndefined();
+      });
+
+      test("rechaza editar con un correo que ya usa otro usuario", async () => {
+        const respuesta = await request(app)
+          .put(`/usuarios/${nuevoUsuarioId}`)
+          .set("Authorization", `Bearer ${tokenAdmin}`)
+          .send({ correo: correoUsuario });
+        expect(respuesta.status).toBe(409);
+      });
+
+      test("rechaza editar un usuario inexistente", async () => {
+        const respuesta = await request(app)
+          .put("/usuarios/999999999")
+          .set("Authorization", `Bearer ${tokenAdmin}`)
+          .send({ nombre: "No existe" });
+        expect(respuesta.status).toBe(404);
+      });
+    });
   });
 });
