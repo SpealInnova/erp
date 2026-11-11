@@ -1,5 +1,5 @@
 const usuariosServicio = require("../servicios/usuarios");
-const { crearUsuarioSchema } = require("../validaciones/usuariosSchemas");
+const { crearUsuarioSchema, actualizarUsuarioSchema } = require("../validaciones/usuariosSchemas");
 
 function crearUsuariosControlador(pool) {
   async function listar(req, res) {
@@ -13,7 +13,14 @@ function crearUsuariosControlador(pool) {
     res.status(201).json({ usuario });
   }
 
-  return { listar, crear };
+  async function actualizar(req, res) {
+    const id = Number(req.params.id);
+    const datos = actualizarUsuarioSchema.parse(req.body);
+    const usuario = await usuariosServicio.actualizarUsuario(pool, id, datos, req.usuario.id);
+    res.status(200).json({ usuario });
+  }
+
+  return { listar, crear, actualizar };
 }
 
 module.exports = { crearUsuariosControlador };

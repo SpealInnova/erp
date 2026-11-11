@@ -51,7 +51,7 @@ async function agregarActividad(pool, proyectoId, datos, usuarioId) {
   }
 
   const id = await proyectoActividadesRepositorio.crear(pool, proyectoId, {
-    fase: proyecto.estado,
+    fase: datos.fase || proyecto.estado,
     categoria: datos.categoria,
     descripcion: datos.descripcion,
     responsable_id: datos.responsable_id,

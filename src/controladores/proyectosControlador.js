@@ -2,6 +2,7 @@ const proyectosServicio = require("../servicios/proyectos");
 const {
   crearProyectoSchema,
   actualizarProyectoSchema,
+  eliminarProyectoSchema,
   cambiarEstadoSchema,
   listarProyectosQuerySchema,
 } = require("../validaciones/proyectosSchemas");
@@ -47,7 +48,8 @@ function crearProyectosControlador(pool) {
 
   async function eliminar(req, res) {
     const id = Number(req.params.id);
-    await proyectosServicio.eliminarProyecto(pool, id, req.usuario.id);
+    const datos = eliminarProyectoSchema.parse(req.body);
+    await proyectosServicio.eliminarProyecto(pool, id, datos, req.usuario.id);
     res.status(204).send();
   }
 

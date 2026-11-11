@@ -10,4 +10,12 @@ const crearUsuarioSchema = z.object({
   cargo: z.enum(CARGOS),
 });
 
-module.exports = { crearUsuarioSchema };
+const actualizarUsuarioSchema = z.object({
+  nombre: z.string().min(1).optional(),
+  correo: z.string().email().optional(),
+  cedula: z.string().min(1).optional(),
+  rol: z.string().min(1).optional(),
+  cargo: z.enum(CARGOS).optional(),
+});
+
+module.exports = { crearUsuarioSchema, actualizarUsuarioSchema };

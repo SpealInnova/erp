@@ -22,6 +22,11 @@ const actualizarProyectoSchema = z.object({
   presupuesto_estimado: z.coerce.number().nonnegative().optional(),
 });
 
+const eliminarProyectoSchema = z.object({
+  password: z.string().min(1),
+  justificacion: z.string().min(1),
+});
+
 const cambiarEstadoSchema = z.object({
   estado: z.nativeEnum(ESTADOS),
   observacion: z.string().min(1).optional(),
@@ -35,6 +40,7 @@ const listarProyectosQuerySchema = z.object({
 module.exports = {
   crearProyectoSchema,
   actualizarProyectoSchema,
+  eliminarProyectoSchema,
   cambiarEstadoSchema,
   listarProyectosQuerySchema,
 };

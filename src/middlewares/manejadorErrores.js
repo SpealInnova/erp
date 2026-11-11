@@ -13,6 +13,7 @@ const {
   ErrorResponsableInvalido,
   ErrorCotizacionInvalida,
   ErrorCodigoPryDuplicado,
+  ErrorPasswordInvalida,
 } = require("../dominio/erroresProyectos");
 const { ErrorTransicionInvalida } = require("../dominio/erroresEstado");
 const { ErrorActividadNoEncontrada } = require("../dominio/erroresProyectoActividades");
@@ -67,7 +68,11 @@ const {
   ErrorItemsVacios: ErrorItemsVaciosActa,
   ErrorActaEntregaNoExiste,
 } = require("../dominio/erroresActasCierre");
-const { ErrorCorreoDuplicado, ErrorCedulaDuplicada } = require("../dominio/erroresUsuarios");
+const {
+  ErrorCorreoDuplicado,
+  ErrorCedulaDuplicada,
+  ErrorUsuarioNoEncontrado,
+} = require("../dominio/erroresUsuarios");
 const { ErrorNotificacionNoEncontrada } = require("../dominio/erroresNotificaciones");
 const {
   ErrorMiembroYaEnEquipo,
@@ -123,6 +128,11 @@ function manejadorErrores(error, req, res, next) {
   }
   if (error instanceof ErrorCodigoPryDuplicado) {
     return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorPasswordInvalida) {
+    // 403, no 401: el 401 en el frontend fuerza cierre de sesión global y aquí
+    // el usuario sigue autenticado, solo falló la confirmación de contraseña.
+    return res.status(403).json({ error: error.message });
   }
   if (error instanceof ErrorActividadNoEncontrada) {
     return res.status(404).json({ error: error.message });
@@ -236,6 +246,9 @@ function manejadorErrores(error, req, res, next) {
   }
   if (error instanceof ErrorCorreoDuplicado || error instanceof ErrorCedulaDuplicada) {
     return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorUsuarioNoEncontrado) {
+    return res.status(404).json({ error: error.message });
   }
   if (error instanceof ErrorActaEntregaNoEncontrada) {
     return res.status(404).json({ error: error.message });

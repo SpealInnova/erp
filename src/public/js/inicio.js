@@ -133,15 +133,7 @@ function boton(texto, onClick, secundario = false) {
 }
 
 function botonCancelar(rutaVolver) {
-  return boton(
-    "Cancelar",
-    () => {
-      if (window.confirm("¿Deseas cancelar? Se perderán los datos ingresados.")) {
-        window.location.hash = rutaVolver;
-      }
-    },
-    true
-  );
+  return boton("Cancelar", () => (window.location.hash = rutaVolver), true);
 }
 
 function confirmarCreacion(nombreObjeto) {
@@ -778,6 +770,54 @@ function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
   return tarjeta;
 }
 
+function formatearFechaISO(fecha) {
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dia = String(fecha.getDate()).padStart(2, "0");
+  return `${anio}-${mes}-${dia}`;
+}
+
+function renderizarGantt(contenedor, actividades, proyectoId) {
+  contenedor.replaceChildren();
+  if (typeof window.Gantt === "undefined" || actividades.length === 0) {
+    return;
+  }
+
+  const hoy = new Date();
+  const tareas = actividades.map((actividad, indice) => {
+    let inicio = actividad.fecha_inicio;
+    let fin = actividad.fecha_fin;
+    if (!inicio) {
+      const base = new Date(hoy);
+      base.setDate(base.getDate() + indice);
+      inicio = formatearFechaISO(base);
+    }
+    if (!fin) {
+      const base = new Date(`${inicio}T00:00:00`);
+      base.setDate(base.getDate() + 1);
+      fin = formatearFechaISO(base);
+    }
+    return {
+      id: String(actividad.id),
+      name: `${textoEstadoProyecto(actividad.fase)}: ${actividad.descripcion}`,
+      start: inicio,
+      end: fin,
+      progress: actividad.estado === "completada" ? 100 : 0,
+    };
+  });
+
+  new window.Gantt(contenedor, tareas, {
+    view_mode: "Week",
+    language: "es",
+    on_date_change: async (tarea, inicio, fin) => {
+      await api("PUT", `/proyectos/${proyectoId}/actividades/${tarea.id}`, {
+        fecha_inicio: formatearFechaISO(inicio),
+        fecha_fin: formatearFechaISO(fin),
+      });
+    },
+  });
+}
+
 async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -802,13 +842,6 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       return;
     }
     const actividades = r.cuerpo.actividades;
-    if (actividades.length === 0) {
-      const p = document.createElement("p");
-      p.className = "subtitulo";
-      p.textContent = "Aún no hay actividades generadas para este proyecto.";
-      contenedorGrupos.append(p);
-      return;
-    }
 
     const porFase = new Map();
     actividades.forEach((actividad) => {
@@ -816,13 +849,14 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       porFase.get(actividad.fase).push(actividad);
     });
 
-    const fasesOrdenadas = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter((fase) =>
-      porFase.has(fase)
+    const fasesConActividades = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter(
+      (fase) => (porFase.get(fase) || []).length > 0
     );
-    const ultimaFase = fasesOrdenadas[fasesOrdenadas.length - 1];
+    const ultimaFase = fasesConActividades[fasesConActividades.length - 1];
 
-    fasesOrdenadas.forEach((fase) => {
-      const lista = porFase.get(fase);
+    ETAPAS_PROYECTO_LINEAL.forEach((etapa) => {
+      const fase = etapa.valor;
+      const lista = porFase.get(fase) || [];
       const completadas = lista.filter((actividad) => actividad.estado === "completada").length;
 
       const detalles = document.createElement("details");
@@ -833,10 +867,34 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       resumen.style.cursor = "pointer";
       resumen.style.fontWeight = "700";
       resumen.append(document.createTextNode(`${textoEstadoProyecto(fase)} `));
-      resumen.append(
-        pill(`${completadas}/${lista.length}`, completadas === lista.length ? "good" : "info")
-      );
+      if (lista.length > 0) {
+        resumen.append(
+          pill(`${completadas}/${lista.length}`, completadas === lista.length ? "good" : "info")
+        );
+        const conFechas = lista.filter((a) => a.fecha_inicio && a.fecha_fin);
+        if (conFechas.length > 0) {
+          const inicios = conFechas.map((a) => String(a.fecha_inicio).slice(0, 10)).sort();
+          const fines = conFechas.map((a) => String(a.fecha_fin).slice(0, 10)).sort();
+          const rango = document.createElement("span");
+          rango.className = "subtitulo";
+          rango.style.marginLeft = "8px";
+          rango.style.fontWeight = "400";
+          rango.textContent = `${inicios[0]} → ${fines[fines.length - 1]}`;
+          resumen.append(rango);
+        }
+      }
       detalles.append(resumen);
+
+      const contenidoFase = document.createElement("div");
+      contenidoFase.style.padding = "8px 0 0";
+
+      if (lista.length > 0) {
+        const contenedorGanttFase = document.createElement("div");
+        contenedorGanttFase.style.marginBottom = "16px";
+        contenedorGanttFase.style.overflowX = "auto";
+        contenidoFase.append(contenedorGanttFase);
+        renderizarGantt(contenedorGanttFase, lista, proyectoId);
+      }
 
       const tabla = document.createElement("table");
       tabla.className = "tabla-items";
@@ -964,45 +1022,57 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
         tbody.append(fila, filaEvidencias);
       });
 
-      tabla.append(thead, tbody);
-      detalles.append(tabla);
+      if (lista.length > 0) {
+        tabla.append(thead, tbody);
+        contenidoFase.append(tabla);
+      }
+
+      const filaAgregar = document.createElement("div");
+      filaAgregar.style.marginTop = "8px";
+      const mostrarFormAgregar = () => {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Nombre de la subactividad";
+        input.setAttribute("aria-label", `Nueva subactividad en ${textoEstadoProyecto(fase)}`);
+        input.style.marginRight = "8px";
+        const confirmar = boton(
+          "Agregar",
+          async () => {
+            const nombre = input.value.trim();
+            if (!nombre) return;
+            const r2 = await api("POST", `/proyectos/${proyectoId}/actividades`, {
+              categoria: "General",
+              descripcion: nombre,
+              fase,
+            });
+            if (r2.status !== 201) {
+              mensaje.replaceChildren(
+                alerta("error", r2.cuerpo?.error || "No se pudo agregar la subactividad.")
+              );
+              return;
+            }
+            cargar();
+          },
+          true
+        );
+        const cancelar = boton(
+          "Cancelar",
+          () => {
+            filaAgregar.replaceChildren(botonMas);
+          },
+          true
+        );
+        filaAgregar.replaceChildren(input, confirmar, cancelar);
+        input.focus();
+      };
+      const botonMas = boton("+ Agregar subactividad", mostrarFormAgregar, true);
+      filaAgregar.append(botonMas);
+      contenidoFase.append(filaAgregar);
+
+      detalles.append(contenidoFase);
       contenedorGrupos.append(detalles);
     });
   }
-
-  const formAgregar = document.createElement("form");
-  formAgregar.noValidate = true;
-  formAgregar.style.marginTop = "16px";
-  const gridAgregar = document.createElement("div");
-  gridAgregar.className = "formulario-grid";
-  gridAgregar.append(
-    construirCampo({ nombre: "categoria", etiqueta: "Categoría", requerido: true }, ""),
-    construirCampo({ nombre: "descripcion", etiqueta: "Actividad", requerido: true }, "")
-  );
-  const agregarBtn = document.createElement("button");
-  agregarBtn.type = "submit";
-  agregarBtn.className = "boton boton-pequeno";
-  agregarBtn.textContent = "Agregar actividad";
-  formAgregar.append(gridAgregar, agregarBtn);
-
-  formAgregar.addEventListener("submit", async (evento) => {
-    evento.preventDefault();
-    const categoria = formAgregar.elements.categoria.value.trim();
-    const descripcion = formAgregar.elements.descripcion.value.trim();
-    if (!categoria || !descripcion) return;
-    const r = await api("POST", `/proyectos/${proyectoId}/actividades`, {
-      categoria,
-      descripcion,
-    });
-    if (r.status !== 201) {
-      mensaje.replaceChildren(alerta("error", r.cuerpo?.error || "No se pudo agregar la actividad."));
-      return;
-    }
-    formAgregar.reset();
-    cargar();
-  });
-
-  tarjeta.append(formAgregar);
 
   await cargar();
   return tarjeta;
@@ -1287,9 +1357,87 @@ async function vistaProyectos() {
       true
     );
     editar.setAttribute("aria-label", `Ver proyecto ${p.codigo_pry}`);
-    accion.append(editar);
+    const filaConfirmacion = document.createElement("tr");
+    filaConfirmacion.style.display = "none";
+    const tdConfirmacion = document.createElement("td");
+    tdConfirmacion.colSpan = 6;
+
+    const formEliminar = document.createElement("div");
+    formEliminar.style.display = "flex";
+    formEliminar.style.flexDirection = "column";
+    formEliminar.style.gap = "8px";
+    formEliminar.style.padding = "12px 0";
+    formEliminar.style.maxWidth = "420px";
+
+    const nota = document.createElement("p");
+    nota.className = "subtitulo";
+    nota.textContent =
+      "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
+      "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
+    formEliminar.append(nota);
+
+    const inputPassword = document.createElement("input");
+    inputPassword.type = "password";
+    inputPassword.placeholder = "Tu contraseña";
+    inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
+
+    const textareaJustificacion = document.createElement("textarea");
+    textareaJustificacion.rows = 2;
+    textareaJustificacion.placeholder = "Justificación de la eliminación";
+    textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
+
+    const mensajeEliminar = document.createElement("div");
+
+    const confirmarEliminar = boton(
+      "Confirmar eliminación",
+      async () => {
+        const password = inputPassword.value;
+        const justificacion = textareaJustificacion.value.trim();
+        mensajeEliminar.replaceChildren();
+        if (!password || !justificacion) {
+          mensajeEliminar.append(
+            alerta("error", "La contraseña y la justificación son obligatorias.")
+          );
+          return;
+        }
+        const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
+        if (r.status === 204) {
+          vistaProyectos();
+          return;
+        }
+        mensajeEliminar.replaceChildren(
+          alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
+        );
+      },
+      true
+    );
+
+    const cancelarEliminar = boton(
+      "Cancelar",
+      () => {
+        filaConfirmacion.style.display = "none";
+        inputPassword.value = "";
+        textareaJustificacion.value = "";
+        mensajeEliminar.replaceChildren();
+      },
+      true
+    );
+
+    formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
+    tdConfirmacion.append(formEliminar);
+    filaConfirmacion.append(tdConfirmacion);
+
+    const eliminar = boton(
+      "Eliminar",
+      () => {
+        filaConfirmacion.style.display = filaConfirmacion.style.display === "none" ? "" : "none";
+      },
+      true
+    );
+    eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
+    accion.append(editar, eliminar);
     fila.append(accion);
-    tbody.append(fila);
+    tbody.append(fila, filaConfirmacion);
   });
 
   tabla.append(thead, tbody);
@@ -4385,42 +4533,42 @@ async function vistaActaEntregaForm(id) {
 }
 
 const CARGOS = [
-  "Gerente General",
-  "Asistente Gerencial General",
-  "Jefe Sistema Integrado De Gestion",
-  "Director Administrativo y Financiero",
+  "Asistente Administrativa y contable",
   "Asistente Gerencia Administrativa y Financiera",
-  "Contador General",
+  "Asistente Gerencial General",
+  "Auxiliar Administrativo y de Facturacion",
   "Auxiliar contable",
-  "Coordinador de Talento Humano",
-  "Coordinador de Compras",
   "Auxiliar de compras y almacen",
-  "Coordinador de Inventarios de gases",
+  "Auxiliar de ventas y logistica",
+  "Contador General",
+  "Coordinador Comercial",
+  "Coordinador comercial de gases",
   "Coordinador de Almacén / Almacenista",
+  "Coordinador de Compras",
+  "Coordinador de Inventarios de gases",
+  "Coordinador de Marketing y Publicidad",
+  "Coordinador de Talento Humano",
+  "Director Administrativo y Financiero",
   "Director de Operaciones y Producción",
-  "Jefe de Produccion e Instalaciones",
-  "Jefe de Soporte Tecnico y mantenimiento",
-  "Jefe de I+D+i",
-  "Ingeniero de diseño y producción",
-  "TECNICO MANTENIMIENTO Y ENSAMBLE",
   "Director Tecnico Comercial– Chile",
   "Director Tecnico de Gases QF",
-  "Jefe de Control de Calidad",
-  "Jefe Produccion de Gases e instalaciones",
-  "Coordinador comercial de gases",
-  "Gestor Comercial - Gases",
-  "Operario de Planta",
-  "Auxiliar Administrativo y de Facturacion",
   "Gerente Comercial",
-  "Coordinador Comercial",
-  "Coordinador de Marketing y Publicidad",
-  "Jefe de Proyectos",
-  "Jefe Produccion de Equipos",
+  "Gerente General",
   "Gestor Comercial",
+  "Gestor Comercial - Gases",
   "Gestora Comercial de Licitaciones y Contratos",
-  "Auxiliar de ventas y logistica",
-  "Asistente Administrativa y contable",
+  "Ingeniero de diseño y producción",
+  "Jefe de Control de Calidad",
+  "Jefe de I+D+i",
+  "Jefe de Produccion e Instalaciones",
+  "Jefe de Proyectos",
+  "Jefe de Soporte Tecnico y mantenimiento",
+  "Jefe Produccion de Equipos",
+  "Jefe Produccion de Gases e instalaciones",
+  "Jefe Sistema Integrado De Gestion",
   "Líder de Marketing 360° y Creador de Contenido",
+  "Operario de Planta",
+  "Técnico Mantenimiento y Ensamble",
 ];
 
 const CAMPOS_USUARIO = [
@@ -4459,35 +4607,112 @@ async function vistaUsuarios() {
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
   const thead = document.createElement("thead");
-  const filaCabecera = document.createElement("tr");
-  ["Nombre", "Correo", "Cédula", "Cargo", "Rol"].forEach((texto) => {
-    const th = document.createElement("th");
-    th.scope = "col";
-    th.textContent = texto;
-    filaCabecera.append(th);
-  });
-  thead.append(filaCabecera);
-
   const tbody = document.createElement("tbody");
-  usuarios.forEach((u) => {
-    const fila = document.createElement("tr");
-    [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
-      fila.append(celda(valor));
-    });
-    tbody.append(fila);
-  });
-
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
   contenido.append(tarjeta);
+
+  const COLUMNAS_ORDENABLES = [
+    { texto: "Nombre", campo: "nombre" },
+    { texto: "Correo", campo: "correo" },
+    { texto: "Cédula", campo: "cedula" },
+    { texto: "Cargo", campo: "cargo" },
+    { texto: "Rol", campo: "rol" },
+  ];
+
+  let campoOrden = "nombre";
+  let ascendente = true;
+
+  function renderTabla() {
+    const ordenados = [...usuarios].sort((a, b) => {
+      const valorA = (a[campoOrden] || "").toString();
+      const valorB = (b[campoOrden] || "").toString();
+      return ascendente
+        ? valorA.localeCompare(valorB, "es")
+        : valorB.localeCompare(valorA, "es");
+    });
+
+    filaCabecera.replaceChildren();
+    COLUMNAS_ORDENABLES.forEach((columna) => {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.style.cursor = "pointer";
+      th.setAttribute("role", "button");
+      th.setAttribute("tabindex", "0");
+      const indicador = columna.campo === campoOrden ? (ascendente ? " ▲" : " ▼") : "";
+      th.textContent = columna.texto + indicador;
+      const activar = () => {
+        if (campoOrden === columna.campo) {
+          ascendente = !ascendente;
+        } else {
+          campoOrden = columna.campo;
+          ascendente = true;
+        }
+        renderTabla();
+      };
+      th.addEventListener("click", activar);
+      th.addEventListener("keydown", (evento) => {
+        if (evento.key === "Enter" || evento.key === " ") {
+          evento.preventDefault();
+          activar();
+        }
+      });
+      filaCabecera.append(th);
+    });
+    const thAcciones = document.createElement("th");
+    thAcciones.scope = "col";
+    filaCabecera.append(thAcciones);
+
+    tbody.replaceChildren();
+    ordenados.forEach((u) => {
+      const fila = document.createElement("tr");
+      [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
+        fila.append(celda(valor));
+      });
+      const accion = document.createElement("td");
+      const editar = boton(
+        "Editar",
+        () => (window.location.hash = `#/usuarios/${u.id}/editar`),
+        true
+      );
+      editar.setAttribute("aria-label", `Editar usuario ${u.nombre}`);
+      accion.append(editar);
+      fila.append(accion);
+      tbody.append(fila);
+    });
+  }
+
+  const filaCabecera = document.createElement("tr");
+  thead.append(filaCabecera);
+  renderTabla();
 }
 
-async function vistaUsuarioForm() {
+async function vistaUsuarioForm(id) {
   marcarMenu("usuarios");
   mostrarCargando();
   contenido.replaceChildren();
+
+  let usuario = null;
+  if (id) {
+    const r = await api("GET", "/usuarios");
+    if (r.status !== 200) {
+      contenido.append(
+        encabezado("Usuario"),
+        alerta("error", "No se pudieron cargar los usuarios.")
+      );
+      return;
+    }
+    usuario = r.cuerpo.usuarios.find((u) => String(u.id) === String(id));
+    if (!usuario) {
+      contenido.append(encabezado("Usuario"), alerta("error", "Usuario no encontrado."));
+      return;
+    }
+  }
+
+  const campos = id ? CAMPOS_USUARIO.filter((c) => c.nombre !== "password") : CAMPOS_USUARIO;
+
   const volver = boton("Volver a usuarios", () => (window.location.hash = "#/usuarios"), true);
-  contenido.append(encabezado("Nuevo usuario", [volver]));
+  contenido.append(encabezado(id ? `Editar ${usuario.nombre}` : "Nuevo usuario", [volver]));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -4497,17 +4722,17 @@ async function vistaUsuarioForm() {
   const grid = document.createElement("div");
   grid.className = "formulario-grid";
 
-  CAMPOS_USUARIO.forEach((config) => {
-    grid.append(construirCampo(config, ""));
+  campos.forEach((config) => {
+    grid.append(construirCampo(config, usuario ? usuario[config.nombre] ?? "" : ""));
   });
 
   const guardar = document.createElement("button");
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
-  guardar.textContent = "Crear usuario";
+  guardar.textContent = id ? "Guardar cambios" : "Crear usuario";
 
   form.append(grid, guardar);
-  form.append(botonCancelar("#/usuarios"));
+  if (!id) form.append(botonCancelar("#/usuarios"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -4515,33 +4740,35 @@ async function vistaUsuarioForm() {
     evento.preventDefault();
     mensaje.replaceChildren();
     const datos = {};
-    CAMPOS_USUARIO.forEach((config) => {
+    campos.forEach((config) => {
       const valor = form.elements[config.nombre].value.trim();
       if (valor !== "") datos[config.nombre] = valor;
     });
-    const faltantes = CAMPOS_USUARIO.filter((c) => c.requerido && !datos[c.nombre]);
+    const faltantes = campos.filter((c) => c.requerido && !datos[c.nombre]);
     if (faltantes.length > 0) {
       mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
       return;
     }
-    if (!confirmarCreacion("este usuario")) return;
+    if (!id && !confirmarCreacion("este usuario")) return;
 
     guardar.disabled = true;
     try {
-      const r = await api("POST", "/usuarios", datos);
-      if (r.status === 201) {
+      const r = id
+        ? await api("PUT", `/usuarios/${id}`, datos)
+        : await api("POST", "/usuarios", datos);
+      if (r.status === 200 || r.status === 201) {
         window.location.hash = "#/usuarios";
         return;
       }
       if (r.status === 409) {
         mensaje.append(alerta("error", r.cuerpo?.error || "Ese correo o cédula ya está registrado."));
       } else if (r.status === 403) {
-        mensaje.append(alerta("error", "No tienes permisos para crear usuarios."));
+        mensaje.append(alerta("error", "No tienes permisos para esta acción."));
       } else if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
-        const mensajes = mostrarErroresValidacion(form, CAMPOS_USUARIO, r.cuerpo.detalles);
+        const mensajes = mostrarErroresValidacion(form, campos, r.cuerpo.detalles);
         mensaje.append(alerta("error", mensajes.join(" · ")));
       } else {
-        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo crear el usuario."));
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el usuario."));
       }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
@@ -4607,11 +4834,89 @@ function enrutar() {
   if (/^#\/actas-entrega$/.test(ruta)) return vistaActasEntrega();
 
   if (/^#\/usuarios\/nuevo$/.test(ruta)) return vistaUsuarioForm();
+  const editarUsuario = ruta.match(/^#\/usuarios\/(\d+)\/editar$/);
+  if (editarUsuario) return vistaUsuarioForm(editarUsuario[1]);
   if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
 
   return vistaClientes();
 }
 
 document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion);
-window.addEventListener("hashchange", enrutar);
+
+(function inicializarMenuColapsable() {
+  const app = document.querySelector(".app");
+  const btn = document.getElementById("btn-colapsar-menu");
+  let colapsado = false;
+  try {
+    colapsado = window.localStorage.getItem("menu-colapsado") === "1";
+  } catch {
+    colapsado = false;
+  }
+  const aplicar = () => {
+    app.classList.toggle("menu-colapsado", colapsado);
+    btn.setAttribute("aria-expanded", String(!colapsado));
+    btn.setAttribute("aria-label", colapsado ? "Expandir menú" : "Contraer menú");
+  };
+  aplicar();
+  btn.addEventListener("click", () => {
+    colapsado = !colapsado;
+    aplicar();
+    try {
+      window.localStorage.setItem("menu-colapsado", colapsado ? "1" : "0");
+    } catch {
+      // almacenamiento no disponible; la preferencia solo dura esta sesión
+    }
+  });
+})();
+
+let formularioSucio = false;
+let rutaActual = window.location.hash || "#/";
+let revirtiendoHash = false;
+
+const observadorFormularios = new MutationObserver(() => {
+  contenido.querySelectorAll("form").forEach((form) => {
+    if (form.dataset.sucioVigilado) return;
+    form.dataset.sucioVigilado = "1";
+    form.addEventListener("input", () => {
+      formularioSucio = true;
+    });
+    form.addEventListener("change", () => {
+      formularioSucio = true;
+    });
+    form.addEventListener("submit", () => {
+      formularioSucio = false;
+    });
+  });
+});
+observadorFormularios.observe(contenido, { childList: true, subtree: true });
+
+window.addEventListener("beforeunload", (evento) => {
+  if (formularioSucio) {
+    evento.preventDefault();
+    evento.returnValue = "";
+  }
+});
+
+function manejarCambioHash() {
+  if (revirtiendoHash) {
+    revirtiendoHash = false;
+    return;
+  }
+  const nuevaRuta = window.location.hash;
+  if (formularioSucio && nuevaRuta !== rutaActual) {
+    const continuar = window.confirm(
+      "Tienes cambios sin guardar en este formulario. Si continúas, se perderán. ¿Deseas continuar?"
+    );
+    if (!continuar) {
+      revirtiendoHash = true;
+      window.location.hash = rutaActual;
+      return;
+    }
+  }
+  formularioSucio = false;
+  rutaActual = nuevaRuta;
+  enrutar();
+}
+
+window.addEventListener("hashchange", manejarCambioHash);
 enrutar();
