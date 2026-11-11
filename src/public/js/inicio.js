@@ -1365,7 +1365,21 @@ async function vistaProyectos() {
       true
     );
     editar.setAttribute("aria-label", `Ver proyecto ${p.codigo_pry}`);
-    accion.append(editar);
+    const eliminar = boton(
+      "Eliminar",
+      async () => {
+        if (!window.confirm(`¿Eliminar el proyecto ${p.codigo_pry}?`)) return;
+        const r = await api("DELETE", `/proyectos/${p.id}`);
+        if (r.status === 204) {
+          vistaProyectos();
+          return;
+        }
+        window.alert(r.cuerpo?.error || "No se pudo eliminar el proyecto.");
+      },
+      true
+    );
+    eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
+    accion.append(editar, eliminar);
     fila.append(accion);
     tbody.append(fila);
   });
