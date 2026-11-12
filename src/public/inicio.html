@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SPEAL Project Control</title>
   <link rel="stylesheet" href="/css/estilos.css">
+  <link rel="stylesheet" href="/css/tableros.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
   <script src="/js/accesibilidad.js"></script>
 </head>
@@ -27,48 +28,43 @@
       </button>
       <p class="marca">SPEAL</p>
 
-      <a href="#/clientes" data-modulo="clientes">
-        <span class="ic ic-clientes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 14c0-3 2.2-5 5-5s5 2 5 5"/></svg></span>
-        <span class="lbl">Clientes</span>
+      <!-- Módulos agrupados como en la propuesta de interfaz; las entidades de
+           cada módulo se recorren con las pestañas horizontales (#subtabs). -->
+      <div class="nav-section-label">Gerencia</div>
+      <a href="#/tablero" data-modulo="tablero">
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-dash" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#79A8FF"/><stop offset="1" stop-color="#2952CC"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-dash)"/><rect x="9" y="21" width="5" height="10" rx="1.6" fill="#fff" fill-opacity=".92"/><rect x="17.5" y="15" width="5" height="16" rx="1.6" fill="#fff" fill-opacity=".92"/><rect x="26" y="9" width="5" height="22" rx="1.6" fill="#fff" fill-opacity=".8"/></svg></span>
+        <span class="lbl">Tablero gerencial</span>
       </a>
+
+      <div class="nav-section-label">Operación</div>
       <a href="#/proyectos" data-modulo="proyectos">
-        <span class="ic ic-proyectos"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.3h4.2l1.3 1.6H14V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5.3Z"/></svg></span>
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-proy" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#A99BFF"/><stop offset="1" stop-color="#5B4FD1"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-proy)"/><rect x="9" y="8" width="18" height="24" rx="3" fill="#fff" fill-opacity=".28" transform="rotate(-7 18 20)"/><rect x="12" y="7" width="19" height="25" rx="3" fill="#fff" fill-opacity=".96"/><rect x="16" y="13" width="11" height="2.6" rx="1.3" fill="#5B4FD1"/><rect x="16" y="18" width="11" height="2.6" rx="1.3" fill="#5B4FD1" fill-opacity=".65"/><rect x="16" y="23" width="7" height="2.6" rx="1.3" fill="#5B4FD1" fill-opacity=".4"/></svg></span>
         <span class="lbl">Proyectos</span>
       </a>
-      <a href="#/cotizaciones" data-modulo="cotizaciones">
-        <span class="ic ic-cotizaciones"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="2" width="9" height="12" rx="1.3"/><path d="M6 6h4M6 8.5h4M6 11h2.5"/></svg></span>
-        <span class="lbl">Cotizaciones</span>
+      <a href="#/cotizaciones" data-modulo="comercial">
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-com" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF9CBC"/><stop offset="1" stop-color="#D6467E"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-com)"/><circle cx="16" cy="19" r="8" fill="#fff" fill-opacity=".5"/><circle cx="25" cy="22" r="8" fill="#fff" fill-opacity=".95"/></svg></span>
+        <span class="lbl">Comercial</span>
       </a>
-      <a href="#/proveedores" data-modulo="proveedores">
-        <span class="ic ic-proveedores"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4.5h7V11h-7Z"/><path d="M8.5 7h3l1.5 2v2h-4.5Z"/><circle cx="4" cy="12.3" r="1.1"/><circle cx="11" cy="12.3" r="1.1"/></svg></span>
-        <span class="lbl">Proveedores</span>
+      <a href="#/expedientes-diseno" data-modulo="diseno">
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-dis" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFAE8A"/><stop offset="1" stop-color="#D9542B"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-dis)"/><path d="M11 31 20 10l9 21" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="10" r="3.4" fill="#fff"/><path d="M14 25h12" stroke="#fff" stroke-opacity=".6" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+        <span class="lbl">Diseño I+D+I</span>
       </a>
-      <a href="#/requisiciones" data-modulo="requisiciones">
-        <span class="ic ic-requisiciones"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.6" width="10" height="11" rx="1.3"/><path d="M6 2h4v1.5H6Z"/><path d="M5.5 8.3 7.1 9.9 10.5 6.4"/></svg></span>
-        <span class="lbl">Requisiciones</span>
+      <a href="#/requisiciones" data-modulo="compras">
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-comp" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FDC26B"/><stop offset="1" stop-color="#C9770F"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-comp)"/><rect x="9" y="15" width="22" height="16" rx="3" fill="#fff" fill-opacity=".96"/><path d="M9 15l11-7 11 7" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="2.6" stroke-linejoin="round"/><rect x="18.5" y="15" width="3" height="16" fill="#C9770F" fill-opacity=".5"/></svg></span>
+        <span class="lbl">Compras</span>
       </a>
-      <a href="#/ordenes-compra" data-modulo="ordenes-compra">
-        <span class="ic ic-ordenes-compra"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="13.2" r="1"/><circle cx="11" cy="13.2" r="1"/><path d="M1.5 2.3h2l1.4 7.8h7.6l1.5-5.8H4.6"/></svg></span>
-        <span class="lbl">Órdenes de compra</span>
+      <a href="#/reportes-servicio" data-modulo="soporte">
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-sop" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#59D8E6"/><stop offset="1" stop-color="#0E93A3"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-sop)"/><path d="M20 8l10 4v8c0 7-4.5 11-10 13-5.5-2-10-6-10-13v-8z" fill="#fff" fill-opacity=".95"/><path d="M15.3 20.6l3 3 6.4-6.8" stroke="#0E93A3" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>
+        <span class="lbl">Soporte técnico</span>
       </a>
-      <a href="#/expedientes-diseno" data-modulo="expedientes-diseno">
-        <span class="ic ic-expedientes-diseno"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.5 12.5 2.5"/><path d="M5.3 5.2l1.7 1.7M8.1 8.4l1.7 1.7"/></svg></span>
-        <span class="lbl">Expedientes de diseño</span>
+      <a href="#/actas-entrega" data-modulo="entregas">
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-ent" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#5BDBA7"/><stop offset="1" stop-color="#12875A"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-ent)"/><path d="M9 15l4-6h14l4 6" fill="#fff" fill-opacity=".55"/><rect x="9" y="15" width="22" height="16" rx="3" fill="#fff" fill-opacity=".97"/><path d="M15.5 23l3 3 6-6" stroke="#12875A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>
+        <span class="lbl">Entregas y cierre</span>
       </a>
-      <a href="#/reportes-servicio" data-modulo="reportes-servicio">
-        <span class="ic ic-reportes-servicio"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 2.4a3 3 0 0 0-4 4.1L2.3 9.8l2 2 3.3-3.4a3 3 0 0 0 4.1-4l-1.5 1.5-1.8-.4-.4-1.8Z"/></svg></span>
-        <span class="lbl">Reportes de servicio</span>
-      </a>
-      <a href="#/actas-entrega" data-modulo="actas-entrega">
-        <span class="ic ic-actas-entrega"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.2" width="11" height="7" rx="1.1"/><path d="M2.5 6.2 8 3l5.5 3.2"/><path d="M8 8.5v3.2"/></svg></span>
-        <span class="lbl">Actas de entrega</span>
-      </a>
-      <a href="#/actas-cierre" data-modulo="actas-cierre">
-        <span class="ic ic-actas-cierre"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2 13 3.8v3.8c0 3.3-2.2 5.3-5 6.2-2.8-.9-5-2.9-5-6.2V3.8Z"/><path d="M5.7 8 7.3 9.6 10.3 6.3"/></svg></span>
-        <span class="lbl">Actas de cierre</span>
-      </a>
+
+      <div class="nav-section-label">Control</div>
       <a href="#/usuarios" data-modulo="usuarios">
-        <span class="ic ic-usuarios"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="11" height="9.5" rx="1.4"/><circle cx="6" cy="7" r="1.4"/><path d="M4.1 10.4c.3-1.1 1-1.6 1.9-1.6s1.6.5 1.9 1.6"/><path d="M9.6 6.4h3M9.6 8.4h3"/></svg></span>
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-aud" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#8C9BD1"/><stop offset="1" stop-color="#414F7A"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-aud)"/><rect x="8" y="7" width="16" height="23" rx="3" fill="#fff" fill-opacity=".9"/><rect x="11" y="12" width="10" height="2" rx="1" fill="#414F7A" fill-opacity=".55"/><rect x="11" y="16" width="7" height="2" rx="1" fill="#414F7A" fill-opacity=".4"/><circle cx="26" cy="25" r="9" fill="#fff" fill-opacity=".98"/><path d="M26 20.5V25l3 2" stroke="#414F7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>
         <span class="lbl">Usuarios</span>
       </a>
 
@@ -95,6 +91,7 @@
         </div>
       </header>
 
+      <nav id="subtabs" class="subtabs" aria-label="Secciones del módulo" hidden></nav>
       <main class="contenido" id="contenido" tabindex="-1">
         <p class="subtitulo">Cargando…</p>
       </main>
@@ -102,6 +99,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+  <script src="/js/tableros.js"></script>
   <script src="/js/inicio.js"></script>
 </body>
 </html>

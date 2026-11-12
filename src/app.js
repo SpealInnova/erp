@@ -30,6 +30,7 @@ const { crearActasEntregaRutas } = require("./rutas/actasEntregaRutas");
 const { crearUsuariosRutas } = require("./rutas/usuariosRutas");
 const { crearNotificacionesRutas } = require("./rutas/notificacionesRutas");
 const { crearArchivosAdjuntosRutas } = require("./rutas/archivosAdjuntosRutas");
+const { crearTablerosRutas } = require("./rutas/tablerosRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -152,6 +153,7 @@ function crearApp() {
   app.use("/usuarios", requireAuth, crearUsuariosRutas(pool));
   app.use("/notificaciones", requireAuth, crearNotificacionesRutas(pool));
   app.use("/archivos-adjuntos", requireAuth, crearArchivosAdjuntosRutas(pool));
+  app.use("/tableros", requireAuth, crearTablerosRutas(pool));
 
   app.use(manejadorErrores);
 
