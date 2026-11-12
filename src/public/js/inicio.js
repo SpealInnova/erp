@@ -153,10 +153,12 @@ function mostrarCargando() {
 // llamando a marcarMenu() con su propia sección (p. ej. "clientes").
 const SECCIONES_POR_MODULO = {
   comercial: [
+    { seccion: "resumen-comercial", texto: "Resumen", ruta: "#/comercial" },
     { seccion: "cotizaciones", texto: "Cotizaciones", ruta: "#/cotizaciones" },
     { seccion: "clientes", texto: "Clientes", ruta: "#/clientes" },
   ],
   compras: [
+    { seccion: "resumen-compras", texto: "Resumen", ruta: "#/compras" },
     { seccion: "requisiciones", texto: "Requisiciones", ruta: "#/requisiciones" },
     { seccion: "ordenes-compra", texto: "Órdenes de compra", ruta: "#/ordenes-compra" },
     { seccion: "proveedores", texto: "Proveedores", ruta: "#/proveedores" },
@@ -4935,8 +4937,10 @@ async function vistaUsuarioForm(id) {
 function enrutar() {
   const ruta = window.location.hash || "#/tablero";
 
-  // Definida en tableros.js (se carga antes que este archivo).
+  // Definidas en tableros.js (se carga antes que este archivo).
   if (/^#\/tablero$/.test(ruta)) return window.vistaTableroGerencial();
+  if (/^#\/comercial$/.test(ruta)) return window.vistaTableroComercial();
+  if (/^#\/compras$/.test(ruta)) return window.vistaTableroCompras();
 
   if (/^#\/clientes\/nuevo$/.test(ruta)) return vistaClienteForm(null);
   const editarCliente = ruta.match(/^#\/clientes\/(\d+)$/);

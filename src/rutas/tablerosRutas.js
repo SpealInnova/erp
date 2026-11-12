@@ -9,6 +9,8 @@ function crearTablerosRutas(pool) {
   const controlador = crearTablerosControlador(pool);
 
   router.get("/gerencial", envolverAsync(controlador.gerencial));
+  router.get("/comercial", envolverAsync(controlador.comercial));
+  router.get("/compras", envolverAsync(controlador.compras));
 
   return router;
 }
