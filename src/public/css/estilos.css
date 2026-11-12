@@ -685,6 +685,12 @@ body.app-body::before {
   justify-content: center;
 }
 
+/* display:flex anula el atributo hidden del navegador: sin esto el contador
+   mostraba "0" aunque no hubiera notificaciones sin leer */
+.campana-contador[hidden] {
+  display: none;
+}
+
 .panel-notificaciones {
   position: absolute;
   top: 48px;

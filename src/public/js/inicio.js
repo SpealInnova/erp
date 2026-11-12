@@ -148,7 +148,56 @@ function mostrarCargando() {
   contenido.append(p);
 }
 
-function marcarMenu(modulo) {
+// El menú lateral muestra módulos; los módulos con varias entidades las
+// recorren con pestañas horizontales sobre el contenido. Cada vista sigue
+// llamando a marcarMenu() con su propia sección (p. ej. "clientes").
+const SECCIONES_POR_MODULO = {
+  comercial: [
+    { seccion: "cotizaciones", texto: "Cotizaciones", ruta: "#/cotizaciones" },
+    { seccion: "clientes", texto: "Clientes", ruta: "#/clientes" },
+  ],
+  compras: [
+    { seccion: "requisiciones", texto: "Requisiciones", ruta: "#/requisiciones" },
+    { seccion: "ordenes-compra", texto: "Órdenes de compra", ruta: "#/ordenes-compra" },
+    { seccion: "proveedores", texto: "Proveedores", ruta: "#/proveedores" },
+  ],
+  entregas: [
+    { seccion: "actas-entrega", texto: "Actas de entrega", ruta: "#/actas-entrega" },
+    { seccion: "actas-cierre", texto: "Actas de cierre", ruta: "#/actas-cierre" },
+  ],
+};
+
+const MODULO_DE_SECCION = {
+  "expedientes-diseno": "diseno",
+  "reportes-servicio": "soporte",
+};
+Object.entries(SECCIONES_POR_MODULO).forEach(([modulo, secciones]) => {
+  secciones.forEach((s) => (MODULO_DE_SECCION[s.seccion] = modulo));
+});
+
+function pintarPestanasModulo(modulo, seccionActual) {
+  const nav = document.getElementById("subtabs");
+  if (!nav) return;
+  const secciones = SECCIONES_POR_MODULO[modulo];
+  if (!secciones) {
+    nav.hidden = true;
+    nav.replaceChildren();
+    return;
+  }
+  nav.replaceChildren(
+    ...secciones.map((s) => {
+      const a = document.createElement("a");
+      a.href = s.ruta;
+      a.textContent = s.texto;
+      if (s.seccion === seccionActual) a.setAttribute("aria-current", "page");
+      return a;
+    })
+  );
+  nav.hidden = false;
+}
+
+function marcarMenu(seccion) {
+  const modulo = MODULO_DE_SECCION[seccion] || seccion;
   const crumb = document.getElementById("crumb-modulo");
   document.querySelectorAll(".menu a[data-modulo]").forEach((a) => {
     if (a.dataset.modulo === modulo) {
@@ -158,6 +207,7 @@ function marcarMenu(modulo) {
       a.removeAttribute("aria-current");
     }
   });
+  pintarPestanasModulo(modulo, seccion);
 }
 
 function inicializarTopbar() {
@@ -4883,7 +4933,10 @@ async function vistaUsuarioForm(id) {
 }
 
 function enrutar() {
-  const ruta = window.location.hash || "#/clientes";
+  const ruta = window.location.hash || "#/tablero";
+
+  // Definida en tableros.js (se carga antes que este archivo).
+  if (/^#\/tablero$/.test(ruta)) return window.vistaTableroGerencial();
 
   if (/^#\/clientes\/nuevo$/.test(ruta)) return vistaClienteForm(null);
   const editarCliente = ruta.match(/^#\/clientes\/(\d+)$/);
@@ -4940,7 +4993,7 @@ function enrutar() {
   if (editarUsuario) return vistaUsuarioForm(editarUsuario[1]);
   if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
 
-  return vistaClientes();
+  return window.vistaTableroGerencial();
 }
 
 document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion);
