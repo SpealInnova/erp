@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 const { PASSWORD, USUARIO_PRINCIPAL } = require("./fixtures");
-const { iniciarSesionComo } = require("./helpers");
+const { iniciarSesionComo, responderProximoDialogo } = require("./helpers");
 
 test.describe("Aviso de cambios sin guardar", () => {
   test("avisa y permite cancelar la navegación al salir de un formulario con cambios", async ({
@@ -11,13 +11,15 @@ test.describe("Aviso de cambios sin guardar", () => {
     await page.goto("/inicio#/clientes/nuevo");
     await page.fill("#nombre_razon_social", "Cliente sin guardar todavía");
 
-    page.once("dialog", (dialog) => dialog.dismiss());
+    const cancelado = responderProximoDialogo(page, false);
     await page.click('a[data-modulo="proyectos"]');
+    await cancelado;
     await expect(page).toHaveURL(/#\/clientes\/nuevo$/);
     await expect(page.locator("#nombre_razon_social")).toHaveValue("Cliente sin guardar todavía");
 
-    page.once("dialog", (dialog) => dialog.accept());
+    const aceptado = responderProximoDialogo(page, true);
     await page.click('a[data-modulo="proyectos"]');
+    await aceptado;
     await expect(page).toHaveURL(/#\/proyectos$/);
   });
 

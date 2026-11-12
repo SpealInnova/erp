@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 const { PASSWORD, USUARIO_PRINCIPAL } = require("./fixtures");
-const { iniciarSesionComo } = require("./helpers");
+const { iniciarSesionComo, responderProximoDialogo } = require("./helpers");
 
 test.describe("Tablero gerencial y navegación por módulos", () => {
   test("es la vista de inicio y pinta indicadores y gráficas sin errores", async ({ page }) => {
@@ -111,8 +111,9 @@ test.describe("Tablero gerencial y navegación por módulos", () => {
     await expect(pendiente).toBeVisible();
     await expect(pendiente).toContainText("Válvula de alivio");
 
-    page.once("dialog", (dialog) => dialog.accept());
+    const confirmado = responderProximoDialogo(page, true);
     await pendiente.getByRole("button", { name: "Aprobar" }).click();
+    await confirmado;
     await expect(pendiente).toHaveClass(/done/);
 
     const verificada = await page.request.get(`/ordenes-compra/${orden.id}`, {
