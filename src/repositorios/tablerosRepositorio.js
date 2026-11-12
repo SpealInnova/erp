@@ -56,20 +56,144 @@ async function sumarComprometidoPorProyecto(pool) {
 async function listarCotizacionesConValor(pool) {
   const [filas] = await pool.query(
     `SELECT co.id, co.numero_cotizacion, co.estado, co.cliente_id,
-            cl.nombre_razon_social AS cliente,
+            cl.nombre_razon_social AS cliente, u.nombre AS asesor,
             DATE_FORMAT(co.created_at, '%Y-%m-%d') AS creada,
             DATE_FORMAT(co.updated_at, '%Y-%m-%d') AS actualizada,
             DATE_FORMAT(co.fecha_validez, '%Y-%m-%d') AS fecha_validez,
-            COALESCE(SUM(${VALOR_ITEM_COTIZACION}), 0) AS valor
+            COUNT(ci.id) AS items,
+            COALESCE(SUM(${VALOR_ITEM_COTIZACION}), 0) AS valor,
+            (SELECT descripcion FROM cotizacion_items
+              WHERE cotizacion_id = co.id ORDER BY id LIMIT 1) AS primer_item
      FROM cotizaciones co
      JOIN clientes cl ON cl.id = co.cliente_id
+     LEFT JOIN usuarios u ON u.id = co.asesor_comercial_id
      LEFT JOIN cotizacion_items ci ON ci.cotizacion_id = co.id
      WHERE co.deleted_at IS NULL
      GROUP BY co.id, co.numero_cotizacion, co.estado, co.cliente_id, cl.nombre_razon_social,
-              co.created_at, co.updated_at, co.fecha_validez
+              u.nombre, co.created_at, co.updated_at, co.fecha_validez
      ORDER BY co.created_at DESC`
   );
-  return filas.map((f) => ({ ...f, valor: Number(f.valor) }));
+  return filas.map((f) => ({ ...f, items: Number(f.items), valor: Number(f.valor) }));
+}
+
+// Clientes con su actividad: proyectos en curso y la última fecha en que se
+// movió algo suyo (proyecto o cotización).
+async function listarClientesConActividad(pool, estadosTerminados) {
+  const [filas] = await pool.query(
+    `SELECT cl.id, cl.nombre_razon_social AS nombre, cl.tipo_identificacion,
+            cl.numero_identificacion, cl.ciudad,
+            DATE_FORMAT(cl.created_at, '%Y-%m-%d') AS creado,
+            (SELECT COUNT(*) FROM proyectos p
+              WHERE p.cliente_id = cl.id AND p.deleted_at IS NULL
+                AND p.estado NOT IN (?)) AS proyectos_activos,
+            DATE_FORMAT(GREATEST(
+              cl.updated_at,
+              COALESCE((SELECT MAX(p.updated_at) FROM proyectos p
+                         WHERE p.cliente_id = cl.id AND p.deleted_at IS NULL), cl.updated_at),
+              COALESCE((SELECT MAX(co.updated_at) FROM cotizaciones co
+                         WHERE co.cliente_id = cl.id AND co.deleted_at IS NULL), cl.updated_at)
+            ), '%Y-%m-%d') AS ultima_actividad
+     FROM clientes cl
+     WHERE cl.deleted_at IS NULL
+     ORDER BY cl.nombre_razon_social`,
+    [estadosTerminados]
+  );
+  return filas.map((f) => ({ ...f, proyectos_activos: Number(f.proyectos_activos) }));
+}
+
+async function listarRequisiciones(pool) {
+  const [filas] = await pool.query(
+    `SELECT r.id, r.numero_requisicion, r.estado, r.procedencia,
+            p.id AS proyecto_id, p.codigo_pry, u.nombre AS solicitante,
+            DATE_FORMAT(r.created_at, '%Y-%m-%d') AS creada,
+            (SELECT COUNT(*) FROM requisicion_items ri WHERE ri.requisicion_id = r.id) AS items,
+            (SELECT DATE_FORMAT(MIN(oc.created_at), '%Y-%m-%d') FROM ordenes_compra oc
+              WHERE oc.requisicion_id = r.id AND oc.deleted_at IS NULL) AS primera_oc
+     FROM requisiciones r
+     JOIN proyectos p ON p.id = r.proyecto_id
+     LEFT JOIN usuarios u ON u.id = r.solicitante_id
+     WHERE r.deleted_at IS NULL
+     ORDER BY r.created_at DESC, r.id DESC`
+  );
+  return filas.map((f) => ({ ...f, items: Number(f.items) }));
+}
+
+async function listarOrdenesCompra(pool) {
+  const [filas] = await pool.query(
+    `SELECT oc.id, oc.numero_oc, oc.estado, pr.razon_social AS proveedor,
+            p.id AS proyecto_id, p.codigo_pry, r.procedencia,
+            DATE_FORMAT(oc.created_at, '%Y-%m-%d') AS creada,
+            COUNT(oci.id) AS items,
+            COALESCE(SUM(oci.cantidad * oci.precio_unitario), 0) AS valor,
+            (SELECT descripcion FROM orden_compra_items
+              WHERE orden_compra_id = oc.id ORDER BY id LIMIT 1) AS primer_item
+     FROM ordenes_compra oc
+     JOIN proveedores pr ON pr.id = oc.proveedor_id
+     JOIN requisiciones r ON r.id = oc.requisicion_id
+     JOIN proyectos p ON p.id = r.proyecto_id
+     LEFT JOIN orden_compra_items oci ON oci.orden_compra_id = oc.id
+     WHERE oc.deleted_at IS NULL AND r.deleted_at IS NULL
+     GROUP BY oc.id, oc.numero_oc, oc.estado, pr.razon_social, p.id, p.codigo_pry,
+              r.procedencia, oc.created_at
+     ORDER BY oc.created_at, oc.id`
+  );
+  return filas.map((f) => ({ ...f, items: Number(f.items), valor: Number(f.valor) }));
+}
+
+// Cambios de estado registrados en auditoría. El estado se extrae en SQL
+// (no se compara allí) para no depender de cómo el motor tipa las columnas
+// JSON ni de colaciones distintas entre MySQL y MariaDB.
+async function listarCambiosDeEstado(pool, tabla, ids) {
+  if (!ids.length) return [];
+  const [filas] = await pool.query(
+    `SELECT registro_id, DATE_FORMAT(creado_en, '%Y-%m-%d') AS fecha,
+            JSON_UNQUOTE(JSON_EXTRACT(datos_anteriores, '$.estado')) AS estado_anterior,
+            JSON_UNQUOTE(JSON_EXTRACT(datos_nuevos, '$.estado')) AS estado_nuevo
+     FROM auditoria
+     WHERE tabla = ? AND accion = 'actualizar' AND registro_id IN (?)
+     ORDER BY creado_en, id`,
+    [tabla, ids]
+  );
+  return filas;
+}
+
+async function listarProveedoresCalificados(pool) {
+  const [filas] = await pool.query(
+    `SELECT id, razon_social, origen, calificacion_actual
+     FROM proveedores
+     WHERE deleted_at IS NULL AND calificacion_actual IS NOT NULL
+     ORDER BY calificacion_actual DESC, razon_social`
+  );
+  return filas.map((f) => ({ ...f, calificacion_actual: Number(f.calificacion_actual) }));
+}
+
+async function contarProveedores(pool) {
+  const [filas] = await pool.query(
+    "SELECT COUNT(*) AS total FROM proveedores WHERE deleted_at IS NULL"
+  );
+  return Number(filas[0].total);
+}
+
+// Presupuesto frente a lo comprometido en OC y lo ya pagado, por proyecto en curso.
+async function listarPresupuestoProyectos(pool, estadosTerminados, estadosPagados) {
+  const [filas] = await pool.query(
+    `SELECT p.id, p.codigo_pry, p.nombre_proyecto, p.presupuesto_estimado,
+            COALESCE(SUM(oci.cantidad * oci.precio_unitario), 0) AS comprometido,
+            COALESCE(SUM(CASE WHEN oc.estado IN (?) THEN oci.cantidad * oci.precio_unitario END), 0) AS pagado
+     FROM proyectos p
+     LEFT JOIN requisiciones r ON r.proyecto_id = p.id AND r.deleted_at IS NULL
+     LEFT JOIN ordenes_compra oc ON oc.requisicion_id = r.id AND oc.deleted_at IS NULL
+     LEFT JOIN orden_compra_items oci ON oci.orden_compra_id = oc.id
+     WHERE p.deleted_at IS NULL AND p.estado NOT IN (?)
+     GROUP BY p.id, p.codigo_pry, p.nombre_proyecto, p.presupuesto_estimado`,
+    [estadosPagados, estadosTerminados]
+  );
+  return filas.map((f) => ({
+    ...f,
+    presupuesto_estimado: f.presupuesto_estimado === null ? null : Number(f.presupuesto_estimado),
+    comprometido: Number(f.comprometido),
+    pagado: Number(f.pagado),
+  }));
 }
 
 async function listarOrdenesPorAprobar(pool) {
@@ -143,4 +267,11 @@ module.exports = {
   listarCambiosDisenoPendientes,
   contarExpedientesSinLiberar,
   contarActividadesAbiertasPorResponsable,
+  listarClientesConActividad,
+  listarRequisiciones,
+  listarOrdenesCompra,
+  listarCambiosDeEstado,
+  listarProveedoresCalificados,
+  contarProveedores,
+  listarPresupuestoProyectos,
 };

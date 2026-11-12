@@ -57,10 +57,38 @@ test.describe("Tablero gerencial y navegación por módulos", () => {
       "aria-current",
       "page"
     );
-    await expect(pestanas.getByRole("link")).toHaveCount(3);
+    await expect(pestanas.getByRole("link")).toHaveCount(4);
 
     await page.goto("/inicio#/proyectos");
     await expect(pestanas).toBeHidden();
+  });
+
+  test("los resúmenes de Comercial y Compras se abren desde el menú", async ({ page }) => {
+    const errores = [];
+    page.on("pageerror", (error) => errores.push(String(error)));
+    await iniciarSesionComo(page, USUARIO_PRINCIPAL, PASSWORD);
+    const pestanas = page.locator("#subtabs");
+
+    await page.locator('.menu a[data-modulo="comercial"]').click();
+    await expect(page).toHaveURL(/#\/comercial$/);
+    await expect(page.getByRole("heading", { name: "Comercial", level: 1 })).toBeVisible();
+    await expect(pestanas.getByRole("link", { name: "Resumen" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    await expect(page.locator(".tablero .kpi")).toHaveCount(6);
+    await expect(page.locator("#cm-embudo .kcol")).toHaveCount(6);
+    await expect(page.locator("#cm-tabla thead th")).toHaveCount(8);
+    await page.screenshot({ path: "test-results/tablero-comercial.png", fullPage: true });
+
+    await page.locator('.menu a[data-modulo="compras"]').click();
+    await expect(page).toHaveURL(/#\/compras$/);
+    await expect(page.getByRole("heading", { name: "Compras", level: 1 })).toBeVisible();
+    await expect(page.locator(".tablero .kpi")).toHaveCount(6);
+    await expect(page.locator("#cp-flujo .fnode")).toHaveCount(6);
+    await page.screenshot({ path: "test-results/tablero-compras.png", fullPage: true });
+
+    expect(errores).toEqual([]);
   });
 
   test("aprueba una orden de compra desde la lista de pendientes", async ({ page }) => {
