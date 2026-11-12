@@ -777,6 +777,56 @@ function formatearFechaISO(fecha) {
   return `${anio}-${mes}-${dia}`;
 }
 
+const DIAS_SEMANA_ABREV = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const MESES_NOMBRE = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+function semanaDelMes(fecha) {
+  return Math.ceil(fecha.getDate() / 7);
+}
+
+function normalizarFechaISO(valor) {
+  if (!valor) return valor;
+  return formatearFechaISO(new Date(valor));
+}
+
+function aplicarEncabezadoPersonalizado(gantt) {
+  gantt.get_date_info = function (date, last_date, i) {
+    const primeraColumna = i === 0;
+    const referencia = last_date || date;
+    const cambioMes = primeraColumna || date.getMonth() !== referencia.getMonth();
+    const cambioSemana =
+      primeraColumna || cambioMes || semanaDelMes(date) !== semanaDelMes(referencia);
+
+    const lower_text = `${DIAS_SEMANA_ABREV[date.getDay()]} ${date.getDate()}`;
+    const upper_text = cambioSemana
+      ? `Semana ${semanaDelMes(date)}${cambioMes ? ` · ${MESES_NOMBRE[date.getMonth()]}` : ""}`
+      : "";
+
+    const ancho = this.options.column_width;
+    return {
+      upper_text,
+      lower_text,
+      upper_x: i * ancho + (ancho * 7) / 2,
+      upper_y: this.options.header_height - 25,
+      lower_x: i * ancho + ancho / 2,
+      lower_y: this.options.header_height,
+    };
+  };
+}
+
 function renderizarGantt(contenedor, actividades, proyectoId) {
   contenedor.replaceChildren();
   if (typeof window.Gantt === "undefined" || actividades.length === 0) {
@@ -788,8 +838,8 @@ function renderizarGantt(contenedor, actividades, proyectoId) {
   hoy.setHours(0, 0, 0, 0);
 
   const tareas = actividades.map((actividad, indice) => {
-    let inicio = actividad.fecha_inicio;
-    let fin = actividad.fecha_fin;
+    let inicio = normalizarFechaISO(actividad.fecha_inicio);
+    let fin = normalizarFechaISO(actividad.fecha_fin);
     if (!inicio) {
       const base = new Date(hoy);
       base.setDate(base.getDate() + indice);
@@ -834,6 +884,8 @@ function renderizarGantt(contenedor, actividades, proyectoId) {
     },
   });
 
+  aplicarEncabezadoPersonalizado(gantt);
+
   function redibujarConLimites(nuevoInicio, nuevoFin) {
     gantt.gantt_start = nuevoInicio;
     gantt.gantt_end = nuevoFin;
@@ -842,12 +894,15 @@ function renderizarGantt(contenedor, actividades, proyectoId) {
   }
 
   // Frappe agrega hasta ±1 mes de relleno automático alrededor de las
-  // actividades; lo reemplazamos por un margen corto y nunca mostramos
-  // días anteriores a hoy.
+  // actividades; lo reemplazamos por el mes en curso (nunca antes de hoy),
+  // extendiéndolo si ya hay actividades reales más allá de fin de mes.
   const margen = 2;
+  const finDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+  finDeMesActual.setHours(0, 0, 0, 0);
+  const finConMargen = new Date(finReal.getTime() + (margen + 1) * UN_DIA_MS);
   redibujarConLimites(
     new Date(Math.max(hoy.getTime(), inicioReal.getTime() - margen * UN_DIA_MS)),
-    new Date(finReal.getTime() + (margen + 1) * UN_DIA_MS)
+    finConMargen > finDeMesActual ? finConMargen : finDeMesActual
   );
 
   function ajustarRango(dias) {
