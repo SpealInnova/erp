@@ -383,7 +383,8 @@
   color: var(--accent-ink);
 }
 
-/* Ventana de gestión de la actividad (engranaje) */
+/* Ventanas modales: gestión de la actividad (engranaje) y genéricas (.dialogo) */
+.dialogo,
 .dialogo-actividad {
   width: min(760px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
@@ -396,11 +397,13 @@
   box-shadow: var(--shadow-3);
 }
 
+.dialogo[open],
 .dialogo-actividad[open] {
   display: flex;
   flex-direction: column;
 }
 
+.dialogo::backdrop,
 .dialogo-actividad::backdrop {
   background: rgba(26, 32, 51, 0.45);
 }
@@ -491,4 +494,37 @@ html[data-contraste="alto"] .gantt-marco {
     order: 3;
     width: 100%;
   }
+}
+
+/* Actividad abierta desde un enlace directo (aviso o "Actividades pendientes") */
+.gantt-barra--resaltada {
+  animation: gantt-resaltar 1.2s ease-in-out 2;
+}
+
+@keyframes gantt-resaltar {
+  50% {
+    box-shadow:
+      0 0 0 4px var(--accent-tint-2),
+      0 0 0 6px var(--accent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gantt-barra--resaltada {
+    animation: none;
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Pendiente vencida: contorno rojo; por vencer: contorno naranja. Por fuera
+   de la barra para que se distinga del dorado. */
+.gantt-barra--vencida {
+  outline: 2px solid var(--crit);
+  outline-offset: 1px;
+}
+
+.gantt-barra--por-vencer {
+  outline: 2px solid var(--warn);
+  outline-offset: 1px;
 }

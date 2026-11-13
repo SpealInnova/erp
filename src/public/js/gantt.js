@@ -46,6 +46,9 @@
   const ANCHO_MES_LARGO = 110; // px; "Noviembre 2026" o, si no cabe, "Nov"
   const UMBRAL_ARRASTRE_PX = 4;
   const BORDE_ESTIRAR_PX = 8;
+  // Igual que el servidor (servicios/avisosActividades.js): "por vencer" es
+  // vencer hoy o en los próximos 3 días.
+  const DIAS_POR_VENCER = 3;
 
   const ICONO_ENGRANAJE =
     '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
@@ -99,6 +102,19 @@
     return `${DIAS_SEMANA[fecha.getDay()]} ${fecha.getDate()} ${MESES[fecha.getMonth()]
       .slice(0, 3)
       .toLowerCase()}`;
+  }
+
+  // Plazo de una actividad pendiente con fechas: vencida o por vencer.
+  function plazoDe(tarea, hoy) {
+    if (tarea.actividad.estado === "completada" || tarea.provisional) return null;
+    const dias = diasEntre(hoy, tarea.fin);
+    if (dias < 0) {
+      return { clase: "vencida", texto: "Vencida", tipo: "crit", dias };
+    }
+    if (dias <= DIAS_POR_VENCER) {
+      return { clase: "por-vencer", texto: "Por vencer", tipo: "warn", dias };
+    }
+    return null;
   }
 
   function textoDuracion(dias) {
@@ -322,6 +338,8 @@
       barra.dataset.actividadId = String(actividad.id);
       if (completada) barra.classList.add("gantt-barra--completada");
       if (recortada) barra.classList.add("gantt-barra--recortada");
+      const plazo = plazoDe(tarea, hoy);
+      if (plazo) barra.classList.add(`gantt-barra--${plazo.clase}`);
       barra.setAttribute("aria-haspopup", "dialog");
       barra.setAttribute("aria-expanded", "false");
       barra.setAttribute(
@@ -330,7 +348,7 @@
           tarea.provisional
             ? "Sin fechas definidas"
             : `${textoFecha(tarea.inicio)} a ${textoFecha(tarea.fin)}`
-        }. ${completada ? "Completada" : "Pendiente"}.`
+        }. ${completada ? "Completada" : "Pendiente"}${plazo ? `, ${plazo.texto.toLowerCase()}` : ""}.`
       );
       barra.append(crear("span", "gantt-barra-texto", texto));
 
@@ -509,10 +527,10 @@
 
       const cabecera = crear("div", "gantt-popup-cabecera");
       const etiquetas = crear("div", "gantt-popup-etiquetas");
-      etiquetas.append(
-        pill(completada ? "Completada" : "Pendiente", completada ? "good" : "info"),
-        pill(actividad.categoria || "General", "mute")
-      );
+      etiquetas.append(pill(completada ? "Completada" : "Pendiente", completada ? "good" : "info"));
+      const plazo = plazoDe(tarea, hoy);
+      if (plazo) etiquetas.append(pill(plazo.texto, plazo.tipo));
+      etiquetas.append(pill(actividad.categoria || "General", "mute"));
       const engranaje = crear("button", "boton-icono gantt-engranaje");
       engranaje.type = "button";
       engranaje.innerHTML = ICONO_ENGRANAJE;
@@ -555,11 +573,15 @@
           )
         );
       } else if (barra.classList.contains("gantt-barra--recortada")) {
+        const inicioTexto =
+          plazo && plazo.clase === "vencida"
+            ? `Venció el ${textoFecha(tarea.fin)}`
+            : "Empezó antes de hoy";
         caja.append(
           crear(
             "p",
             "gantt-popup-nota",
-            "Empezó antes de hoy; el diagrama solo muestra desde hoy. Sus fechas se cambian con el engranaje."
+            `${inicioTexto}; el diagrama solo muestra desde hoy. Sus fechas se cambian con el engranaje.`
           )
         );
       }

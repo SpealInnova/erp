@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/css/estilos.css">
   <link rel="stylesheet" href="/css/tableros.css">
   <link rel="stylesheet" href="/css/gantt.css">
+  <link rel="stylesheet" href="/css/ficha.css">
   <script src="/js/accesibilidad.js"></script>
 </head>
 <body class="app-body">
@@ -75,6 +76,10 @@
     <div class="main">
       <header class="topbar">
         <div class="crumbs"><span>SPEAL /</span><span id="crumb-modulo">Inicio</span></div>
+        <button id="btn-mis-actividades" class="campana-boton" type="button" aria-expanded="false" aria-controls="ventana-actividades" aria-label="Actividades pendientes" title="Actividades pendientes">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="2.5" width="10" height="11.5" rx="1.5"/><path d="M6 1.75h4v1.75H6z"/><path d="M5.6 7.6l1.3 1.3 2.6-2.6"/><path d="M5.6 11.25h4.8"/></svg>
+          <span id="actividades-contador" class="campana-contador" hidden>0</span>
+        </button>
         <div class="campana-wrap">
           <button id="btn-notificaciones" class="campana-boton" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones">
             <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2a3.5 3.5 0 0 0-3.5 3.5v2.3c0 .5-.2 1-.5 1.4L3 10.5h10l-1-1.3a2 2 0 0 1-.5-1.4V5.5A3.5 3.5 0 0 0 8 2Z"/><path d="M6.3 12.5a1.8 1.8 0 0 0 3.4 0"/></svg>
@@ -91,6 +96,7 @@
         </div>
       </header>
 
+      <section id="ventana-actividades" class="ventana-actividades" role="dialog" aria-modal="false" aria-labelledby="titulo-ventana-actividades" hidden></section>
       <nav id="subtabs" class="subtabs" aria-label="Secciones del módulo" hidden></nav>
       <main class="contenido" id="contenido" tabindex="-1">
         <p class="subtitulo">Cargando…</p>
@@ -102,5 +108,6 @@
   <script src="/js/gantt.js"></script>
   <script src="/js/listados.js"></script>
   <script src="/js/inicio.js"></script>
+  <script src="/js/misActividades.js"></script>
 </body>
 </html>

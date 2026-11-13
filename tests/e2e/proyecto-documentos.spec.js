@@ -46,10 +46,12 @@ test.describe("Documentos del proyecto", () => {
     });
     await expect(enlace).toBeVisible();
 
-    // la línea de tiempo también registra la requisición, con enlace
+    // la línea de tiempo (en su pestaña) también registra la requisición, con enlace
+    await page.getByRole("tab", { name: "Línea de tiempo" }).click();
     await expect(
       page.getByRole("link", { name: `Requisición ${requisicion.numero_requisicion} creada` })
     ).toBeVisible();
+    await page.getByRole("tab", { name: "Proyecto" }).click();
 
     await page.screenshot({ path: "test-results/proyecto-documentos.png", fullPage: true });
 
