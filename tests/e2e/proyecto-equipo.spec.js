@@ -45,15 +45,22 @@ test.describe("Flujo crítico: proyecto, fase, actividades y equipo", () => {
       .locator(".tarjeta-ancha", { hasText: "Actividades por fase" })
       .last();
     await expect(seccionActividades).toBeVisible();
-    const filasActividad = seccionActividades.locator("tbody tr");
-    await expect(filasActividad.first()).toBeVisible();
-    const totalActividades = await filasActividad.count();
+    const barras = seccionActividades.locator("details[open] .gantt-barra");
+    await expect(barras.first()).toBeVisible();
+    const totalActividades = await barras.count();
     expect(totalActividades).toBeGreaterThan(0);
 
-    // Completar la primera actividad
-    const primeraFila = filasActividad.first();
-    await primeraFila.locator('input[type="checkbox"]').check();
-    await expect(primeraFila.locator("td").nth(2)).toHaveCSS("text-decoration-line", "line-through");
+    // Completar la primera actividad desde el engranaje de su barra
+    const idPrimera = await barras.first().getAttribute("data-actividad-id");
+    await barras.first().click();
+    await page.getByRole("button", { name: "Gestionar actividad" }).click();
+    const dialogo = page.locator("dialog[open]");
+    await dialogo.getByLabel("Estado", { exact: true }).selectOption("completada");
+    await dialogo.getByRole("button", { name: "Guardar cambios" }).click();
+    await expect(dialogo).toHaveCount(0);
+    await expect(
+      seccionActividades.locator(`.gantt-barra[data-actividad-id="${idPrimera}"]`)
+    ).toHaveClass(/gantt-barra--completada/);
 
     // Agregar un integrante al equipo
     const seccionEquipo = page.locator(".tarjeta-ancha", { hasText: "Equipo del proyecto" }).last();

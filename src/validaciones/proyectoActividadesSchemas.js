@@ -14,7 +14,8 @@ const actualizarActividadSchema = z
   .object({
     categoria: z.string().min(1).optional(),
     descripcion: z.string().min(1).optional(),
-    responsable_id: z.coerce.number().int().positive().optional(),
+    // null quita el responsable ("— Sin asignar —").
+    responsable_id: z.union([z.null(), z.coerce.number().int().positive()]).optional(),
     estado: z.enum(["pendiente", "completada"]).optional(),
     fecha_inicio: FECHA_ISO.optional(),
     fecha_fin: FECHA_ISO.optional(),
