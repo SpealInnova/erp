@@ -53,6 +53,8 @@ describirSiHayBD("CRUD de Expedientes de Diseño (integración contra BD real)",
 
   afterAll(async () => {
     await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [usuarioId]);
+    // los expedientes con número de serie registran su equipo
+    await pool.query("DELETE FROM equipos WHERE proyecto_id = ?", [proyectoId]);
     await pool.query("DELETE FROM expedientes_diseno WHERE created_by = ?", [usuarioId]);
     await pool.query("DELETE FROM proyectos WHERE id = ?", [proyectoId]);
     await pool.query("DELETE FROM clientes WHERE id = ?", [clienteId]);

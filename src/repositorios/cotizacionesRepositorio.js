@@ -64,6 +64,15 @@ async function softDelete(pool, id) {
   await pool.query("UPDATE cotizaciones SET deleted_at = NOW() WHERE id = ?", [id]);
 }
 
+// Proyectos vigentes que tienen esta cotización como origen.
+async function listarProyectosQueLaUsan(pool, cotizacionId) {
+  const [filas] = await pool.query(
+    "SELECT id, codigo_pry FROM proyectos WHERE cotizacion_id = ? AND deleted_at IS NULL",
+    [cotizacionId]
+  );
+  return filas;
+}
+
 module.exports = {
   contarPorAnio,
   buscarPorNumero,
@@ -73,4 +82,5 @@ module.exports = {
   actualizar,
   actualizarEstado,
   softDelete,
+  listarProyectosQueLaUsan,
 };

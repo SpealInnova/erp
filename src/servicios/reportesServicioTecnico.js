@@ -1,10 +1,12 @@
 const reportesServicioTecnicoRepositorio = require("../repositorios/reportesServicioTecnicoRepositorio");
-const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoRepositorio");
+const equiposRepositorio = require("../repositorios/equiposRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const coherencia = require("./coherenciaProyecto");
+const versiones = require("./versiones");
+const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoRST } = require("../dominio/codigoReporteServicio");
 const {
   ErrorReporteNoEncontrado,
@@ -12,6 +14,7 @@ const {
   ErrorClienteNoExiste,
   ErrorProyectoNoExiste,
 } = require("../dominio/erroresReportesServicioTecnico");
+const { ErrorEnlaceInconsistente } = require("../dominio/erroresEnlaces");
 
 const TABLA = "reportes_servicio_tecnico";
 const MAX_INTENTOS_CODIGO = 3;
@@ -30,12 +33,13 @@ async function generarNumeroReporte(pool) {
   throw new Error("No se pudo generar un número de reporte único");
 }
 
-// Equipo, proyecto y cliente deben coincidir. El equipo ya pertenece a un
-// proyecto (por su expediente de diseño): si el reporte no indica proyecto,
-// se toma ese; si indica otro, se rechaza. El cliente debe ser el del proyecto.
+// Todo reporte queda asociado a un proyecto. El equipo sale del registro de
+// equipos (con o sin expediente). Si el reporte no indica proyecto, se toma el
+// del equipo; si indica otro, debe ser del mismo cliente del equipo (p. ej. un
+// contrato de mantenimiento). El cliente del reporte es el del proyecto.
 // Devuelve el id del proyecto con el que queda el reporte.
 async function resolverReferencias(pool, { equipo_numero_serie, cliente_id, proyecto_id }) {
-  const equipo = await expedientesDisenoRepositorio.buscarPorNumeroSerie(pool, equipo_numero_serie);
+  const equipo = await equiposRepositorio.buscarPorNumeroSerie(pool, equipo_numero_serie);
   if (!equipo) {
     throw new ErrorEquipoNoExiste();
   }
@@ -44,18 +48,14 @@ async function resolverReferencias(pool, { equipo_numero_serie, cliente_id, proy
     throw new ErrorClienteNoExiste();
   }
 
-  let proyecto;
-  if (proyecto_id) {
-    proyecto = await proyectosRepositorio.obtenerPorId(pool, proyecto_id);
-    if (!proyecto) {
-      throw new ErrorProyectoNoExiste();
-    }
-    await coherencia.exigirEquipoDelProyecto(pool, equipo, equipo_numero_serie, proyecto);
-  } else {
-    proyecto = await proyectosRepositorio.obtenerPorId(pool, equipo.proyecto_id);
+  const proyecto = await proyectosRepositorio.obtenerPorId(pool, proyecto_id || equipo.proyecto_id);
+  if (!proyecto) {
+    if (proyecto_id) throw new ErrorProyectoNoExiste();
+    throw new ErrorEnlaceInconsistente(
+      `El proyecto del equipo ${equipo_numero_serie} ya no existe: indica un proyecto del mismo cliente para el reporte.`
+    );
   }
-
-  if (!proyecto) return null;
+  await coherencia.exigirEquipoDelCliente(pool, equipo, proyecto);
   await coherencia.exigirClienteDelProyecto(pool, proyecto, cliente_id);
   return proyecto.id;
 }
@@ -137,22 +137,30 @@ async function actualizarReporte(pool, id, datos, usuarioId) {
   return actualizado;
 }
 
-async function eliminarReporte(pool, id, usuarioId) {
-  const anterior = await obtenerReporte(pool, id);
-  await reportesServicioTecnicoRepositorio.softDelete(pool, id);
+// Un reporte de servicio es parte de la historia del equipo: no se elimina,
+// se corrige con una nueva versión.
+async function eliminarReporte(pool, id) {
+  const reporte = await obtenerReporte(pool, id);
+  throw new ErrorEliminacionBloqueada(
+    `El reporte ${reporte.numero_reporte} no se puede eliminar. Para corregirlo, crea una nueva versión.`
+  );
+}
 
-  await auditoria.registrar(pool, {
+async function crearVersionReporte(pool, id, { motivo, ...datos }, usuarioId) {
+  await versiones.crearNuevaVersion(pool, {
     tabla: TABLA,
     registroId: id,
-    accion: "eliminar",
+    motivo,
     usuarioId,
-    datosAnteriores: anterior,
-    datosNuevos: null,
+    obtener: (conexion) => obtenerReporte(conexion, id),
+    actualizar: (conexion) => actualizarReporte(conexion, id, datos, usuarioId),
   });
+  return obtenerReporte(pool, id);
 }
 
 module.exports = {
   crearReporte,
+  crearVersionReporte,
   obtenerReporte,
   listarReportes,
   actualizarReporte,

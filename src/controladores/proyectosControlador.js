@@ -6,6 +6,7 @@ const {
   cambiarEstadoSchema,
   listarProyectosQuerySchema,
 } = require("../validaciones/proyectosSchemas");
+const { conMotivo } = require("../validaciones/versionesSchemas");
 
 function crearProyectosControlador(pool) {
   async function crear(req, res) {
@@ -53,7 +54,14 @@ function crearProyectosControlador(pool) {
     res.status(204).send();
   }
 
-  return { crear, listar, obtener, actualizar, cambiarEstado, eliminar };
+  async function crearVersion(req, res) {
+    const id = Number(req.params.id);
+    const datos = conMotivo(actualizarProyectoSchema).parse(req.body);
+    const proyecto = await proyectosServicio.crearVersionProyecto(pool, id, datos, req.usuario.id);
+    res.status(200).json({ proyecto });
+  }
+
+  return { crear, listar, obtener, actualizar, cambiarEstado, eliminar, crearVersion };
 }
 
 module.exports = { crearProyectosControlador };

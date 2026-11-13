@@ -6,6 +6,8 @@ const actasEntregaRepositorio = require("../repositorios/actasEntregaRepositorio
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const coherencia = require("./coherenciaProyecto");
+const versiones = require("./versiones");
+const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoACS } = require("../dominio/codigoActaCierre");
 const {
   ErrorActaNoEncontrada,
@@ -162,18 +164,31 @@ async function actualizarActa(pool, id, datos, usuarioId) {
   return actualizada;
 }
 
-async function eliminarActa(pool, id, usuarioId) {
-  const anterior = await obtenerConItems(pool, id);
-  await actasCierreRepositorio.softDelete(pool, id);
-
-  await auditoria.registrar(pool, {
-    tabla: TABLA,
-    registroId: id,
-    accion: "eliminar",
-    usuarioId,
-    datosAnteriores: anterior,
-    datosNuevos: null,
-  });
+// Un acta de cierre firmada no se elimina: se corrige con una nueva versión.
+async function eliminarActa(pool, id) {
+  const acta = await obtenerConItems(pool, id);
+  throw new ErrorEliminacionBloqueada(
+    `El acta de cierre ${acta.numero_acta} no se puede eliminar. Para corregirla, crea una nueva versión.`
+  );
 }
 
-module.exports = { crearActa, obtenerConItems, listarActas, actualizarActa, eliminarActa };
+async function crearVersionActa(pool, id, { motivo, ...datos }, usuarioId) {
+  await versiones.crearNuevaVersion(pool, {
+    tabla: TABLA,
+    registroId: id,
+    motivo,
+    usuarioId,
+    obtener: (conexion) => obtenerConItems(conexion, id),
+    actualizar: (conexion) => actualizarActa(conexion, id, datos, usuarioId),
+  });
+  return obtenerConItems(pool, id);
+}
+
+module.exports = {
+  crearActa,
+  crearVersionActa,
+  obtenerConItems,
+  listarActas,
+  actualizarActa,
+  eliminarActa,
+};

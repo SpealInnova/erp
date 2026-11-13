@@ -74,6 +74,19 @@ describirSiHayBD("Documentos del proyecto y su línea de tiempo (integración)",
         [`EXP-DOC-${sufijo}`, ids.proyecto, serie, ids.usuario]
       )
     ).insertId;
+    await q(
+      `INSERT INTO equipos (numero_serie, cliente_id, proyecto_id, expediente_id, descripcion, origen)
+       VALUES (?, ?, ?, ?, 'Planta PSA', 'expediente')`,
+      [serie, ids.clienteA, ids.proyecto, ids.expediente]
+    );
+    // contrato de mantenimiento posterior del mismo cliente
+    ids.proyectoMantenimiento = (
+      await q(
+        `INSERT INTO proyectos (codigo_pry, cliente_id, nombre_proyecto, estado, responsable_id)
+         VALUES (?, ?, 'Mantenimiento anual', 'seguimiento', ?)`,
+        [`PRY-DOCM-${sufijo}`, ids.clienteA, ids.usuario]
+      )
+    ).insertId;
     ids.proveedor = (
       await q(
         `INSERT INTO proveedores (nit_cc, razon_social, tipo_persona, origen, clasificacion, created_by)
@@ -101,12 +114,19 @@ describirSiHayBD("Documentos del proyecto y su línea de tiempo (integración)",
        VALUES (?, 'Compresor', 1, 400)`,
       [ids.ocPagada]
     );
-    // reporte antiguo registrado sin proyecto, sobre un equipo de este proyecto
-    ids.reporteSuelto = (
+    // mantenimiento de un equipo de este proyecto, registrado en el contrato
+    ids.reporteMantenimiento = (
       await q(
-        `INSERT INTO reportes_servicio_tecnico (numero_reporte, equipo_numero_serie, cliente_id, tipo_servicio, tecnico_responsable_id, created_by)
-         VALUES (?, ?, ?, 'garantia', ?, ?)`,
-        [`RST-DOC-${sufijo}`, serie, ids.clienteA, ids.usuario, ids.usuario]
+        `INSERT INTO reportes_servicio_tecnico (numero_reporte, equipo_numero_serie, cliente_id, proyecto_id, tipo_servicio, tecnico_responsable_id, created_by)
+         VALUES (?, ?, ?, ?, 'mantenimiento_preventivo', ?, ?)`,
+        [
+          `RST-DOC-${sufijo}`,
+          serie,
+          ids.clienteA,
+          ids.proyectoMantenimiento,
+          ids.usuario,
+          ids.usuario,
+        ]
       )
     ).insertId;
     // acta de cierre antigua a nombre de otro cliente
@@ -140,8 +160,9 @@ describirSiHayBD("Documentos del proyecto y su línea de tiempo (integración)",
     await q("DELETE FROM ordenes_compra WHERE requisicion_id = ?", [ids.requisicion]);
     await q("DELETE FROM requisiciones WHERE id = ?", [ids.requisicion]);
     await q("DELETE FROM proveedores WHERE id = ?", [ids.proveedor]);
+    await q("DELETE FROM equipos WHERE expediente_id = ?", [ids.expediente]);
     await q("DELETE FROM expedientes_diseno WHERE id = ?", [ids.expediente]);
-    await q("DELETE FROM proyectos WHERE id = ?", [ids.proyecto]);
+    await q("DELETE FROM proyectos WHERE id IN (?, ?)", [ids.proyecto, ids.proyectoMantenimiento]);
     await q("DELETE FROM cotizacion_items WHERE cotizacion_id = ?", [ids.cotizacion]);
     await q("DELETE FROM cotizaciones WHERE id = ?", [ids.cotizacion]);
     await q("DELETE FROM clientes WHERE id IN (?, ?)", [ids.clienteA, ids.clienteB]);
@@ -206,8 +227,13 @@ describirSiHayBD("Documentos del proyecto y su línea de tiempo (integración)",
 
     const nuevo = documentos.reportes_servicio.find((x) => x.id === ids.reporteNuevo.id);
     expect(nuevo.alertas).toEqual([]);
-    const suelto = documentos.reportes_servicio.find((x) => x.id === ids.reporteSuelto);
-    expect(suelto.alertas).toEqual(["Registrado sin proyecto; el equipo es de este proyecto"]);
+    // el mantenimiento en otro proyecto del mismo cliente se ve aquí, anotado y sin alerta
+    const mantenimiento = documentos.reportes_servicio.find(
+      (x) => x.id === ids.reporteMantenimiento
+    );
+    expect(mantenimiento.alertas).toEqual([]);
+    expect(mantenimiento.nota).toBe(`Registrado en PRY-DOCM-${sufijo}`);
+    expect(documentos.equipos.map((e) => e.numero_serie)).toEqual([serie]);
 
     expect(documentos.actas_entrega[0]).toEqual(
       expect.objectContaining({ id: ids.actaEntrega.id, equipos: 1, alertas: [] })

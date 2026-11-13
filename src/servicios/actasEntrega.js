@@ -6,6 +6,8 @@ const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoR
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const coherencia = require("./coherenciaProyecto");
+const versiones = require("./versiones");
+const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoAEE } = require("../dominio/codigoActaEntrega");
 const {
   ErrorActaEntregaNoEncontrada,
@@ -172,22 +174,30 @@ async function actualizarActaEntrega(pool, id, datos, usuarioId) {
   return actualizada;
 }
 
-async function eliminarActaEntrega(pool, id, usuarioId) {
-  const anterior = await obtenerConItems(pool, id);
-  await actasEntregaRepositorio.softDelete(pool, id);
+// Un acta elaborada es un documento firmado: no se elimina, se corrige con una
+// nueva versión (la anterior queda en el historial).
+async function eliminarActaEntrega(pool, id) {
+  const acta = await obtenerConItems(pool, id);
+  throw new ErrorEliminacionBloqueada(
+    `El acta de entrega ${acta.numero_acta} no se puede eliminar. Para corregirla, crea una nueva versión.`
+  );
+}
 
-  await auditoria.registrar(pool, {
+async function crearVersionActaEntrega(pool, id, { motivo, ...datos }, usuarioId) {
+  await versiones.crearNuevaVersion(pool, {
     tabla: TABLA,
     registroId: id,
-    accion: "eliminar",
+    motivo,
     usuarioId,
-    datosAnteriores: anterior,
-    datosNuevos: null,
+    obtener: (conexion) => obtenerConItems(conexion, id),
+    actualizar: (conexion) => actualizarActaEntrega(conexion, id, datos, usuarioId),
   });
+  return obtenerConItems(pool, id);
 }
 
 module.exports = {
   crearActaEntrega,
+  crearVersionActaEntrega,
   obtenerConItems,
   listarActasEntrega,
   actualizarActaEntrega,

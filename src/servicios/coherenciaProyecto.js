@@ -30,6 +30,18 @@ async function exigirEquipoDelProyecto(pool, equipo, numeroSerie, proyecto) {
   );
 }
 
+// equipo: fila del registro de equipos. Un reporte de servicio puede quedar en
+// cualquier proyecto del cliente dueño del equipo (p. ej. un contrato de
+// mantenimiento posterior), no en uno de otro cliente.
+async function exigirEquipoDelCliente(pool, equipo, proyecto) {
+  if (Number(equipo.cliente_id) === Number(proyecto.cliente_id)) return;
+  const cliente = await clientesRepositorio.obtenerPorId(pool, equipo.cliente_id);
+  const nombre = cliente ? cliente.nombre_razon_social : "registrado en el equipo";
+  throw new ErrorEnlaceInconsistente(
+    `El equipo con número de serie ${equipo.numero_serie} es del cliente ${nombre}; el reporte debe quedar en un proyecto de ese cliente, y el ${proyecto.codigo_pry} es de otro.`
+  );
+}
+
 async function exigirActaEntregaDelProyecto(pool, actaEntrega, proyecto) {
   if (Number(actaEntrega.proyecto_id) === Number(proyecto.id)) return;
   const codigo = await codigoDeProyecto(pool, actaEntrega.proyecto_id);
@@ -41,5 +53,6 @@ async function exigirActaEntregaDelProyecto(pool, actaEntrega, proyecto) {
 module.exports = {
   exigirClienteDelProyecto,
   exigirEquipoDelProyecto,
+  exigirEquipoDelCliente,
   exigirActaEntregaDelProyecto,
 };

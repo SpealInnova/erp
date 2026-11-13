@@ -6,7 +6,9 @@ class ErrorReporteNoEncontrado extends Error {
 
 class ErrorEquipoNoExiste extends Error {
   constructor() {
-    super("No existe un expediente de diseño con ese número de serie");
+    super(
+      "No hay un equipo registrado con ese número de serie. Si es un equipo anterior al ERP, regístralo en Soporte técnico › Equipos"
+    );
   }
 }
 

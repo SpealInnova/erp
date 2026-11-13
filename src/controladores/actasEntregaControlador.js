@@ -4,6 +4,7 @@ const {
   actualizarActaEntregaSchema,
   listarActasEntregaQuerySchema,
 } = require("../validaciones/actasEntregaSchemas");
+const { conMotivo } = require("../validaciones/versionesSchemas");
 
 function crearActasEntregaControlador(pool) {
   async function crear(req, res) {
@@ -37,7 +38,19 @@ function crearActasEntregaControlador(pool) {
     res.status(204).send();
   }
 
-  return { crear, listar, obtener, actualizar, eliminar };
+  async function crearVersion(req, res) {
+    const id = Number(req.params.id);
+    const datos = conMotivo(actualizarActaEntregaSchema).parse(req.body);
+    const acta = await actasEntregaServicio.crearVersionActaEntrega(
+      pool,
+      id,
+      datos,
+      req.usuario.id
+    );
+    res.status(200).json({ acta });
+  }
+
+  return { crear, listar, obtener, actualizar, eliminar, crearVersion };
 }
 
 module.exports = { crearActasEntregaControlador };

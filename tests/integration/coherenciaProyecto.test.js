@@ -19,6 +19,7 @@ describirSiHayBD("Coherencia de documentos con su proyecto (integración)", () =
   const ids = {};
   const codigoP1 = `PRY-CA-${sufijo}`;
   const codigoP2 = `PRY-CB-${sufijo}`;
+  const codigoP3 = `PRY-CC-${sufijo}`;
   const serie1 = `SN-CA1-${sufijo}`;
   const serie2 = `SN-CB2-${sufijo}`;
 
@@ -58,23 +59,31 @@ describirSiHayBD("Coherencia de documentos con su proyecto (integración)", () =
     };
     ids.p1 = await crearProyecto(codigoP1, ids.clienteA);
     ids.p2 = await crearProyecto(codigoP2, ids.clienteB);
+    // otro proyecto del cliente A, p. ej. un contrato de mantenimiento
+    ids.p3 = await crearProyecto(codigoP3, ids.clienteA);
 
-    const crearExpediente = async (codigo, proyectoId, serie) => {
+    // expediente insertado directo, con su equipo registrado como lo haría el servicio
+    const crearExpediente = async (codigo, proyectoId, clienteId, serie) => {
       const [r] = await pool.query(
         `INSERT INTO expedientes_diseno (codigo_expediente, proyecto_id, producto_nombre, numero_serie, responsable_diseno_id, estado_liberacion)
          VALUES (?, ?, 'Planta', ?, ?, 'aprobado')`,
         [codigo, proyectoId, serie, ids.usuario]
       );
+      await pool.query(
+        `INSERT INTO equipos (numero_serie, cliente_id, proyecto_id, expediente_id, descripcion, origen)
+         VALUES (?, ?, ?, ?, 'Planta', 'expediente')`,
+        [serie, clienteId, proyectoId, r.insertId]
+      );
       return r.insertId;
     };
-    ids.e1 = await crearExpediente(`EXP-CA-${sufijo}`, ids.p1, serie1);
-    ids.e2 = await crearExpediente(`EXP-CB-${sufijo}`, ids.p2, serie2);
+    ids.e1 = await crearExpediente(`EXP-CA-${sufijo}`, ids.p1, ids.clienteA, serie1);
+    ids.e2 = await crearExpediente(`EXP-CB-${sufijo}`, ids.p2, ids.clienteB, serie2);
 
     app = crearApp();
   });
 
   afterAll(async () => {
-    const proyectos = [ids.p1, ids.p2];
+    const proyectos = [ids.p1, ids.p2, ids.p3];
     await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [ids.usuario]);
     await pool.query("DELETE FROM notificaciones WHERE usuario_id = ?", [ids.usuario]);
     await pool.query(
@@ -88,6 +97,7 @@ describirSiHayBD("Coherencia de documentos con su proyecto (integración)", () =
     );
     await pool.query("DELETE FROM actas_entrega_equipos WHERE proyecto_id IN (?)", [proyectos]);
     await pool.query("DELETE FROM reportes_servicio_tecnico WHERE created_by = ?", [ids.usuario]);
+    await pool.query("DELETE FROM equipos WHERE expediente_id IN (?, ?)", [ids.e1, ids.e2]);
     await pool.query("DELETE FROM expedientes_diseno WHERE id IN (?, ?)", [ids.e1, ids.e2]);
     await pool.query("DELETE FROM proyectos WHERE id IN (?)", [proyectos]);
     await pool.query("DELETE FROM clientes WHERE id IN (?, ?)", [ids.clienteA, ids.clienteB]);
@@ -100,7 +110,7 @@ describirSiHayBD("Coherencia de documentos con su proyecto (integración)", () =
   const put = (ruta, cuerpo) => request(app).put(ruta).set(auth()).send(cuerpo);
 
   describe("Reportes de servicio técnico", () => {
-    test("rechaza un proyecto distinto al del equipo y nombra ambos proyectos", async () => {
+    test("rechaza un proyecto de otro cliente y nombra el equipo y el proyecto", async () => {
       const r = await post("/reportes-servicio-tecnico", {
         equipo_numero_serie: serie1,
         cliente_id: ids.clienteB,
@@ -108,8 +118,19 @@ describirSiHayBD("Coherencia de documentos con su proyecto (integración)", () =
         tipo_servicio: "inspeccion",
       });
       expect(r.status).toBe(400);
-      expect(r.body.error).toContain(codigoP1);
+      expect(r.body.error).toContain(serie1);
       expect(r.body.error).toContain(codigoP2);
+    });
+
+    test("acepta otro proyecto del mismo cliente del equipo (p. ej. mantenimiento)", async () => {
+      const r = await post("/reportes-servicio-tecnico", {
+        equipo_numero_serie: serie1,
+        cliente_id: ids.clienteA,
+        proyecto_id: ids.p3,
+        tipo_servicio: "mantenimiento_preventivo",
+      });
+      expect(r.status).toBe(201);
+      expect(r.body.reporte.proyecto_id).toBe(ids.p3);
     });
 
     test("rechaza un cliente distinto al del proyecto del equipo", async () => {

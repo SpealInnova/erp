@@ -3,6 +3,7 @@ const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
+const equiposServicio = require("./equipos");
 const { formatearCodigoExp } = require("../dominio/codigoExpedienteDiseno");
 const { transicionar, ESTADOS } = require("../dominio/estadoExpedienteDiseno");
 const {
@@ -47,6 +48,8 @@ async function crearExpediente(pool, datos, usuarioId) {
     if (existente) {
       throw new ErrorNumeroSerieDuplicado();
     }
+    // tampoco puede ser el serial de un equipo histórico ya registrado
+    await equiposServicio.validarSerialDeExpediente(pool, null, datos.numero_serie);
   }
 
   const id = await insertarConCodigoUnico(
@@ -61,6 +64,7 @@ async function crearExpediente(pool, datos, usuarioId) {
       })
   );
   const expediente = await expedientesDisenoRepositorio.obtenerPorId(pool, id);
+  await equiposServicio.sincronizarDesdeExpediente(pool, expediente, usuarioId);
 
   await auditoria.registrar(pool, {
     tabla: TABLA,
@@ -110,9 +114,13 @@ async function actualizarExpediente(pool, id, datos, usuarioId) {
       throw new ErrorNumeroSerieDuplicado();
     }
   }
+  if (datos.numero_serie !== undefined && datos.numero_serie !== anterior.numero_serie) {
+    await equiposServicio.validarSerialDeExpediente(pool, id, datos.numero_serie);
+  }
 
   await expedientesDisenoRepositorio.actualizar(pool, id, datos);
   const actualizado = await expedientesDisenoRepositorio.obtenerPorId(pool, id);
+  await equiposServicio.sincronizarDesdeExpediente(pool, actualizado, usuarioId);
 
   await auditoria.registrar(pool, {
     tabla: TABLA,
@@ -148,6 +156,11 @@ async function cambiarEstadoExpediente(pool, id, estadoDestino, usuarioId) {
 async function eliminarExpediente(pool, id, usuarioId) {
   const anterior = await obtenerExpediente(pool, id);
   await expedientesDisenoRepositorio.softDelete(pool, id);
+  await equiposServicio.sincronizarDesdeExpediente(
+    pool,
+    { ...anterior, deleted_at: new Date() },
+    usuarioId
+  );
 
   await auditoria.registrar(pool, {
     tabla: TABLA,

@@ -63,23 +63,35 @@ async function listarOrdenesCompra(pool, proyectoId) {
   return filas.map((f) => ({ ...f, valor: Number(f.valor) }));
 }
 
-// Reportes del proyecto y también los de sus equipos aunque se hayan
-// registrado sin proyecto o en otro: así se ven los que quedaron sueltos.
+// Reportes del proyecto y también los de sus equipos registrados en otro
+// proyecto (p. ej. un contrato de mantenimiento posterior del mismo cliente).
 async function listarReportesServicio(pool, proyectoId) {
   const [filas] = await pool.query(
     `SELECT r.id, r.numero_reporte, r.tipo_servicio, r.equipo_numero_serie, r.en_garantia,
-            r.proyecto_id, r.cliente_id, e.proyecto_id AS proyecto_equipo_id,
+            r.proyecto_id, pr.codigo_pry AS proyecto_codigo, r.cliente_id,
+            q.proyecto_id AS proyecto_equipo_id, q.cliente_id AS cliente_equipo_id,
             u.nombre AS tecnico,
             DATE_FORMAT(r.fecha_servicio, '%Y-%m-%d') AS fecha_servicio,
             DATE_FORMAT(r.created_at, '%Y-%m-%d') AS creado
      FROM reportes_servicio_tecnico r
-     LEFT JOIN expedientes_diseno e ON e.numero_serie = r.equipo_numero_serie AND e.deleted_at IS NULL
+     JOIN proyectos pr ON pr.id = r.proyecto_id
+     LEFT JOIN equipos q ON q.numero_serie = r.equipo_numero_serie
      LEFT JOIN usuarios u ON u.id = r.tecnico_responsable_id
-     WHERE r.deleted_at IS NULL AND (r.proyecto_id = ? OR e.proyecto_id = ?)
+     WHERE r.deleted_at IS NULL AND (r.proyecto_id = ? OR q.proyecto_id = ?)
      ORDER BY COALESCE(r.fecha_servicio, DATE(r.created_at)), r.id`,
     [proyectoId, proyectoId]
   );
   return filas.map((f) => ({ ...f, en_garantia: Boolean(f.en_garantia) }));
+}
+
+async function listarEquipos(pool, proyectoId) {
+  const [filas] = await pool.query(
+    `SELECT id, numero_serie, descripcion, origen
+     FROM equipos WHERE proyecto_id = ? AND deleted_at IS NULL
+     ORDER BY numero_serie`,
+    [proyectoId]
+  );
+  return filas;
 }
 
 async function listarActasEntrega(pool, proyectoId) {
@@ -116,12 +128,33 @@ async function listarActasCierre(pool, proyectoId) {
   return filas;
 }
 
+// Cuántos documentos de otros módulos dependen del proyecto (lo que impide
+// eliminarlo). Actividades, equipo de trabajo y evidencias son del propio
+// proyecto y no cuentan.
+async function contarDocumentosEnlazados(pool, proyectoId) {
+  const [filas] = await pool.query(
+    `SELECT
+       (SELECT COUNT(*) FROM expedientes_diseno WHERE proyecto_id = ? AND deleted_at IS NULL) AS expedientes,
+       (SELECT COUNT(*) FROM requisiciones WHERE proyecto_id = ? AND deleted_at IS NULL) AS requisiciones,
+       (SELECT COUNT(*) FROM ordenes_compra oc JOIN requisiciones r ON r.id = oc.requisicion_id
+          WHERE r.proyecto_id = ? AND oc.deleted_at IS NULL) AS ordenes_compra,
+       (SELECT COUNT(*) FROM reportes_servicio_tecnico WHERE proyecto_id = ? AND deleted_at IS NULL) AS reportes_servicio,
+       (SELECT COUNT(*) FROM actas_entrega_equipos WHERE proyecto_id = ? AND deleted_at IS NULL) AS actas_entrega,
+       (SELECT COUNT(*) FROM actas_cierre_satisfaccion WHERE proyecto_id = ? AND deleted_at IS NULL) AS actas_cierre,
+       (SELECT COUNT(*) FROM equipos WHERE proyecto_id = ? AND deleted_at IS NULL) AS equipos`,
+    Array(7).fill(proyectoId)
+  );
+  return Object.fromEntries(Object.entries(filas[0]).map(([k, v]) => [k, Number(v)]));
+}
+
 module.exports = {
+  contarDocumentosEnlazados,
   obtenerCotizacion,
   listarExpedientes,
   listarRequisiciones,
   listarOrdenesCompra,
   listarReportesServicio,
+  listarEquipos,
   listarActasEntrega,
   listarActasCierre,
 };

@@ -4,6 +4,8 @@ const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
+const versiones = require("./versiones");
+const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoCot } = require("../dominio/codigoCotizacion");
 const { transicionar, ESTADOS } = require("../dominio/estadoCotizacion");
 const {
@@ -88,9 +90,11 @@ async function listarCotizaciones(pool, { pagina, tamanoPagina }) {
   return cotizacionesRepositorio.listar(pool, { limite, offset });
 }
 
-async function actualizarCotizacion(pool, id, datos, usuarioId) {
+// opciones.comoVersion: una nueva versión corrige la cotización en cualquier
+// estado (la edición normal solo se permite en borrador).
+async function actualizarCotizacion(pool, id, datos, usuarioId, opciones = {}) {
   const anterior = await obtenerConItems(pool, id);
-  if (anterior.estado !== ESTADOS.BORRADOR) {
+  if (!opciones.comoVersion && anterior.estado !== ESTADOS.BORRADOR) {
     throw new ErrorCotizacionNoEditable();
   }
 
@@ -148,6 +152,16 @@ async function cambiarEstadoCotizacion(pool, id, estadoDestino, usuarioId) {
 
 async function eliminarCotizacion(pool, id, usuarioId) {
   const anterior = await obtenerConItems(pool, id);
+  // la cotización de origen de un proyecto no se elimina: se versiona
+  const proyectos = await cotizacionesRepositorio.listarProyectosQueLaUsan(pool, id);
+  if (proyectos.length > 0) {
+    throw new ErrorEliminacionBloqueada(
+      `La cotización ${anterior.numero_cotizacion} es el origen del proyecto ${proyectos
+        .map((p) => p.codigo_pry)
+        .join(", ")}: no se puede eliminar. Para corregirla, crea una nueva versión.`,
+      { proyectos: proyectos.map((p) => p.codigo_pry) }
+    );
+  }
   await cotizacionesRepositorio.softDelete(pool, id);
 
   await auditoria.registrar(pool, {
@@ -160,8 +174,22 @@ async function eliminarCotizacion(pool, id, usuarioId) {
   });
 }
 
+async function crearVersionCotizacion(pool, id, { motivo, ...datos }, usuarioId) {
+  await versiones.crearNuevaVersion(pool, {
+    tabla: TABLA,
+    registroId: id,
+    motivo,
+    usuarioId,
+    obtener: (conexion) => obtenerConItems(conexion, id),
+    actualizar: (conexion) =>
+      actualizarCotizacion(conexion, id, datos, usuarioId, { comoVersion: true }),
+  });
+  return obtenerConItems(pool, id);
+}
+
 module.exports = {
   crearCotizacion,
+  crearVersionCotizacion,
   obtenerConItems,
   listarCotizaciones,
   actualizarCotizacion,
