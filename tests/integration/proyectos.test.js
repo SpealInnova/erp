@@ -109,7 +109,9 @@ describirSiHayBD("CRUD de Proyectos (integración contra BD real)", () => {
     expect(respuesta.status).toBe(201);
     const numeroAnterior = Number(primerCodigo.split("-")[2]);
     const numeroNuevo = Number(respuesta.body.proyecto.codigo_pry.split("-")[2]);
-    expect(numeroNuevo).toBe(numeroAnterior + 1);
+    // Otras suites crean proyectos en paralelo y pueden tomar el número
+    // intermedio: lo que se garantiza es que el consecutivo siempre avanza.
+    expect(numeroNuevo).toBeGreaterThan(numeroAnterior);
 
     await pool.query("DELETE FROM proyectos WHERE id = ?", [respuesta.body.proyecto.id]);
   });

@@ -4,6 +4,8 @@ const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const actasEntregaRepositorio = require("../repositorios/actasEntregaRepositorio");
 const auditoria = require("./auditoria");
+const { insertarConCodigoUnico } = require("./codigoUnico");
+const coherencia = require("./coherenciaProyecto");
 const { formatearCodigoACS } = require("../dominio/codigoActaCierre");
 const {
   ErrorActaNoEncontrada,
@@ -51,21 +53,27 @@ async function crearActa(pool, datos, usuarioId) {
   if (!cliente) {
     throw new ErrorClienteNoExiste();
   }
+  await coherencia.exigirClienteDelProyecto(pool, proyecto, datos.cliente_id);
   if (datos.acta_entrega_id) {
     const actaEntrega = await actasEntregaRepositorio.obtenerPorId(pool, datos.acta_entrega_id);
     if (!actaEntrega) {
       throw new ErrorActaEntregaNoExiste();
     }
+    await coherencia.exigirActaEntregaDelProyecto(pool, actaEntrega, proyecto);
   }
 
-  const numero = await generarNumeroActa(pool);
-  const id = await actasCierreRepositorio.crear(pool, {
-    ...datos,
-    numero_acta: numero,
-    responsable_entrega_id: usuarioId,
-    fecha_elaboracion: datos.fecha_elaboracion || new Date().toISOString().slice(0, 10),
-    created_by: usuarioId,
-  });
+  const id = await insertarConCodigoUnico(
+    "uq_actas_cierre_numero",
+    () => generarNumeroActa(pool),
+    (numero) =>
+      actasCierreRepositorio.crear(pool, {
+        ...datos,
+        numero_acta: numero,
+        responsable_entrega_id: usuarioId,
+        fecha_elaboracion: datos.fecha_elaboracion || new Date().toISOString().slice(0, 10),
+        created_by: usuarioId,
+      })
+  );
   await actaItemsVerificadosRepositorio.insertarMuchos(pool, id, datos.items);
 
   const acta = await obtenerConItems(pool, id);
@@ -90,34 +98,52 @@ async function listarActas(pool, { pagina, tamanoPagina }) {
 
 async function actualizarActa(pool, id, datos, usuarioId) {
   const anterior = await obtenerConItems(pool, id);
-
-  if (datos.proyecto_id) {
-    const proyecto = await proyectosRepositorio.obtenerPorId(pool, datos.proyecto_id);
-    if (!proyecto) {
-      throw new ErrorProyectoNoExiste();
-    }
+  const { items, ...cabecera } = datos;
+  if (items && items.length === 0) {
+    throw new ErrorItemsVacios();
   }
+
   if (datos.cliente_id) {
     const cliente = await clientesRepositorio.obtenerPorId(pool, datos.cliente_id);
     if (!cliente) {
       throw new ErrorClienteNoExiste();
     }
   }
+  let actaEntrega = null;
   if (datos.acta_entrega_id) {
-    const actaEntrega = await actasEntregaRepositorio.obtenerPorId(pool, datos.acta_entrega_id);
+    actaEntrega = await actasEntregaRepositorio.obtenerPorId(pool, datos.acta_entrega_id);
     if (!actaEntrega) {
       throw new ErrorActaEntregaNoExiste();
     }
   }
 
-  const { items, ...cabecera } = datos;
+  // Los enlaces se revisan solo si cambia el proyecto, el cliente o el acta de
+  // entrega; así editar otros campos de un acta antigua no queda bloqueado.
+  if (datos.proyecto_id || datos.cliente_id || datos.acta_entrega_id) {
+    const proyecto = await proyectosRepositorio.obtenerPorId(
+      pool,
+      datos.proyecto_id || anterior.proyecto_id
+    );
+    if (!proyecto) {
+      throw new ErrorProyectoNoExiste();
+    }
+    await coherencia.exigirClienteDelProyecto(
+      pool,
+      proyecto,
+      datos.cliente_id || anterior.cliente_id
+    );
+    if (!actaEntrega && anterior.acta_entrega_id) {
+      actaEntrega = await actasEntregaRepositorio.obtenerPorId(pool, anterior.acta_entrega_id);
+    }
+    if (actaEntrega) {
+      await coherencia.exigirActaEntregaDelProyecto(pool, actaEntrega, proyecto);
+    }
+  }
+
   if (Object.keys(cabecera).length > 0) {
     await actasCierreRepositorio.actualizar(pool, id, cabecera);
   }
   if (items) {
-    if (items.length === 0) {
-      throw new ErrorItemsVacios();
-    }
     await actaItemsVerificadosRepositorio.eliminarPorActa(pool, id);
     await actaItemsVerificadosRepositorio.insertarMuchos(pool, id, items);
   }

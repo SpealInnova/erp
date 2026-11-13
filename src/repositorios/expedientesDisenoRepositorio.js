@@ -7,15 +7,17 @@ async function contarPorAnio(pool, anio) {
 }
 
 async function buscarPorCodigo(pool, codigo) {
-  const [filas] = await pool.query("SELECT id FROM expedientes_diseno WHERE codigo_expediente = ?", [
-    codigo,
-  ]);
+  const [filas] = await pool.query(
+    "SELECT id FROM expedientes_diseno WHERE codigo_expediente = ?",
+    [codigo]
+  );
   return filas[0] || null;
 }
 
 async function buscarPorNumeroSerie(pool, numeroSerie, excluirId = null) {
   const params = [numeroSerie];
-  let sql = "SELECT id FROM expedientes_diseno WHERE numero_serie = ? AND deleted_at IS NULL";
+  let sql =
+    "SELECT id, proyecto_id FROM expedientes_diseno WHERE numero_serie = ? AND deleted_at IS NULL";
   if (excluirId) {
     sql += " AND id != ?";
     params.push(excluirId);

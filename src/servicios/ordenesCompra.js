@@ -3,6 +3,7 @@ const ordenCompraItemsRepositorio = require("../repositorios/ordenCompraItemsRep
 const requisicionesRepositorio = require("../repositorios/requisicionesRepositorio");
 const proveedoresRepositorio = require("../repositorios/proveedoresRepositorio");
 const auditoria = require("./auditoria");
+const { insertarConCodigoUnico } = require("./codigoUnico");
 const { formatearCodigoOC } = require("../dominio/codigoOrdenCompra");
 const { transicionar, ESTADOS } = require("../dominio/estadoOrdenCompra");
 const {
@@ -52,14 +53,18 @@ async function crearOrdenCompra(pool, datos, usuarioId) {
     throw new ErrorProveedorNoExiste();
   }
 
-  const numero = await generarNumeroOC(pool);
-  const id = await ordenesCompraRepositorio.crear(pool, {
-    numero_oc: numero,
-    requisicion_id: datos.requisicion_id,
-    proveedor_id: datos.proveedor_id,
-    estado: ESTADOS.PTE_APROBAR,
-    created_by: usuarioId,
-  });
+  const id = await insertarConCodigoUnico(
+    "uq_ordenes_compra_numero",
+    () => generarNumeroOC(pool),
+    (numero) =>
+      ordenesCompraRepositorio.crear(pool, {
+        numero_oc: numero,
+        requisicion_id: datos.requisicion_id,
+        proveedor_id: datos.proveedor_id,
+        estado: ESTADOS.PTE_APROBAR,
+        created_by: usuarioId,
+      })
+  );
   await ordenCompraItemsRepositorio.insertarMuchos(pool, id, datos.items);
 
   const orden = await obtenerConItems(pool, id);

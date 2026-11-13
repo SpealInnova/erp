@@ -85,6 +85,7 @@ const {
   ErrorClienteNoExiste: ErrorClienteNoExisteActaEntrega,
   ErrorItemsVacios: ErrorItemsVaciosActaEntrega,
 } = require("../dominio/erroresActasEntrega");
+const { ErrorEnlaceInconsistente } = require("../dominio/erroresEnlaces");
 const {
   ErrorTablaNoPermitida,
   ErrorRegistroNoExiste,
@@ -258,6 +259,10 @@ function manejadorErrores(error, req, res, next) {
     error instanceof ErrorClienteNoExisteActaEntrega ||
     error instanceof ErrorItemsVaciosActaEntrega
   ) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  if (error instanceof ErrorEnlaceInconsistente) {
     return res.status(400).json({ error: error.message });
   }
 

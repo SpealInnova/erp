@@ -1356,7 +1356,230 @@ async function renderSeccionEquipoProyecto(proyectoId, opcionesUsuarios) {
   return tarjeta;
 }
 
+/* ------------------------------------------------------------------
+   Documentos del proyecto: todo lo que los demás módulos tienen
+   enlazado a este proyecto, en el orden del flujo, en una sola franja.
+   ------------------------------------------------------------------ */
+const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+function fechaCortaTexto(iso) {
+  if (!iso) return "sin fecha";
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${MESES_CORTOS[m - 1]} ${y}`;
+}
+
+function formatearCop(valor) {
+  return `$${Math.round(Number(valor) || 0).toLocaleString("es-CO")}`;
+}
+
+// Cada columna: título, ruta para abrir cada documento y cómo describirlo.
+function columnasDocumentosProyecto(docs) {
+  const pillDe = (texto, tipo) => ({ texto, tipo });
+  return [
+    {
+      titulo: "Cotización",
+      items: docs.cotizacion ? [docs.cotizacion] : [],
+      vacio: "Sin cotización de origen",
+      enlace: (c) => `#/cotizaciones/${c.id}`,
+      codigo: (c) => c.numero_cotizacion,
+      pill: (c) => pillDe(textoEstadoCotizacion(c.estado), tipoPillCotizacion(c.estado)),
+      lineas: (c) => [formatearCop(c.valor)],
+    },
+    {
+      titulo: "Expedientes de diseño",
+      items: docs.expedientes,
+      vacio: "Sin expedientes",
+      enlace: (e) => `#/expedientes-diseno/${e.id}`,
+      codigo: (e) => e.codigo_expediente,
+      pill: (e) => pillDe(textoEstadoExpediente(e.estado_liberacion), tipoPillExpediente(e.estado_liberacion)),
+      lineas: (e) => [e.producto_nombre, e.numero_serie ? `Serie ${e.numero_serie}` : "Sin número de serie"],
+    },
+    {
+      titulo: "Requisiciones",
+      items: docs.requisiciones,
+      vacio: "Sin requisiciones",
+      enlace: (r) => `#/requisiciones/${r.id}`,
+      codigo: (r) => r.numero_requisicion,
+      pill: (r) => pillDe(textoEstadoRequisicion(r.estado), tipoPillRequisicion(r.estado)),
+      lineas: (r) => [`${textoProcedencia(r.procedencia)} · ${r.items} ítem${r.items === 1 ? "" : "s"}`, fechaCortaTexto(r.creada)],
+    },
+    {
+      titulo: "Órdenes de compra",
+      items: docs.ordenes_compra,
+      vacio: "Sin órdenes de compra",
+      enlace: (o) => `#/ordenes-compra/${o.id}`,
+      codigo: (o) => o.numero_oc,
+      pill: (o) => pillDe(textoEstadoOrdenCompra(o.estado), tipoPillOrdenCompra(o.estado)),
+      lineas: (o) => [o.proveedor, `${formatearCop(o.valor)} · ${o.numero_requisicion}`],
+    },
+    {
+      titulo: "Actas de entrega",
+      items: docs.actas_entrega,
+      vacio: "Sin actas de entrega",
+      enlace: (a) => `#/actas-entrega/${a.id}`,
+      codigo: (a) => a.numero_acta,
+      pill: null,
+      lineas: (a) => [`${a.equipos} equipo${a.equipos === 1 ? "" : "s"} · recibe ${a.receptor_nombre}`, fechaCortaTexto(a.fecha_elaboracion)],
+    },
+    {
+      titulo: "Actas de cierre",
+      items: docs.actas_cierre,
+      vacio: "Sin actas de cierre",
+      enlace: (a) => `#/actas-cierre/${a.id}`,
+      codigo: (a) => a.numero_acta,
+      pill: (a) => pillDe(textoTipoEntrega(a.tipo_entrega), tipoPillTipoEntrega(a.tipo_entrega)),
+      lineas: (a) => [
+        a.acta_entrega_numero ? `Cierra ${a.acta_entrega_numero}` : "Sin acta de entrega enlazada",
+        fechaCortaTexto(a.fecha_elaboracion),
+      ],
+    },
+    {
+      titulo: "Reportes de servicio",
+      items: docs.reportes_servicio,
+      vacio: "Sin reportes de servicio",
+      enlace: (r) => `#/reportes-servicio/${r.id}`,
+      codigo: (r) => r.numero_reporte,
+      pill: (r) => pillDe(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio)),
+      lineas: (r) => [
+        `Equipo ${r.equipo_numero_serie}${r.en_garantia ? " · en garantía" : ""}`,
+        `${fechaCortaTexto(r.fecha_servicio || r.creado)} · ${r.tecnico || "—"}`,
+      ],
+    },
+  ];
+}
+
+async function renderSeccionDocumentosProyecto(proyectoId) {
+  const bloque = document.createElement("section");
+  bloque.className = "docs-proyecto";
+  bloque.setAttribute("aria-labelledby", "docs-proyecto-titulo");
+
+  const cabecera = document.createElement("div");
+  cabecera.className = "docs-cabecera";
+  const titulo = document.createElement("h3");
+  titulo.id = "docs-proyecto-titulo";
+  titulo.textContent = "Documentos del proyecto";
+  const resumen = document.createElement("div");
+  resumen.className = "docs-resumen";
+  cabecera.append(titulo, resumen);
+  bloque.append(cabecera);
+
+  const r = await api("GET", `/proyectos/${proyectoId}/documentos`);
+  if (r.status !== 200) {
+    bloque.append(alerta("error", "No se pudieron cargar los documentos del proyecto."));
+    return bloque;
+  }
+  const docs = r.cuerpo.documentos;
+
+  const cifras = [
+    ["Cotizado", docs.resumen.valor_cotizado === null ? "—" : formatearCop(docs.resumen.valor_cotizado)],
+    ["Comprometido en OC", formatearCop(docs.resumen.comprometido_oc)],
+    ["Pagado", formatearCop(docs.resumen.pagado_oc)],
+  ];
+  cifras.forEach(([etiqueta, valor]) => {
+    const cifra = document.createElement("span");
+    const b = document.createElement("b");
+    b.textContent = valor;
+    cifra.append(`${etiqueta} `, b);
+    resumen.append(cifra);
+  });
+
+  const columnas = columnasDocumentosProyecto(docs);
+  const conAlertas = columnas.flatMap((c) => c.items).filter((d) => d.alertas?.length).length;
+  if (conAlertas) {
+    bloque.append(
+      alerta(
+        "aviso",
+        `${conAlertas} documento${conAlertas === 1 ? "" : "s"} con enlaces que no corresponden a este proyecto (marcados abajo). ` +
+          "Ábrelos para corregir el proyecto, el cliente o el equipo."
+      )
+    );
+  }
+
+  const flujo = document.createElement("div");
+  flujo.className = "docs-flujo";
+  columnas.forEach((col) => {
+    const columna = document.createElement("div");
+    columna.className = "docs-col";
+    const encabezadoCol = document.createElement("div");
+    encabezadoCol.className = "docs-col-titulo";
+    const nombre = document.createElement("span");
+    nombre.textContent = col.titulo;
+    const cantidad = document.createElement("span");
+    cantidad.className = "docs-cantidad";
+    cantidad.textContent = String(col.items.length);
+    encabezadoCol.append(nombre, cantidad);
+    columna.append(encabezadoCol);
+
+    const lista = document.createElement("div");
+    lista.className = "docs-lista";
+    if (col.items.length === 0) {
+      const vacio = document.createElement("p");
+      vacio.className = "docs-vacio";
+      vacio.textContent = col.vacio;
+      lista.append(vacio);
+    }
+    col.items.forEach((doc) => {
+      const item = document.createElement("a");
+      item.className = doc.alertas?.length ? "docs-item con-alerta" : "docs-item";
+      item.href = col.enlace(doc);
+      const fila = document.createElement("div");
+      fila.className = "docs-fila";
+      const codigo = document.createElement("span");
+      codigo.className = "docs-codigo";
+      codigo.textContent = col.codigo(doc);
+      fila.append(codigo);
+      if (col.pill) {
+        const p = col.pill(doc);
+        fila.append(pill(p.texto, p.tipo));
+      }
+      item.append(fila);
+      col.lineas(doc).forEach((texto) => {
+        const linea = document.createElement("span");
+        linea.className = "docs-linea";
+        linea.textContent = texto;
+        linea.title = texto;
+        item.append(linea);
+      });
+      (doc.alertas || []).forEach((texto) => {
+        const aviso = document.createElement("span");
+        aviso.className = "docs-alerta";
+        aviso.textContent = texto;
+        item.append(aviso);
+      });
+      lista.append(item);
+    });
+    columna.append(lista);
+    flujo.append(columna);
+  });
+  bloque.append(flujo);
+  return bloque;
+}
+
+// Documentos de otros módulos en la línea de tiempo: nombre, ruta y estados.
+const DOCUMENTOS_LINEA_TIEMPO = {
+  expedientes_diseno: { nombre: "Expediente de diseño", ruta: "#/expedientes-diseno/", femenino: false, estado: textoEstadoExpediente },
+  requisiciones: { nombre: "Requisición", ruta: "#/requisiciones/", femenino: true, estado: textoEstadoRequisicion },
+  ordenes_compra: { nombre: "Orden de compra", ruta: "#/ordenes-compra/", femenino: true, estado: textoEstadoOrdenCompra },
+  reportes_servicio_tecnico: { nombre: "Reporte de servicio", ruta: "#/reportes-servicio/", femenino: false, estado: null },
+  actas_entrega_equipos: { nombre: "Acta de entrega", ruta: "#/actas-entrega/", femenino: true, estado: null },
+  actas_cierre_satisfaccion: { nombre: "Acta de cierre", ruta: "#/actas-cierre/", femenino: true, estado: null },
+};
+
+function describirEventoDocumento(evento, doc) {
+  const sujeto = `${doc.nombre} ${evento.documento_codigo || ""}`.trim();
+  const terminacion = doc.femenino ? "a" : "o";
+  if (evento.accion === "crear") return `${sujeto} cread${terminacion}`;
+  if (evento.accion === "eliminar") return `${sujeto} eliminad${terminacion}`;
+  if (evento.documento_cambio_estado && doc.estado) {
+    const { de, a } = evento.documento_cambio_estado;
+    return `${sujeto}: ${doc.estado(de)} → ${doc.estado(a)}`;
+  }
+  return `${sujeto} actualizad${terminacion}`;
+}
+
 function describirEventoLineaTiempo(evento) {
+  const documento = DOCUMENTOS_LINEA_TIEMPO[evento.tabla];
+  if (documento) return describirEventoDocumento(evento, documento);
   if (evento.tabla === "proyectos") {
     if (evento.accion === "crear") return "Proyecto creado";
     if (evento.cambio_estado) {
@@ -1433,7 +1656,15 @@ async function renderSeccionLineaTiempoProyecto(proyectoId) {
     fila.style.justifyContent = "space-between";
     fila.style.gap = "12px";
 
-    const texto = document.createElement("span");
+    // los eventos de otros módulos abren su documento (salvo si se eliminó)
+    const documento = DOCUMENTOS_LINEA_TIEMPO[evento.tabla];
+    const texto = document.createElement(
+      documento && evento.accion !== "eliminar" && evento.documento_id ? "a" : "span"
+    );
+    if (texto.tagName === "A") {
+      texto.href = `${documento.ruta}${evento.documento_id}`;
+      texto.className = "enlace-documento";
+    }
     texto.textContent = describirEventoLineaTiempo(evento);
 
     const meta = document.createElement("span");
@@ -1792,6 +2023,7 @@ async function vistaProyectoForm(id) {
     tarjeta.append(bloqueFase);
 
     tarjeta.append(renderSeccionPresupuestoProyecto(proyecto));
+    tarjeta.append(await renderSeccionDocumentosProyecto(id));
     tarjeta.append(await renderSeccionActividadesProyecto(id, opcionesUsuarios));
     tarjeta.append(await renderSeccionEquipoProyecto(id, opcionesUsuarios));
     tarjeta.append(renderSeccionEvidencias("proyectos", id, "Evidencias del proyecto"));
