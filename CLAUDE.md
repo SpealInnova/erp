@@ -30,7 +30,9 @@ Excel/Word dispersos (ver diccionario de datos en el repo de documentación, fue
 
 ## Ramas = entornos
 
-- `develop` → erp-dev.soluctiasas.com (desarrollo)
+- `develop` → sin sitio publicado. erp-dev.soluctiasas.com y su BD se eliminaron el 2026-11-13
+  para liberar espacio en la cuenta de soluctiasas.com (también aloja producción). Se prueba en
+  local (Docker + Jest + Playwright) y en CI; la revisión visual se hace en `staging`.
 - `staging` → erp-test.speal-pad.com (pruebas — app en la cuenta de Hostinger de speal-pad.com,
   BD sigue en la cuenta de soluctiasas.com, conexión remota con la IP del sitio en la whitelist
   de Remote MySQL)
