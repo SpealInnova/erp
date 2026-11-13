@@ -2,6 +2,7 @@ const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoR
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
+const { insertarConCodigoUnico } = require("./codigoUnico");
 const { formatearCodigoExp } = require("../dominio/codigoExpedienteDiseno");
 const { transicionar, ESTADOS } = require("../dominio/estadoExpedienteDiseno");
 const {
@@ -48,13 +49,17 @@ async function crearExpediente(pool, datos, usuarioId) {
     }
   }
 
-  const codigo = await generarCodigoExpediente(pool);
-  const id = await expedientesDisenoRepositorio.crear(pool, {
-    ...datos,
-    codigo_expediente: codigo,
-    estado_liberacion: ESTADOS.PENDIENTE,
-    created_by: usuarioId,
-  });
+  const id = await insertarConCodigoUnico(
+    "uq_expedientes_codigo",
+    () => generarCodigoExpediente(pool),
+    (codigo) =>
+      expedientesDisenoRepositorio.crear(pool, {
+        ...datos,
+        codigo_expediente: codigo,
+        estado_liberacion: ESTADOS.PENDIENTE,
+        created_by: usuarioId,
+      })
+  );
   const expediente = await expedientesDisenoRepositorio.obtenerPorId(pool, id);
 
   await auditoria.registrar(pool, {

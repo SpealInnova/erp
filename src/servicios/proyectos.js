@@ -4,6 +4,7 @@ const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const cotizacionesRepositorio = require("../repositorios/cotizacionesRepositorio");
 const auditoria = require("./auditoria");
+const { insertarConCodigoUnico } = require("./codigoUnico");
 const proyectoActividadesServicio = require("./proyectoActividades");
 const notificacionesServicio = require("./notificaciones");
 const archivosDrive = require("./archivosDrive");
@@ -60,13 +61,16 @@ async function crearProyecto(pool, datos, usuarioId) {
     await validarCotizacion(pool, datos.cotizacion_id, datos.cliente_id);
   }
 
-  const codigoPry = await generarCodigoPry(pool);
-
-  const id = await proyectosRepositorio.crear(pool, {
-    ...datos,
-    codigo_pry: codigoPry,
-    estado: ESTADOS.PROSPECTO,
-  });
+  const id = await insertarConCodigoUnico(
+    "uq_proyectos_codigo_pry",
+    () => generarCodigoPry(pool),
+    (codigoPry) =>
+      proyectosRepositorio.crear(pool, {
+        ...datos,
+        codigo_pry: codigoPry,
+        estado: ESTADOS.PROSPECTO,
+      })
+  );
   const proyecto = await proyectosRepositorio.obtenerPorId(pool, id);
 
   await auditoria.registrar(pool, {
@@ -158,12 +162,7 @@ async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observa
     datosNuevos: observacion ? { ...actualizado, observacion } : actualizado,
   });
 
-  await proyectoActividadesServicio.generarActividadesParaFase(
-    pool,
-    id,
-    estadoDestino,
-    usuarioId
-  );
+  await proyectoActividadesServicio.generarActividadesParaFase(pool, id, estadoDestino, usuarioId);
 
   await notificacionesServicio.notificar(pool, {
     usuarioId: actualizado.responsable_id,

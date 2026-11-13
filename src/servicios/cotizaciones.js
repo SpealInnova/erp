@@ -3,6 +3,7 @@ const cotizacionItemsRepositorio = require("../repositorios/cotizacionItemsRepos
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
+const { insertarConCodigoUnico } = require("./codigoUnico");
 const { formatearCodigoCot } = require("../dominio/codigoCotizacion");
 const { transicionar, ESTADOS } = require("../dominio/estadoCotizacion");
 const {
@@ -52,15 +53,19 @@ async function crearCotizacion(pool, datos, usuarioId) {
     throw new ErrorAsesorNoExiste();
   }
 
-  const numero = await generarNumeroCotizacion(pool);
-  const id = await cotizacionesRepositorio.crear(pool, {
-    numero_cotizacion: numero,
-    cliente_id: datos.cliente_id,
-    asesor_comercial_id: datos.asesor_comercial_id,
-    estado: ESTADOS.BORRADOR,
-    fecha_validez: datos.fecha_validez,
-    created_by: usuarioId,
-  });
+  const id = await insertarConCodigoUnico(
+    "uq_cotizaciones_numero",
+    () => generarNumeroCotizacion(pool),
+    (numero) =>
+      cotizacionesRepositorio.crear(pool, {
+        numero_cotizacion: numero,
+        cliente_id: datos.cliente_id,
+        asesor_comercial_id: datos.asesor_comercial_id,
+        estado: ESTADOS.BORRADOR,
+        fecha_validez: datos.fecha_validez,
+        created_by: usuarioId,
+      })
+  );
   await cotizacionItemsRepositorio.insertarMuchos(pool, id, datos.items);
 
   const cotizacion = await obtenerConItems(pool, id);
