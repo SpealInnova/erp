@@ -185,8 +185,15 @@ test.describe("Gantt de actividades", () => {
     await popup.getByRole("button", { name: "Gestionar actividad" }).click();
     const dialogo = page.getByRole("dialog", { name: primera.descripcion });
     await expect(dialogo).toBeVisible();
+    // La carga de evidencias no se ve de entrada: la abre el botón redondo.
+    await expect(dialogo.getByRole("button", { name: "Subir evidencia" })).toBeHidden();
+    const botonEvidencias = dialogo.getByRole("button", { name: "Agregar evidencias" });
+    await expect(botonEvidencias).toHaveAttribute("aria-expanded", "false");
+    await botonEvidencias.click();
+    await expect(botonEvidencias).toHaveAttribute("aria-expanded", "true");
     await expect(dialogo.getByRole("heading", { name: "Evidencias" })).toBeVisible();
     await expect(dialogo).toContainText("Aún no hay evidencias cargadas.");
+    await expect(dialogo.getByRole("button", { name: "Subir evidencia" })).toBeVisible();
 
     const inicio = await fechaLocal(page, 1);
     const fin = await fechaLocal(page, 3);

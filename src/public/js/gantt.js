@@ -53,6 +53,9 @@
   const ICONO_ENGRANAJE =
     '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
+  const ICONO_EVIDENCIAS =
+    '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 7.5 8.2 12.8a3.2 3.2 0 0 1-4.5-4.5l5.6-5.6a2.1 2.1 0 0 1 3 3l-5.6 5.6a1.1 1.1 0 0 1-1.5-1.5l5.1-5.1"/></svg>';
+
   let secuenciaIds = 0;
 
   function crear(etiqueta, clase, texto) {
@@ -657,7 +660,9 @@
       cerrarX.type = "button";
       cerrarX.setAttribute("aria-label", "Cerrar");
       cerrarX.addEventListener("click", () => cerrarDialogo());
-      cabecera.append(titulos, cerrarX);
+      const accionesCabecera = crear("div", "dialogo-cabecera-acciones");
+      accionesCabecera.append(cerrarX);
+      cabecera.append(titulos, accionesCabecera);
 
       const mensaje = crear("div");
 
@@ -763,12 +768,46 @@
         await alCambiar();
       });
 
-      // Evidencias (documentos de la actividad)
+      // Evidencias: la carga no se muestra de entrada. El botón redondo de
+      // la cabecera (como los de la barra superior) abre la sección.
       const evidencias = crear("section", "dialogo-seccion");
-      evidencias.append(
-        crear("h4", "", "Evidencias"),
-        contenidoEvidencias("proyecto_actividades", actividad.id)
-      );
+      evidencias.id = `gantt-evidencias-${++secuenciaIds}`;
+      evidencias.hidden = true;
+      const botonEvidencias = crear("button", "campana-boton");
+      botonEvidencias.type = "button";
+      botonEvidencias.innerHTML = ICONO_EVIDENCIAS;
+      botonEvidencias.setAttribute("aria-expanded", "false");
+      botonEvidencias.setAttribute("aria-controls", evidencias.id);
+      const contadorEvidencias = crear("span", "campana-contador campana-contador--info", "0");
+      botonEvidencias.append(contadorEvidencias);
+      function pintarEvidencias(cantidad) {
+        contadorEvidencias.hidden = cantidad === 0;
+        contadorEvidencias.textContent = String(cantidad);
+        const texto = cantidad > 0 ? `Evidencias (${cantidad})` : "Agregar evidencias";
+        botonEvidencias.setAttribute("aria-label", texto);
+        botonEvidencias.title = texto;
+      }
+      pintarEvidencias(0);
+      api("GET", `/archivos-adjuntos?tabla=proyecto_actividades&registro_id=${actividad.id}`)
+        .then((r) => r.status === 200 && pintarEvidencias(r.cuerpo.archivos.length))
+        .catch(() => {});
+      botonEvidencias.addEventListener("click", () => {
+        const abrir = evidencias.hidden;
+        if (abrir && !evidencias.hasChildNodes()) {
+          const seccion = contenidoEvidencias(
+            "proyecto_actividades",
+            actividad.id,
+            pintarEvidencias
+          );
+          // Igual que el resto de la ventana: no activa "cambios sin guardar".
+          seccion.querySelectorAll("form").forEach((f) => (f.dataset.sucioVigilado = "1"));
+          evidencias.append(crear("h4", "", "Evidencias"), seccion);
+        }
+        evidencias.hidden = !abrir;
+        botonEvidencias.setAttribute("aria-expanded", String(abrir));
+        if (abrir) evidencias.scrollIntoView({ block: "nearest" });
+      });
+      accionesCabecera.prepend(botonEvidencias);
 
       // Quitar la actividad
       const zonaQuitar = crear("section", "dialogo-seccion dialogo-quitar");
