@@ -62,6 +62,8 @@ Flujo: crear rama `feature/<nombre>` desde `develop`, PR a `develop`. Promoción
   (`drive.file`) — solo el de Gmail. Subir un archivo en esos entornos fallará con 500 hasta
   que el usuario regenere ese token autorizando ambos scopes a la vez y se actualice la
   variable de entorno en el servidor (y se configure `DRIVE_FOLDER_ID`).
+  `scripts/autorizar-gmail.js` ya pide los dos scopes; lo corre el usuario en su equipo y pega
+  el token directo en hPanel. Un agente nunca debe ver, guardar ni repetir ese token.
 
 ## Qué puede resolver un agente sin supervisión directa
 
