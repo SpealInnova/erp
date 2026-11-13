@@ -1603,6 +1603,198 @@ async function renderSeccionDocumentosProyecto(proyectoId) {
   return bloque;
 }
 
+/* ------------------------------------------------------------------
+   Versiones de documentos: un documento con enlaces no se elimina; se
+   corrige con una nueva versión y la anterior queda, de solo lectura,
+   en el historial con su vista previa.
+   ------------------------------------------------------------------ */
+const RECURSOS_VERSIONADOS = {
+  proyectos: { tabla: "proyectos", api: "/proyectos", ruta: "#/proyectos" },
+  cotizaciones: { tabla: "cotizaciones", api: "/cotizaciones", ruta: "#/cotizaciones" },
+  "ordenes-compra": { tabla: "ordenes_compra", api: "/ordenes-compra", ruta: "#/ordenes-compra" },
+  "actas-entrega": { tabla: "actas_entrega_equipos", api: "/actas-entrega-equipos", ruta: "#/actas-entrega" },
+  "actas-cierre": { tabla: "actas_cierre_satisfaccion", api: "/actas-cierre-satisfaccion", ruta: "#/actas-cierre" },
+  "reportes-servicio": { tabla: "reportes_servicio_tecnico", api: "/reportes-servicio-tecnico", ruta: "#/reportes-servicio" },
+};
+
+// Encabezado del modo "nueva versión": aviso + motivo obligatorio.
+function bloqueModoVersion(versionActual) {
+  const bloque = document.createElement("div");
+  bloque.append(
+    alerta(
+      "aviso",
+      `Estás creando la versión ${versionActual + 1}. La versión ${versionActual} quedará guardada, de solo lectura, en el historial del documento.`
+    )
+  );
+  const campo = document.createElement("div");
+  campo.className = "campo";
+  const label = document.createElement("label");
+  label.htmlFor = "motivo_version";
+  label.textContent = "Motivo de la nueva versión *";
+  const texto = document.createElement("textarea");
+  texto.id = "motivo_version";
+  texto.name = "motivo_version";
+  texto.rows = 2;
+  texto.required = true;
+  texto.placeholder = "Qué se corrige y por qué";
+  campo.append(label, texto);
+  bloque.append(campo);
+  return bloque;
+}
+
+// Guarda el documento: crear, editar o, en modo versión, nueva versión.
+// Devuelve la respuesta de la API, o null si falta el motivo.
+async function guardarDocumento(recurso, { id, modoVersion, datos, form, mensaje }) {
+  const r = RECURSOS_VERSIONADOS[recurso];
+  if (modoVersion) {
+    const motivo = form.elements.motivo_version.value.trim();
+    if (motivo.length < 5) {
+      mensaje.append(alerta("error", "Explica el motivo de la nueva versión (qué se corrige y por qué)."));
+      return null;
+    }
+    return api("POST", `${r.api}/${id}/versiones`, { ...datos, motivo });
+  }
+  return id ? api("PUT", `${r.api}/${id}`, datos) : api("POST", r.api, datos);
+}
+
+const ETIQUETAS_INSTANTANEA = {
+  codigo_pry: "Código", nombre_proyecto: "Nombre", linea_negocio: "Línea de negocio",
+  presupuesto_estimado: "Presupuesto estimado", estado: "Estado", numero_cotizacion: "Número",
+  numero_oc: "Número", numero_acta: "Número", numero_reporte: "Número", fecha_validez: "Vigencia",
+  objeto: "Objeto", lugar_entrega: "Lugar de entrega", receptor_nombre: "Recibe",
+  receptor_identificacion: "Identificación de quien recibe", receptor_cargo: "Cargo de quien recibe",
+  receptor_cliente_nombre: "Recibe", receptor_cliente_cargo: "Cargo de quien recibe",
+  numero_contrato_oc: "Contrato u orden de compra", observaciones: "Observaciones",
+  fecha_elaboracion: "Fecha de elaboración", tipo_entrega: "Tipo de entrega",
+  tipo_documento_referencia: "Documento de referencia", numero_documento_referencia: "Número del documento",
+  equipo_numero_serie: "Equipo", tipo_servicio: "Tipo de servicio", en_garantia: "En garantía",
+  motivo: "Motivo", hallazgos: "Hallazgos", recomendaciones: "Recomendaciones",
+  fecha_servicio: "Fecha de servicio", hora_inicio: "Hora de inicio", hora_fin: "Hora de fin",
+  descripcion: "Descripción", descripcion_equipo: "Equipo", elemento: "Elemento", cantidad: "Cantidad",
+  unidad: "Unidad", valor_unitario: "Valor unitario", precio_unitario: "Precio unitario",
+  descuento_porcentaje: "Descuento %", iva_porcentaje: "IVA %", cumple: "Cumple", marca: "Marca",
+  modelo: "Modelo", numero_serie: "Número de serie",
+};
+// Campos técnicos que no aportan a la vista previa.
+const OCULTOS_INSTANTANEA = /^(id|version|created_at|updated_at|deleted_at|created_by|updated_by|drive_folder_id|.*_id|aprobado_en)$/;
+
+function valorLegible(valor) {
+  if (valor === null || valor === undefined || valor === "") return "—";
+  if (typeof valor === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(valor)) return fechaCortaTexto(valor.slice(0, 10));
+  // montos y cantidades con separador de miles (p. ej. 620.000.000)
+  if (/^-?\d+(\.\d+)?$/.test(String(valor)) && Math.abs(Number(valor)) >= 1000) {
+    return Number(valor).toLocaleString("es-CO", { maximumFractionDigits: 2 });
+  }
+  return String(valor);
+}
+
+function renderInstantanea(instantanea) {
+  const vista = document.createElement("div");
+  vista.className = "vista-version";
+  const campos = document.createElement("dl");
+  Object.entries(instantanea)
+    .filter(([clave, valor]) => !OCULTOS_INSTANTANEA.test(clave) && !Array.isArray(valor))
+    .forEach(([clave, valor]) => {
+      const dt = document.createElement("dt");
+      dt.textContent = ETIQUETAS_INSTANTANEA[clave] || clave.replace(/_/g, " ");
+      const dd = document.createElement("dd");
+      dd.textContent = valorLegible(valor);
+      campos.append(dt, dd);
+    });
+  vista.append(campos);
+
+  const items = Array.isArray(instantanea.items) ? instantanea.items : [];
+  if (items.length) {
+    const columnas = Object.keys(items[0]).filter((c) => !OCULTOS_INSTANTANEA.test(c));
+    const tabla = document.createElement("table");
+    const thead = document.createElement("thead");
+    const fila = document.createElement("tr");
+    columnas.forEach((c) => {
+      const th = document.createElement("th");
+      th.textContent = ETIQUETAS_INSTANTANEA[c] || c.replace(/_/g, " ");
+      fila.append(th);
+    });
+    thead.append(fila);
+    const tbody = document.createElement("tbody");
+    items.forEach((item) => {
+      const tr = document.createElement("tr");
+      columnas.forEach((c) => tr.append(celda(valorLegible(item[c]))));
+      tbody.append(tr);
+    });
+    tabla.append(thead, tbody);
+    vista.append(tabla);
+  }
+  return vista;
+}
+
+// Panel de versiones de un documento: vigente, botón de nueva versión e
+// historial de las reemplazadas con su vista previa.
+async function renderPanelVersiones(recurso, id) {
+  const { tabla, ruta } = RECURSOS_VERSIONADOS[recurso];
+  const bloque = document.createElement("section");
+  bloque.className = "docs-proyecto panel-versiones";
+  const cabecera = document.createElement("div");
+  cabecera.className = "docs-cabecera";
+  const titulo = document.createElement("h3");
+  titulo.textContent = "Versiones";
+  cabecera.append(titulo);
+  bloque.append(cabecera);
+
+  const r = await api("GET", `/versiones/${tabla}/${id}`);
+  if (r.status !== 200) {
+    bloque.append(alerta("error", "No se pudo cargar el historial de versiones."));
+    return bloque;
+  }
+  const { version_vigente: vigente, anteriores } = r.cuerpo;
+  const acciones = document.createElement("div");
+  acciones.className = "docs-resumen";
+  const actual = document.createElement("span");
+  actual.append("Versión vigente ", Object.assign(document.createElement("b"), { textContent: `v${vigente}` }));
+  acciones.append(
+    actual,
+    boton("Crear nueva versión", () => (window.location.hash = `${ruta}/${id}/nueva-version`), true)
+  );
+  cabecera.append(acciones);
+
+  if (anteriores.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent =
+      "Sin correcciones: es la versión original. Si hay que corregirlo y ya no se puede editar o eliminar, crea una nueva versión.";
+    bloque.append(p);
+    return bloque;
+  }
+
+  const lista = document.createElement("ul");
+  lista.className = "lista-versiones";
+  anteriores.forEach((v) => {
+    const item = document.createElement("li");
+    const fila = document.createElement("div");
+    fila.className = "docs-fila";
+    const texto = document.createElement("span");
+    texto.append(
+      Object.assign(document.createElement("b"), { textContent: `v${v.version} reemplazada` }),
+      ` · ${formatoFechaHora(v.reemplazada_en)} · ${v.reemplazada_por || "—"} — ${v.motivo}`
+    );
+    const ver = boton("Ver", () => {
+      const abierta = item.querySelector(".vista-version");
+      if (abierta) {
+        abierta.remove();
+        ver.textContent = "Ver";
+        return;
+      }
+      item.append(renderInstantanea(v.instantanea));
+      ver.textContent = "Ocultar";
+    }, true);
+    ver.setAttribute("aria-label", `Ver la versión ${v.version}`);
+    fila.append(texto, ver);
+    item.append(fila);
+    lista.append(item);
+  });
+  bloque.append(lista);
+  return bloque;
+}
+
 // Documentos de otros módulos en la línea de tiempo: nombre, ruta y estados.
 const DOCUMENTOS_LINEA_TIEMPO = {
   expedientes_diseno: { nombre: "Expediente de diseño", ruta: "#/expedientes-diseno/", femenino: false, estado: textoEstadoExpediente },
@@ -1726,6 +1918,42 @@ async function renderSeccionLineaTiempoProyecto(proyectoId) {
   });
 
   return tarjeta;
+}
+
+// Si el proyecto tiene documentos de otros módulos, devuelve el aviso de
+// bloqueo con la vista previa de esos documentos y el camino de corrección
+// (nueva versión). Sin documentos, devuelve null y se permite eliminar.
+async function bloqueoEliminacionProyecto(proyecto, alCerrar) {
+  const r = await api("GET", `/proyectos/${proyecto.id}/documentos`);
+  if (r.status !== 200) return null;
+  const d = r.cuerpo.documentos;
+  const propios = (d.reportes_servicio || []).filter((x) => x.proyecto_id === proyecto.id);
+  const total =
+    d.expedientes.length +
+    d.requisiciones.length +
+    d.ordenes_compra.length +
+    propios.length +
+    d.actas_entrega.length +
+    d.actas_cierre.length +
+    (d.equipos || []).length;
+  if (total === 0) return null;
+
+  const bloque = document.createElement("div");
+  bloque.className = "bloqueo-eliminacion";
+  bloque.append(
+    alerta(
+      "aviso",
+      `${proyecto.codigo_pry} no se puede eliminar: tiene ${total} documento${total === 1 ? "" : "s"} enlazado${total === 1 ? "" : "s"} (abajo). Para corregirlo, crea una nueva versión; la actual quedará en su historial.`
+    )
+  );
+  const acciones = document.createElement("div");
+  acciones.className = "acciones-bloqueo";
+  acciones.append(
+    boton("Crear nueva versión", () => (window.location.hash = `#/proyectos/${proyecto.id}/nueva-version`)),
+    boton("Cerrar", alCerrar, true)
+  );
+  bloque.append(acciones, await renderSeccionDocumentosProyecto(proyecto.id));
+  return bloque;
 }
 
 async function vistaProyectos() {
@@ -1862,8 +2090,17 @@ async function vistaProyectos() {
 
     const eliminar = boton(
       "Eliminar",
-      () => {
-        filaConfirmacion.style.display = filaConfirmacion.style.display === "none" ? "" : "none";
+      async () => {
+        if (filaConfirmacion.style.display !== "none") {
+          filaConfirmacion.style.display = "none";
+          return;
+        }
+        filaConfirmacion.style.display = "";
+        // con documentos enlazados no se elimina: se muestra qué lo bloquea
+        const bloqueo = await bloqueoEliminacionProyecto(p, () => {
+          filaConfirmacion.style.display = "none";
+        });
+        tdConfirmacion.replaceChildren(bloqueo || formEliminar);
       },
       true
     );
@@ -1878,7 +2115,9 @@ async function vistaProyectos() {
   contenido.append(tarjeta);
 }
 
-async function vistaProyectoForm(id) {
+// opciones.modoVersion: corrige el proyecto como una nueva versión (con motivo).
+async function vistaProyectoForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("proyectos");
   mostrarCargando();
 
@@ -1918,8 +2157,13 @@ async function vistaProyectoForm(id) {
   ];
 
   contenido.replaceChildren();
-  const volver = boton("Volver a proyectos", () => (window.location.hash = "#/proyectos"), true);
-  contenido.append(encabezado(id ? `Proyecto ${proyecto.codigo_pry}` : "Nuevo proyecto", [volver]));
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/proyectos/${id}`), true)
+    : boton("Volver a proyectos", () => (window.location.hash = "#/proyectos"), true);
+  const tituloProyecto = id
+    ? `${modoVersion ? "Nueva versión del proyecto" : "Proyecto"} ${proyecto.codigo_pry}${proyecto.version > 1 ? ` · v${proyecto.version}` : ""}`
+    : "Nuevo proyecto";
+  contenido.append(encabezado(tituloProyecto, [volver]));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -1980,8 +2224,13 @@ async function vistaProyectoForm(id) {
   const guardar = document.createElement("button");
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
-  guardar.textContent = id ? "Guardar cambios" : "Crear proyecto";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(proyecto.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear proyecto";
 
+  if (modoVersion) form.append(bloqueModoVersion(proyecto.version || 1));
   form.append(grid, guardar);
   if (!id) form.append(botonCancelar("#/proyectos"));
   tarjeta.append(mensaje, form);
@@ -2008,10 +2257,13 @@ async function vistaProyectoForm(id) {
 
     guardar.disabled = true;
     try {
-      const r = id
-        ? await api("PUT", `/proyectos/${id}`, datos)
-        : await api("POST", "/proyectos", datos);
+      const r = await guardarDocumento("proyectos", { id, modoVersion, datos, form, mensaje });
+      if (!r) return;
       if (r.status === 200 || r.status === 201) {
+        if (modoVersion) {
+          window.location.hash = `#/proyectos/${id}`;
+          return;
+        }
         window.location.hash = id ? `#/proyectos/${id}` : "#/proyectos";
         if (id) vistaProyectoForm(id);
         return;
@@ -2031,7 +2283,10 @@ async function vistaProyectoForm(id) {
     }
   });
 
+  if (modoVersion) return;
   if (id) {
+    tarjeta.append(await renderPanelVersiones("proyectos", id));
+
     const bloqueFase = document.createElement("div");
     bloqueFase.style.marginTop = "24px";
     bloqueFase.style.paddingTop = "24px";
@@ -2251,7 +2506,9 @@ function construirFilaItem(item, editable, onCambio, onEliminar) {
   return fila;
 }
 
-async function vistaCotizacionForm(id) {
+// opciones.modoVersion: corrige la cotización como nueva versión, en cualquier estado.
+async function vistaCotizacionForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("cotizaciones");
   mostrarCargando();
 
@@ -2272,14 +2529,21 @@ async function vistaCotizacionForm(id) {
     return;
   }
 
-  const editable = !id || cotizacion.estado === "borrador";
+  const editable = modoVersion || !id || cotizacion.estado === "borrador";
   const opcionesClientes = clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social }));
   const opcionesUsuarios = usuarios.map((u) => ({ valor: String(u.id), texto: u.nombre }));
 
   contenido.replaceChildren();
-  const volver = boton("Volver a cotizaciones", () => (window.location.hash = "#/cotizaciones"), true);
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/cotizaciones/${id}`), true)
+    : boton("Volver a cotizaciones", () => (window.location.hash = "#/cotizaciones"), true);
   contenido.append(
-    encabezado(id ? `Cotización ${cotizacion.numero_cotizacion}` : "Nueva cotización", [volver])
+    encabezado(
+      id
+        ? `${modoVersion ? "Nueva versión de la cotización" : "Cotización"} ${cotizacion.numero_cotizacion}${cotizacion.version > 1 ? ` · v${cotizacion.version}` : ""}`
+        : "Nueva cotización",
+      [volver]
+    )
   );
 
   const tarjeta = document.createElement("div");
@@ -2342,7 +2606,8 @@ async function vistaCotizacionForm(id) {
   if (!editable) {
     const avisoSoloLectura = document.createElement("p");
     avisoSoloLectura.className = "subtitulo";
-    avisoSoloLectura.textContent = "Solo se puede editar una cotización en estado borrador.";
+    avisoSoloLectura.textContent =
+      "Solo se puede editar una cotización en estado borrador. Para corregirla, crea una nueva versión (abajo).";
     grid.append(avisoSoloLectura);
   }
 
@@ -2431,8 +2696,13 @@ async function vistaCotizacionForm(id) {
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
   guardar.style.marginTop = "16px";
-  guardar.textContent = id ? "Guardar cambios" : "Crear cotización";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(cotizacion.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear cotización";
 
+  if (modoVersion) form.append(bloqueModoVersion(cotizacion.version || 1));
   form.append(grid, subtituloItems, bloqueItems, totalGeneral);
   if (editable) form.append(guardar);
   if (!id) form.append(botonCancelar("#/cotizaciones"));
@@ -2478,10 +2748,13 @@ async function vistaCotizacionForm(id) {
 
       guardar.disabled = true;
       try {
-        const r = id
-          ? await api("PUT", `/cotizaciones/${id}`, datos)
-          : await api("POST", "/cotizaciones", datos);
+        const r = await guardarDocumento("cotizaciones", { id, modoVersion, datos, form, mensaje });
+        if (!r) return;
         if (r.status === 200 || r.status === 201) {
+          if (modoVersion) {
+            window.location.hash = `#/cotizaciones/${id}`;
+            return;
+          }
           window.location.hash = id ? `#/cotizaciones/${id}` : "#/cotizaciones";
           if (id) vistaCotizacionForm(id);
           return;
@@ -2502,6 +2775,7 @@ async function vistaCotizacionForm(id) {
     });
   }
 
+  if (modoVersion) return;
   if (id) {
     const bloqueEstado = document.createElement("div");
     bloqueEstado.style.marginTop = "24px";
@@ -2535,6 +2809,7 @@ async function vistaCotizacionForm(id) {
 
     bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
+    tarjeta.append(await renderPanelVersiones("cotizaciones", id));
   }
 }
 
@@ -3184,7 +3459,9 @@ async function vistaOrdenesCompra() {
   contenido.append(tarjeta);
 }
 
-async function vistaOrdenCompraForm(id) {
+// opciones.modoVersion: corrige la OC como nueva versión, en cualquier estado.
+async function vistaOrdenCompraForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("ordenes-compra");
   mostrarCargando();
 
@@ -3205,14 +3482,21 @@ async function vistaOrdenCompraForm(id) {
     return;
   }
 
-  const editable = !id || orden.estado === "pte_aprobar";
+  const editable = modoVersion || !id || orden.estado === "pte_aprobar";
   const opcionesProveedores = proveedores.map((p) => ({ valor: String(p.id), texto: p.razon_social }));
   const opcionesRequisiciones = requisiciones.map((r) => ({ valor: String(r.id), texto: r.numero_requisicion }));
 
   contenido.replaceChildren();
-  const volver = boton("Volver a órdenes de compra", () => (window.location.hash = "#/ordenes-compra"), true);
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/ordenes-compra/${id}`), true)
+    : boton("Volver a órdenes de compra", () => (window.location.hash = "#/ordenes-compra"), true);
   contenido.append(
-    encabezado(id ? `Orden de compra ${orden.numero_oc}` : "Nueva orden de compra", [volver])
+    encabezado(
+      id
+        ? `${modoVersion ? "Nueva versión de la orden de compra" : "Orden de compra"} ${orden.numero_oc}${orden.version > 1 ? ` · v${orden.version}` : ""}`
+        : "Nueva orden de compra",
+      [volver]
+    )
   );
 
   const tarjeta = document.createElement("div");
@@ -3378,8 +3662,20 @@ async function vistaOrdenCompraForm(id) {
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
   guardar.style.marginTop = "16px";
-  guardar.textContent = id ? "Guardar cambios" : "Crear orden de compra";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(orden.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear orden de compra";
 
+  if (modoVersion) {
+    form.append(bloqueModoVersion(orden.version || 1));
+    if (orden.estado === "aprobada_pte_pago") {
+      form.append(
+        alerta("aviso", "Esta OC ya está aprobada: si cambias ítems o proveedor, volverá a quedar pendiente de aprobar.")
+      );
+    }
+  }
   form.append(grid, subtituloItems, bloqueItems, totalGeneral);
   if (editable) form.append(guardar);
   if (!id) form.append(botonCancelar("#/ordenes-compra"));
@@ -3423,10 +3719,13 @@ async function vistaOrdenCompraForm(id) {
 
       guardar.disabled = true;
       try {
-        const r = id
-          ? await api("PUT", `/ordenes-compra/${id}`, datos)
-          : await api("POST", "/ordenes-compra", datos);
+        const r = await guardarDocumento("ordenes-compra", { id, modoVersion, datos, form, mensaje });
+        if (!r) return;
         if (r.status === 200 || r.status === 201) {
+          if (modoVersion) {
+            window.location.hash = `#/ordenes-compra/${id}`;
+            return;
+          }
           window.location.hash = id ? `#/ordenes-compra/${id}` : "#/ordenes-compra";
           if (id) vistaOrdenCompraForm(id);
           return;
@@ -3447,6 +3746,7 @@ async function vistaOrdenCompraForm(id) {
     });
   }
 
+  if (modoVersion) return;
   if (id) {
     const bloqueEstado = document.createElement("div");
     bloqueEstado.style.marginTop = "24px";
@@ -3481,6 +3781,7 @@ async function vistaOrdenCompraForm(id) {
     bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
     tarjeta.append(renderSeccionEvidencias("ordenes_compra", id, "Evidencias / soportes"));
+    tarjeta.append(await renderPanelVersiones("ordenes-compra", id));
   }
 }
 
@@ -4247,7 +4548,9 @@ async function vistaReportesServicio() {
   contenido.append(tarjeta);
 }
 
-async function vistaReporteServicioForm(id) {
+// opciones.modoVersion: corrige el reporte como nueva versión (no se elimina).
+async function vistaReporteServicioForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("reportes-servicio");
   mostrarCargando();
 
@@ -4271,8 +4574,13 @@ async function vistaReporteServicioForm(id) {
   const campos = CAMPOS_REPORTE(clientes, proyectos);
 
   contenido.replaceChildren();
-  const volver = boton("Volver a reportes", () => (window.location.hash = "#/reportes-servicio"), true);
-  contenido.append(encabezado(id ? "Editar reporte de servicio" : "Nuevo reporte de servicio", [volver]));
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/reportes-servicio/${id}`), true)
+    : boton("Volver a reportes", () => (window.location.hash = "#/reportes-servicio"), true);
+  const tituloReporte = !id
+    ? "Nuevo reporte de servicio"
+    : `${modoVersion ? "Nueva versión del reporte" : "Reporte de servicio"} ${reporte.numero_reporte}${reporte.version > 1 ? ` · v${reporte.version}` : ""}`;
+  contenido.append(encabezado(tituloReporte, [volver]));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -4296,10 +4604,15 @@ async function vistaReporteServicioForm(id) {
   const guardar = document.createElement("button");
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
-  guardar.textContent = id ? "Guardar cambios" : "Crear reporte";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(reporte.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear reporte";
 
   const infoEquipo = document.createElement("p");
   infoEquipo.className = "subtitulo info-equipo";
+  if (modoVersion) form.append(bloqueModoVersion(reporte.version || 1));
   form.append(grid, infoEquipo, guardar);
   if (!id) form.append(botonCancelar("#/reportes-servicio"));
   tarjeta.append(mensaje, form);
@@ -4378,11 +4691,10 @@ async function vistaReporteServicioForm(id) {
 
     guardar.disabled = true;
     try {
-      const r = id
-        ? await api("PUT", `/reportes-servicio-tecnico/${id}`, datos)
-        : await api("POST", "/reportes-servicio-tecnico", datos);
+      const r = await guardarDocumento("reportes-servicio", { id, modoVersion, datos, form, mensaje });
+      if (!r) return;
       if (r.status === 200 || r.status === 201) {
-        window.location.hash = "#/reportes-servicio";
+        window.location.hash = modoVersion ? `#/reportes-servicio/${id}` : "#/reportes-servicio";
         return;
       }
       if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
@@ -4399,6 +4711,8 @@ async function vistaReporteServicioForm(id) {
       guardar.disabled = false;
     }
   });
+
+  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("reportes-servicio", id));
 }
 
 /* ------------------------------------------------------------------
@@ -4759,7 +5073,9 @@ async function vistaActasCierre() {
   contenido.append(tarjeta);
 }
 
-async function vistaActaCierreForm(id) {
+// opciones.modoVersion: corrige el acta firmada como nueva versión (no se elimina).
+async function vistaActaCierreForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("actas-cierre");
   mostrarCargando();
 
@@ -4813,8 +5129,17 @@ async function vistaActaCierreForm(id) {
   ];
 
   contenido.replaceChildren();
-  const volver = boton("Volver a actas de cierre", () => (window.location.hash = "#/actas-cierre"), true);
-  contenido.append(encabezado(id ? `Acta ${acta.numero_acta}` : "Nueva acta de cierre", [volver]));
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/actas-cierre/${id}`), true)
+    : boton("Volver a actas de cierre", () => (window.location.hash = "#/actas-cierre"), true);
+  contenido.append(
+    encabezado(
+      id
+        ? `${modoVersion ? "Nueva versión del acta" : "Acta"} ${acta.numero_acta}${acta.version > 1 ? ` · v${acta.version}` : ""}`
+        : "Nueva acta de cierre",
+      [volver]
+    )
+  );
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -4937,8 +5262,13 @@ async function vistaActaCierreForm(id) {
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
   guardar.style.marginTop = "16px";
-  guardar.textContent = id ? "Guardar cambios" : "Crear acta";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(acta.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear acta";
 
+  if (modoVersion) form.append(bloqueModoVersion(acta.version || 1));
   form.append(grid, subtituloItems, bloqueItems, guardar);
   if (!id) form.append(botonCancelar("#/actas-cierre"));
   tarjeta.append(mensaje, form);
@@ -4974,11 +5304,10 @@ async function vistaActaCierreForm(id) {
 
     guardar.disabled = true;
     try {
-      const r = id
-        ? await api("PUT", `/actas-cierre-satisfaccion/${id}`, datos)
-        : await api("POST", "/actas-cierre-satisfaccion", datos);
+      const r = await guardarDocumento("actas-cierre", { id, modoVersion, datos, form, mensaje });
+      if (!r) return;
       if (r.status === 200 || r.status === 201) {
-        window.location.hash = "#/actas-cierre";
+        window.location.hash = modoVersion ? `#/actas-cierre/${id}` : "#/actas-cierre";
         return;
       }
       if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
@@ -4995,10 +5324,12 @@ async function vistaActaCierreForm(id) {
       guardar.disabled = false;
     }
   });
+
+  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("actas-cierre", id));
 }
 
 async function obtenerActasEntrega() {
-  const r = await api("GET", "/actas-entrega-equipos");
+  const r = await api("GET", `/actas-entrega-equipos${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.actas : [];
 }
 
@@ -5066,7 +5397,9 @@ async function vistaActasEntrega() {
   contenido.append(tarjeta);
 }
 
-async function vistaActaEntregaForm(id) {
+// opciones.modoVersion: corrige el acta firmada como nueva versión (no se elimina).
+async function vistaActaEntregaForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("actas-entrega");
   mostrarCargando();
 
@@ -5104,8 +5437,17 @@ async function vistaActaEntregaForm(id) {
   ];
 
   contenido.replaceChildren();
-  const volver = boton("Volver a actas de entrega", () => (window.location.hash = "#/actas-entrega"), true);
-  contenido.append(encabezado(id ? `Acta ${acta.numero_acta}` : "Nueva acta de entrega", [volver]));
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/actas-entrega/${id}`), true)
+    : boton("Volver a actas de entrega", () => (window.location.hash = "#/actas-entrega"), true);
+  contenido.append(
+    encabezado(
+      id
+        ? `${modoVersion ? "Nueva versión del acta" : "Acta"} ${acta.numero_acta}${acta.version > 1 ? ` · v${acta.version}` : ""}`
+        : "Nueva acta de entrega",
+      [volver]
+    )
+  );
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -5234,8 +5576,13 @@ async function vistaActaEntregaForm(id) {
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
   guardar.style.marginTop = "16px";
-  guardar.textContent = id ? "Guardar cambios" : "Crear acta";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(acta.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear acta";
 
+  if (modoVersion) form.append(bloqueModoVersion(acta.version || 1));
   form.append(grid, subtituloItems, bloqueItems, guardar);
   if (!id) form.append(botonCancelar("#/actas-entrega"));
   tarjeta.append(mensaje, form);
@@ -5274,11 +5621,10 @@ async function vistaActaEntregaForm(id) {
 
     guardar.disabled = true;
     try {
-      const r = id
-        ? await api("PUT", `/actas-entrega-equipos/${id}`, datos)
-        : await api("POST", "/actas-entrega-equipos", datos);
+      const r = await guardarDocumento("actas-entrega", { id, modoVersion, datos, form, mensaje });
+      if (!r) return;
       if (r.status === 200 || r.status === 201) {
-        window.location.hash = "#/actas-entrega";
+        window.location.hash = modoVersion ? `#/actas-entrega/${id}` : "#/actas-entrega";
         return;
       }
       if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
@@ -5295,6 +5641,8 @@ async function vistaActaEntregaForm(id) {
       guardar.disabled = false;
     }
   });
+
+  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("actas-entrega", id));
 }
 
 const CARGOS = [
@@ -5552,6 +5900,22 @@ function enrutar() {
   if (/^#\/tablero$/.test(ruta)) return window.vistaTableroGerencial();
   if (/^#\/comercial$/.test(ruta)) return window.vistaTableroComercial();
   if (/^#\/compras$/.test(ruta)) return window.vistaTableroCompras();
+
+  // Nueva versión de un documento: #/<recurso>/<id>/nueva-version
+  const nuevaVersion = ruta.match(
+    /^#\/(proyectos|cotizaciones|ordenes-compra|actas-entrega|actas-cierre|reportes-servicio)\/(\d+)\/nueva-version$/
+  );
+  if (nuevaVersion) {
+    const formularios = {
+      proyectos: vistaProyectoForm,
+      cotizaciones: vistaCotizacionForm,
+      "ordenes-compra": vistaOrdenCompraForm,
+      "actas-entrega": vistaActaEntregaForm,
+      "actas-cierre": vistaActaCierreForm,
+      "reportes-servicio": vistaReporteServicioForm,
+    };
+    return formularios[nuevaVersion[1]](nuevaVersion[2], { modoVersion: true });
+  }
 
   if (/^#\/clientes\/nuevo$/.test(ruta)) return vistaClienteForm(null);
   const editarCliente = ruta.match(/^#\/clientes\/(\d+)$/);

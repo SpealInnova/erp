@@ -254,6 +254,89 @@ html[data-contraste="alto"] .subtabs a[aria-current="page"] {
   color: var(--warn);
 }
 
+/* ---------- Versiones de documentos ---------- */
+.lista-versiones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lista-versiones > li {
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  font-size: 0.82rem;
+}
+
+.lista-versiones .boton {
+  width: auto;
+  margin: 0;
+  padding: 6px 14px;
+}
+
+/* vista previa de una versión reemplazada: solo lectura */
+.vista-version {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border-left: 3px solid var(--ink-mute);
+}
+
+.vista-version dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 18px;
+  margin: 0 0 10px;
+}
+
+.vista-version dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-mute);
+}
+
+.vista-version dd {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.vista-version table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.vista-version th,
+.vista-version td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--borde-suave);
+}
+
+.bloqueo-eliminacion {
+  padding: 12px 0;
+}
+
+.acciones-bloqueo {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.acciones-bloqueo .boton {
+  width: auto;
+  margin: 0;
+}
+
 .enlace-documento {
   color: var(--accent-ink);
   text-decoration: none;

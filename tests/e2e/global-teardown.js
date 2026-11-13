@@ -14,6 +14,7 @@ module.exports = async function globalTeardown() {
     await pool.query("DELETE FROM notificaciones WHERE usuario_id IN (?)", [idsUsuarios]);
     await pool.query("DELETE FROM proyecto_equipo WHERE usuario_id IN (?)", [idsUsuarios]);
     await pool.query("DELETE FROM auditoria WHERE usuario_id IN (?)", [idsUsuarios]);
+    await pool.query("DELETE FROM documento_versiones WHERE reemplazada_por IN (?)", [idsUsuarios]);
     // Compras creadas por las pruebas (p. ej. la aprobación de OC del tablero):
     // se borran antes que los proyectos por las llaves foráneas.
     const proyectosE2E = `SELECT id FROM proyectos WHERE responsable_id IN (?) OR nombre_proyecto LIKE ?`;

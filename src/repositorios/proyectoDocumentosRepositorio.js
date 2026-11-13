@@ -128,7 +128,27 @@ async function listarActasCierre(pool, proyectoId) {
   return filas;
 }
 
+// Cuántos documentos de otros módulos dependen del proyecto (lo que impide
+// eliminarlo). Actividades, equipo de trabajo y evidencias son del propio
+// proyecto y no cuentan.
+async function contarDocumentosEnlazados(pool, proyectoId) {
+  const [filas] = await pool.query(
+    `SELECT
+       (SELECT COUNT(*) FROM expedientes_diseno WHERE proyecto_id = ? AND deleted_at IS NULL) AS expedientes,
+       (SELECT COUNT(*) FROM requisiciones WHERE proyecto_id = ? AND deleted_at IS NULL) AS requisiciones,
+       (SELECT COUNT(*) FROM ordenes_compra oc JOIN requisiciones r ON r.id = oc.requisicion_id
+          WHERE r.proyecto_id = ? AND oc.deleted_at IS NULL) AS ordenes_compra,
+       (SELECT COUNT(*) FROM reportes_servicio_tecnico WHERE proyecto_id = ? AND deleted_at IS NULL) AS reportes_servicio,
+       (SELECT COUNT(*) FROM actas_entrega_equipos WHERE proyecto_id = ? AND deleted_at IS NULL) AS actas_entrega,
+       (SELECT COUNT(*) FROM actas_cierre_satisfaccion WHERE proyecto_id = ? AND deleted_at IS NULL) AS actas_cierre,
+       (SELECT COUNT(*) FROM equipos WHERE proyecto_id = ? AND deleted_at IS NULL) AS equipos`,
+    Array(7).fill(proyectoId)
+  );
+  return Object.fromEntries(Object.entries(filas[0]).map(([k, v]) => [k, Number(v)]));
+}
+
 module.exports = {
+  contarDocumentosEnlazados,
   obtenerCotizacion,
   listarExpedientes,
   listarRequisiciones,

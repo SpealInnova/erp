@@ -5,6 +5,8 @@ const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const coherencia = require("./coherenciaProyecto");
+const versiones = require("./versiones");
+const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoRST } = require("../dominio/codigoReporteServicio");
 const {
   ErrorReporteNoEncontrado,
@@ -135,22 +137,30 @@ async function actualizarReporte(pool, id, datos, usuarioId) {
   return actualizado;
 }
 
-async function eliminarReporte(pool, id, usuarioId) {
-  const anterior = await obtenerReporte(pool, id);
-  await reportesServicioTecnicoRepositorio.softDelete(pool, id);
+// Un reporte de servicio es parte de la historia del equipo: no se elimina,
+// se corrige con una nueva versión.
+async function eliminarReporte(pool, id) {
+  const reporte = await obtenerReporte(pool, id);
+  throw new ErrorEliminacionBloqueada(
+    `El reporte ${reporte.numero_reporte} no se puede eliminar. Para corregirlo, crea una nueva versión.`
+  );
+}
 
-  await auditoria.registrar(pool, {
+async function crearVersionReporte(pool, id, { motivo, ...datos }, usuarioId) {
+  await versiones.crearNuevaVersion(pool, {
     tabla: TABLA,
     registroId: id,
-    accion: "eliminar",
+    motivo,
     usuarioId,
-    datosAnteriores: anterior,
-    datosNuevos: null,
+    obtener: (conexion) => obtenerReporte(conexion, id),
+    actualizar: (conexion) => actualizarReporte(conexion, id, datos, usuarioId),
   });
+  return obtenerReporte(pool, id);
 }
 
 module.exports = {
   crearReporte,
+  crearVersionReporte,
   obtenerReporte,
   listarReportes,
   actualizarReporte,

@@ -90,6 +90,10 @@ const {
 } = require("../dominio/erroresActasEntrega");
 const { ErrorEnlaceInconsistente } = require("../dominio/erroresEnlaces");
 const {
+  ErrorEliminacionBloqueada,
+  ErrorTablaSinVersiones,
+} = require("../dominio/erroresVersiones");
+const {
   ErrorEquipoNoEncontrado,
   ErrorNumeroSerieEnUso,
   ErrorEquipoDeExpediente,
@@ -272,6 +276,12 @@ function manejadorErrores(error, req, res, next) {
   }
 
   if (error instanceof ErrorEnlaceInconsistente) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorEliminacionBloqueada) {
+    return res.status(409).json({ error: error.message, detalle: error.detalle });
+  }
+  if (error instanceof ErrorTablaSinVersiones) {
     return res.status(400).json({ error: error.message });
   }
   if (error instanceof ErrorEquipoNoEncontrado) {

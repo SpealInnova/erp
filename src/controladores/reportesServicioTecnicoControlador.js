@@ -4,6 +4,7 @@ const {
   actualizarReporteSchema,
   listarReportesQuerySchema,
 } = require("../validaciones/reportesServicioTecnicoSchemas");
+const { conMotivo } = require("../validaciones/versionesSchemas");
 
 function crearReportesServicioTecnicoControlador(pool) {
   async function crear(req, res) {
@@ -42,7 +43,19 @@ function crearReportesServicioTecnicoControlador(pool) {
     res.status(204).send();
   }
 
-  return { crear, listar, obtener, actualizar, eliminar };
+  async function crearVersion(req, res) {
+    const id = Number(req.params.id);
+    const datos = conMotivo(actualizarReporteSchema).parse(req.body);
+    const reporte = await reportesServicioTecnicoServicio.crearVersionReporte(
+      pool,
+      id,
+      datos,
+      req.usuario.id
+    );
+    res.status(200).json({ reporte });
+  }
+
+  return { crear, listar, obtener, actualizar, eliminar, crearVersion };
 }
 
 module.exports = { crearReportesServicioTecnicoControlador };

@@ -12,6 +12,7 @@ function crearReportesServicioTecnicoRutas(pool) {
   router.get("/", envolverAsync(controlador.listar));
   router.get("/:id", envolverAsync(controlador.obtener));
   router.put("/:id", envolverAsync(controlador.actualizar));
+  router.post("/:id/versiones", envolverAsync(controlador.crearVersion));
   router.delete("/:id", envolverAsync(controlador.eliminar));
 
   return router;

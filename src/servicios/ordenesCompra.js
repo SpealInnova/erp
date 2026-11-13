@@ -4,6 +4,8 @@ const requisicionesRepositorio = require("../repositorios/requisicionesRepositor
 const proveedoresRepositorio = require("../repositorios/proveedoresRepositorio");
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
+const versiones = require("./versiones");
+const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoOC } = require("../dominio/codigoOrdenCompra");
 const { transicionar, ESTADOS } = require("../dominio/estadoOrdenCompra");
 const {
@@ -87,9 +89,11 @@ async function listarOrdenesCompra(pool, { pagina, tamanoPagina }) {
   return ordenesCompraRepositorio.listar(pool, { limite, offset });
 }
 
-async function actualizarOrdenCompra(pool, id, datos, usuarioId) {
+// opciones.comoVersion: una nueva versión corrige la OC en cualquier estado
+// (la edición normal solo se permite pendiente de aprobar).
+async function actualizarOrdenCompra(pool, id, datos, usuarioId, opciones = {}) {
   const anterior = await obtenerConItems(pool, id);
-  if (anterior.estado !== ESTADOS.PTE_APROBAR) {
+  if (!opciones.comoVersion && anterior.estado !== ESTADOS.PTE_APROBAR) {
     throw new ErrorOrdenCompraNoEditable();
   }
 
@@ -151,6 +155,12 @@ async function cambiarEstadoOrdenCompra(pool, id, estadoDestino, usuarioId) {
 
 async function eliminarOrdenCompra(pool, id, usuarioId) {
   const anterior = await obtenerConItems(pool, id);
+  if (anterior.estado !== ESTADOS.PTE_APROBAR) {
+    throw new ErrorEliminacionBloqueada(
+      `La orden de compra ${anterior.numero_oc} ya fue aprobada: no se puede eliminar. Para corregirla, crea una nueva versión.`,
+      { estado: anterior.estado }
+    );
+  }
   await ordenesCompraRepositorio.softDelete(pool, id);
 
   await auditoria.registrar(pool, {
@@ -163,8 +173,36 @@ async function eliminarOrdenCompra(pool, id, usuarioId) {
   });
 }
 
+// Nueva versión de una OC. Si estaba aprobada (pendiente de pago) y cambian
+// sus ítems o el proveedor, vuelve a "pendiente de aprobar": la aprobación se
+// dio sobre otros valores. Si ya se pagó, conserva su estado.
+async function crearVersionOrdenCompra(pool, id, { motivo, ...datos }, usuarioId) {
+  await versiones.crearNuevaVersion(pool, {
+    tabla: TABLA,
+    registroId: id,
+    motivo,
+    usuarioId,
+    obtener: (conexion) => obtenerConItems(conexion, id),
+    actualizar: async (conexion, anterior) => {
+      await actualizarOrdenCompra(conexion, id, datos, usuarioId, { comoVersion: true });
+      const cambiaValor =
+        Boolean(datos.items) ||
+        (datos.proveedor_id && datos.proveedor_id !== anterior.proveedor_id);
+      if (anterior.estado === ESTADOS.APROBADA_PTE_PAGO && cambiaValor) {
+        await ordenesCompraRepositorio.actualizar(conexion, id, {
+          estado: ESTADOS.PTE_APROBAR,
+          aprobado_por: null,
+          aprobado_en: null,
+        });
+      }
+    },
+  });
+  return obtenerConItems(pool, id);
+}
+
 module.exports = {
   crearOrdenCompra,
+  crearVersionOrdenCompra,
   obtenerConItems,
   listarOrdenesCompra,
   actualizarOrdenCompra,

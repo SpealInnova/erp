@@ -148,15 +148,16 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
     expect(respuesta.body.reporte.hallazgos).toBe("Sin novedades");
   });
 
-  test("elimina (soft-delete) el reporte", async () => {
+  test("no elimina el reporte: se corrige con una nueva versión", async () => {
     const respuesta = await request(app)
       .delete(`/reportes-servicio-tecnico/${reporteId}`)
       .set(autorizacion());
-    expect(respuesta.status).toBe(204);
+    expect(respuesta.status).toBe(409);
+    expect(respuesta.body.error).toContain("nueva versión");
 
     const obtener = await request(app)
       .get(`/reportes-servicio-tecnico/${reporteId}`)
       .set(autorizacion());
-    expect(obtener.status).toBe(404);
+    expect(obtener.status).toBe(200);
   });
 });

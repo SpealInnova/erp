@@ -4,6 +4,7 @@ const {
   actualizarActaSchema,
   listarActasQuerySchema,
 } = require("../validaciones/actasCierreSchemas");
+const { conMotivo } = require("../validaciones/versionesSchemas");
 
 function crearActasCierreControlador(pool) {
   async function crear(req, res) {
@@ -37,7 +38,14 @@ function crearActasCierreControlador(pool) {
     res.status(204).send();
   }
 
-  return { crear, listar, obtener, actualizar, eliminar };
+  async function crearVersion(req, res) {
+    const id = Number(req.params.id);
+    const datos = conMotivo(actualizarActaSchema).parse(req.body);
+    const acta = await actasCierreServicio.crearVersionActa(pool, id, datos, req.usuario.id);
+    res.status(200).json({ acta });
+  }
+
+  return { crear, listar, obtener, actualizar, eliminar, crearVersion };
 }
 
 module.exports = { crearActasCierreControlador };
