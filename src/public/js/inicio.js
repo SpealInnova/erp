@@ -28,6 +28,45 @@ async function api(metodo, ruta, cuerpo) {
   return { status: respuesta.status, cuerpo: texto };
 }
 
+/* Perfil del usuario (cargo y permisos, de GET /auth/perfil). Solo decide qué
+   acciones se muestran: el servidor valida cada una de todas formas. Sin
+   perfil, no se muestra ninguna acción restringida. */
+let PERFIL = { id: null, rol: null, cargo: null, permisos: [], superusuario: false };
+
+async function cargarPerfil() {
+  try {
+    const r = await api("GET", "/auth/perfil");
+    if (r.status === 200 && r.cuerpo?.usuario) {
+      PERFIL = { ...PERFIL, ...r.cuerpo.usuario, permisos: r.cuerpo.usuario.permisos || [] };
+    }
+  } catch {
+    // sin perfil: las acciones restringidas quedan ocultas
+  }
+}
+
+function puede(permiso) {
+  return PERFIL.permisos.includes(permiso);
+}
+
+// Aprobar exige el permiso y, salvo admin o Gerente General, no haber creado
+// el documento (separación de funciones, igual que en el servidor).
+function puedeAprobarDocumento(permiso, creadoPor) {
+  return puede(permiso) && (PERFIL.superusuario || !creadoPor || creadoPor !== PERFIL.id);
+}
+
+// Opciones de un selector de estado que el usuario puede elegir; la actual
+// siempre se incluye.
+function opcionesSegunPermiso(opciones, actual, permitido) {
+  return opciones.filter((o) => o.valor === actual || permitido(o.valor));
+}
+
+function notaSinPermisoEstado(texto) {
+  const p = document.createElement("p");
+  p.className = "subtitulo";
+  p.textContent = texto;
+  return p;
+}
+
 function alerta(tipo, mensaje) {
   const div = document.createElement("div");
   div.className = `alerta ${tipo}`;
@@ -1609,12 +1648,12 @@ async function renderSeccionDocumentosProyecto(proyectoId) {
    en el historial con su vista previa.
    ------------------------------------------------------------------ */
 const RECURSOS_VERSIONADOS = {
-  proyectos: { tabla: "proyectos", api: "/proyectos", ruta: "#/proyectos" },
-  cotizaciones: { tabla: "cotizaciones", api: "/cotizaciones", ruta: "#/cotizaciones" },
-  "ordenes-compra": { tabla: "ordenes_compra", api: "/ordenes-compra", ruta: "#/ordenes-compra" },
-  "actas-entrega": { tabla: "actas_entrega_equipos", api: "/actas-entrega-equipos", ruta: "#/actas-entrega" },
-  "actas-cierre": { tabla: "actas_cierre_satisfaccion", api: "/actas-cierre-satisfaccion", ruta: "#/actas-cierre" },
-  "reportes-servicio": { tabla: "reportes_servicio_tecnico", api: "/reportes-servicio-tecnico", ruta: "#/reportes-servicio" },
+  proyectos: { tabla: "proyectos", api: "/proyectos", ruta: "#/proyectos", permiso: "versionar_proyecto" },
+  cotizaciones: { tabla: "cotizaciones", api: "/cotizaciones", ruta: "#/cotizaciones", permiso: "versionar_cotizacion" },
+  "ordenes-compra": { tabla: "ordenes_compra", api: "/ordenes-compra", ruta: "#/ordenes-compra", permiso: "versionar_oc" },
+  "actas-entrega": { tabla: "actas_entrega_equipos", api: "/actas-entrega-equipos", ruta: "#/actas-entrega", permiso: "versionar_acta" },
+  "actas-cierre": { tabla: "actas_cierre_satisfaccion", api: "/actas-cierre-satisfaccion", ruta: "#/actas-cierre", permiso: "versionar_acta" },
+  "reportes-servicio": { tabla: "reportes_servicio_tecnico", api: "/reportes-servicio-tecnico", ruta: "#/reportes-servicio", permiso: "versionar_reporte" },
 };
 
 // Encabezado del modo "nueva versión": aviso + motivo obligatorio.
@@ -1730,7 +1769,7 @@ function renderInstantanea(instantanea) {
 // Panel de versiones de un documento: vigente, botón de nueva versión e
 // historial de las reemplazadas con su vista previa.
 async function renderPanelVersiones(recurso, id) {
-  const { tabla, ruta } = RECURSOS_VERSIONADOS[recurso];
+  const { tabla, ruta, permiso } = RECURSOS_VERSIONADOS[recurso];
   const bloque = document.createElement("section");
   bloque.className = "docs-proyecto panel-versiones";
   const cabecera = document.createElement("div");
@@ -1750,10 +1789,17 @@ async function renderPanelVersiones(recurso, id) {
   acciones.className = "docs-resumen";
   const actual = document.createElement("span");
   actual.append("Versión vigente ", Object.assign(document.createElement("b"), { textContent: `v${vigente}` }));
-  acciones.append(
-    actual,
-    boton("Crear nueva versión", () => (window.location.hash = `${ruta}/${id}/nueva-version`), true)
-  );
+  acciones.append(actual);
+  if (puede(permiso)) {
+    acciones.append(
+      boton("Crear nueva versión", () => (window.location.hash = `${ruta}/${id}/nueva-version`), true)
+    );
+  } else {
+    acciones.append(Object.assign(document.createElement("span"), {
+      className: "subtitulo",
+      textContent: "Tu cargo no crea versiones de este documento",
+    }));
+  }
   cabecera.append(acciones);
 
   if (anteriores.length === 0) {
@@ -1948,10 +1994,12 @@ async function bloqueoEliminacionProyecto(proyecto, alCerrar) {
   );
   const acciones = document.createElement("div");
   acciones.className = "acciones-bloqueo";
-  acciones.append(
-    boton("Crear nueva versión", () => (window.location.hash = `#/proyectos/${proyecto.id}/nueva-version`)),
-    boton("Cerrar", alCerrar, true)
-  );
+  if (puede("versionar_proyecto")) {
+    acciones.append(
+      boton("Crear nueva versión", () => (window.location.hash = `#/proyectos/${proyecto.id}/nueva-version`))
+    );
+  }
+  acciones.append(boton("Cerrar", alCerrar, true));
   bloque.append(acciones, await renderSeccionDocumentosProyecto(proyecto.id));
   return bloque;
 }
@@ -2105,7 +2153,8 @@ async function vistaProyectos() {
       true
     );
     eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
-    accion.append(editar, eliminar);
+    accion.append(editar);
+    if (puede("cancelar_proyecto")) accion.append(eliminar);
     fila.append(accion);
     tbody.append(fila, filaConfirmacion);
   });
@@ -2302,7 +2351,14 @@ async function vistaProyectoForm(id, opciones = {}) {
     filaFase.className = "formulario-grid";
     filaFase.append(
       construirCampo(
-        { nombre: "nueva_fase", etiqueta: "Cambiar a la fase", tipo: "select", opciones: ESTADOS_PROYECTO },
+        {
+          nombre: "nueva_fase",
+          etiqueta: "Cambiar a la fase",
+          tipo: "select",
+          opciones: opcionesSegunPermiso(ESTADOS_PROYECTO, proyecto.estado, (destino) =>
+            destino !== "cancelado" || puede("cancelar_proyecto")
+          ),
+        },
         proyecto.estado
       ),
       construirCampo({ nombre: "observacion_fase", etiqueta: "Observación (opcional)" }, "")
@@ -2787,27 +2843,37 @@ async function vistaCotizacionForm(id, opciones = {}) {
     subtituloEstado.textContent = `Estado actual: ${textoEstadoCotizacion(cotizacion.estado)}`;
     bloqueEstado.append(subtituloEstado);
 
-    const mensajeEstado = document.createElement("div");
-    const filaEstado = document.createElement("div");
-    filaEstado.className = "formulario-grid";
-    filaEstado.append(
-      construirCampo(
-        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_COTIZACION },
-        cotizacion.estado
-      )
+    // En "aprobación", solo quien aprueba cotizaciones decide (enviar o devolver).
+    const opcionesEstado = opcionesSegunPermiso(
+      ESTADOS_COTIZACION,
+      cotizacion.estado,
+      () => cotizacion.estado !== "aprobacion" || puede("aprobar_cotizacion")
     );
-    const botonEstado = boton("Actualizar estado", async () => {
-      mensajeEstado.replaceChildren();
-      const nuevoEstado = document.getElementById("nuevo_estado").value;
-      const r = await api("PATCH", `/cotizaciones/${id}/estado`, { estado: nuevoEstado });
-      if (r.status === 200) {
-        vistaCotizacionForm(id);
-        return;
-      }
-      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
-    });
+    if (opcionesEstado.length > 1) {
+      const mensajeEstado = document.createElement("div");
+      const filaEstado = document.createElement("div");
+      filaEstado.className = "formulario-grid";
+      filaEstado.append(
+        construirCampo(
+          { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: opcionesEstado },
+          cotizacion.estado
+        )
+      );
+      const botonEstado = boton("Actualizar estado", async () => {
+        mensajeEstado.replaceChildren();
+        const nuevoEstado = document.getElementById("nuevo_estado").value;
+        const r = await api("PATCH", `/cotizaciones/${id}/estado`, { estado: nuevoEstado });
+        if (r.status === 200) {
+          vistaCotizacionForm(id);
+          return;
+        }
+        mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+      });
+      bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    } else {
+      bloqueEstado.append(notaSinPermisoEstado("La decisión sobre esta cotización la toma el Gerente Comercial o el Gerente General."));
+    }
 
-    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
     tarjeta.append(await renderPanelVersiones("cotizaciones", id));
   }
@@ -3758,27 +3824,43 @@ async function vistaOrdenCompraForm(id, opciones = {}) {
     subtituloEstado.textContent = `Estado actual: ${textoEstadoOrdenCompra(orden.estado)}`;
     bloqueEstado.append(subtituloEstado);
 
-    const mensajeEstado = document.createElement("div");
-    const filaEstado = document.createElement("div");
-    filaEstado.className = "formulario-grid";
-    filaEstado.append(
-      construirCampo(
-        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_ORDEN_COMPRA },
-        orden.estado
-      )
+    // Aprobar exige el permiso y no haber creado la OC; pagar/contabilizar, el suyo.
+    const opcionesEstado = opcionesSegunPermiso(ESTADOS_ORDEN_COMPRA, orden.estado, (destino) =>
+      destino === "aprobada_pte_pago"
+        ? puedeAprobarDocumento("aprobar_oc", orden.created_by)
+        : puede("pagar_oc")
     );
-    const botonEstado = boton("Actualizar estado", async () => {
-      mensajeEstado.replaceChildren();
-      const nuevoEstado = document.getElementById("nuevo_estado").value;
-      const r = await api("PATCH", `/ordenes-compra/${id}/estado`, { estado: nuevoEstado });
-      if (r.status === 200) {
-        vistaOrdenCompraForm(id);
-        return;
-      }
-      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
-    });
+    if (opcionesEstado.length > 1) {
+      const mensajeEstado = document.createElement("div");
+      const filaEstado = document.createElement("div");
+      filaEstado.className = "formulario-grid";
+      filaEstado.append(
+        construirCampo(
+          { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: opcionesEstado },
+          orden.estado
+        )
+      );
+      const botonEstado = boton("Actualizar estado", async () => {
+        mensajeEstado.replaceChildren();
+        const nuevoEstado = document.getElementById("nuevo_estado").value;
+        const r = await api("PATCH", `/ordenes-compra/${id}/estado`, { estado: nuevoEstado });
+        if (r.status === 200) {
+          vistaOrdenCompraForm(id);
+          return;
+        }
+        mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+      });
+      bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    } else if (orden.estado !== "contabilizada") {
+      bloqueEstado.append(
+        notaSinPermisoEstado(
+          orden.estado === "pte_aprobar"
+            ? "La aprueba el Director Administrativo y Financiero o el Gerente General, y no puede ser quien la creó."
+            : "El pago y la contabilización los registran Contabilidad o el Director Administrativo y Financiero."
+        )
+      );
+    }
 
-    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
     tarjeta.append(renderSeccionEvidencias("ordenes_compra", id, "Evidencias / soportes"));
     tarjeta.append(await renderPanelVersiones("ordenes-compra", id));
@@ -4026,27 +4108,37 @@ async function vistaExpedienteForm(id) {
     subtituloEstado.textContent = `Estado actual: ${textoEstadoExpediente(expediente.estado_liberacion)}`;
     bloqueEstado.append(subtituloEstado);
 
-    const mensajeEstado = document.createElement("div");
-    const filaEstado = document.createElement("div");
-    filaEstado.className = "formulario-grid";
-    filaEstado.append(
-      construirCampo(
-        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_EXPEDIENTE },
-        expediente.estado_liberacion
-      )
+    // Liberar o rechazar el expediente es una decisión de diseño.
+    const opcionesEstado = opcionesSegunPermiso(ESTADOS_EXPEDIENTE, expediente.estado_liberacion, () =>
+      puede("aprobar_diseno")
     );
-    const botonEstado = boton("Actualizar estado", async () => {
-      mensajeEstado.replaceChildren();
-      const nuevoEstado = document.getElementById("nuevo_estado").value;
-      const r = await api("PATCH", `/expedientes-diseno/${id}/estado`, { estado: nuevoEstado });
-      if (r.status === 200) {
-        vistaExpedienteForm(id);
-        return;
-      }
-      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
-    });
+    if (opcionesEstado.length > 1) {
+      const mensajeEstado = document.createElement("div");
+      const filaEstado = document.createElement("div");
+      filaEstado.className = "formulario-grid";
+      filaEstado.append(
+        construirCampo(
+          { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: opcionesEstado },
+          expediente.estado_liberacion
+        )
+      );
+      const botonEstado = boton("Actualizar estado", async () => {
+        mensajeEstado.replaceChildren();
+        const nuevoEstado = document.getElementById("nuevo_estado").value;
+        const r = await api("PATCH", `/expedientes-diseno/${id}/estado`, { estado: nuevoEstado });
+        if (r.status === 200) {
+          vistaExpedienteForm(id);
+          return;
+        }
+        mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+      });
+      bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    } else if (expediente.estado_liberacion === "pendiente") {
+      bloqueEstado.append(
+        notaSinPermisoEstado("Lo liberan el Jefe de I+D+i, el Director de Operaciones o el Gerente General.")
+      );
+    }
 
-    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
 
     for (const config of subrecursosExpediente(opcionesUsuarios)) {
@@ -4176,7 +4268,16 @@ function subrecursosExpediente(opcionesUsuarios) {
         { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
         { nombre: "descripcion", etiqueta: "Descripción" },
         { nombre: "motivo", etiqueta: "Motivo" },
-        { nombre: "estado", etiqueta: "Estado", tipo: "select", opciones: OPCIONES_ESTADO_CAMBIO_DISENO },
+        // Aprobar o rechazar un cambio es una decisión de diseño (el servidor
+        // además exige que no la tome quien creó el cambio).
+        {
+          nombre: "estado",
+          etiqueta: "Estado",
+          tipo: "select",
+          opciones: OPCIONES_ESTADO_CAMBIO_DISENO.filter(
+            (o) => o.valor === "pendiente" || puede("aprobar_diseno")
+          ),
+        },
       ],
     },
     {
@@ -5704,8 +5805,10 @@ async function vistaUsuarios() {
     return;
   }
 
+  // Crear y editar usuarios es del rol admin (el servidor responde 403 a los demás).
+  const esAdmin = PERFIL.rol === "admin";
   const nuevo = boton("Nuevo usuario", () => (window.location.hash = "#/usuarios/nuevo"));
-  contenido.append(encabezado("Usuarios", [nuevo]));
+  contenido.append(encabezado("Usuarios", esAdmin ? [nuevo] : []));
 
   const usuarios = cuerpo.usuarios;
   if (usuarios.length === 0) {
@@ -5779,9 +5882,16 @@ async function vistaUsuarios() {
     tbody.replaceChildren();
     ordenados.forEach((u) => {
       const fila = document.createElement("tr");
-      [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
-        fila.append(celda(valor));
-      });
+      [u.nombre, u.correo, u.cedula || "—"].forEach((valor) => fila.append(celda(valor)));
+      // Los permisos dependen del cargo: uno fuera del catálogo (usuarios
+      // antiguos) se marca para corregirlo editando el usuario.
+      const tdCargo = celda(u.cargo || "—");
+      if (!u.cargo || !CARGOS.includes(u.cargo)) {
+        const aviso = pill("Fuera del catálogo", "warn");
+        aviso.title = "Asigna un cargo del catálogo: de él dependen sus permisos";
+        tdCargo.append(" ", aviso);
+      }
+      fila.append(tdCargo, celda(u.rol));
       const accion = document.createElement("td");
       const editar = boton(
         "Editar",
@@ -5789,7 +5899,7 @@ async function vistaUsuarios() {
         true
       );
       editar.setAttribute("aria-label", `Editar usuario ${u.nombre}`);
-      accion.append(editar);
+      if (esAdmin) accion.append(editar);
       fila.append(accion);
       tbody.append(fila);
     });
@@ -6058,4 +6168,5 @@ function manejarCambioHash() {
 }
 
 window.addEventListener("hashchange", manejarCambioHash);
-enrutar();
+// El perfil se carga antes de la primera vista: decide qué acciones se muestran.
+cargarPerfil().finally(enrutar);

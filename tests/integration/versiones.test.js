@@ -26,7 +26,7 @@ describirSiHayBD("Bloqueo de eliminación y versiones de documentos (integració
     const passwordHash = await bcrypt.hash("ClaveSegura123", 10);
     ids.usuario = (
       await q(
-        "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, ?, 'tester', 1)",
+        "INSERT INTO usuarios (nombre, correo, password_hash, rol, cargo, activo) VALUES (?, ?, ?, 'tester', 'Gerente General', 1)",
         [`Versiones ${sufijo}`, `versiones-${sufijo}@speal.test`, passwordHash]
       )
     ).insertId;

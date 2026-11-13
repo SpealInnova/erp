@@ -528,6 +528,7 @@
       sigla: "OC",
       fondo: "var(--gold-tint)",
       tinta: "var(--gold-ink)",
+      permiso: "aprobar_oc",
       enlace: (a) => `#/ordenes-compra/${a.id}`,
       confirmar: (a) =>
         `¿Aprobar la orden de compra ${a.codigo}? Pasará a "Aprobada, pendiente de pago".`,
@@ -538,6 +539,7 @@
       sigla: "CD",
       fondo: "#FDEBE4",
       tinta: "#B4441F",
+      permiso: "aprobar_diseno",
       enlace: (a) => `#/expedientes-diseno/${a.expediente_id}`,
       confirmar: (a) => `¿Aprobar el cambio de diseño ${a.codigo}?`,
       aprobar: (a) =>
@@ -552,6 +554,18 @@
       enlace: (a) => `#/cotizaciones/${a.id}`,
     },
   };
+
+  // El botón "Aprobar" solo aparece si el cargo del usuario aprueba ese tipo de
+  // documento y no lo creó él (puedeAprobarDocumento está en inicio.js); si
+  // no, queda "Revisar". El servidor valida de todas formas.
+  function puedeAprobar(a) {
+    const t = TIPOS_APROBACION[a.tipo];
+    return (
+      Boolean(t.aprobar) &&
+      typeof window.puedeAprobarDocumento === "function" &&
+      window.puedeAprobarDocumento(t.permiso, a.creado_por)
+    );
+  }
 
   function pillDias(dias) {
     const tipo = dias >= 5 ? "crit" : dias >= 3 ? "warn" : "mute";
@@ -574,7 +588,7 @@
       .map((a, i) => {
         const t = TIPOS_APROBACION[a.tipo];
         const valor = a.valor !== null && a.valor !== undefined ? ` · ${copTexto(a.valor)}` : "";
-        const accion = t.aprobar
+        const accion = puedeAprobar(a)
           ? `<button type="button" class="btn-mini" data-i="${i}">Aprobar</button>`
           : `<a class="btn-mini" href="${t.enlace(a)}">Revisar</a>`;
         return `<div class="ap">
@@ -1280,7 +1294,9 @@
           html: (o) =>
             aprobadas.has(o.id)
               ? pillHTML("good", "Aprobada")
-              : `<button type="button" class="btn-mini" data-oc="${o.id}">Aprobar</button>`,
+              : puedeAprobar({ tipo: "orden_compra", creado_por: o.created_by })
+                ? `<button type="button" class="btn-mini" data-oc="${o.id}">Aprobar</button>`
+                : `<a class="btn-mini" href="#/ordenes-compra/${o.id}">Revisar</a>`,
         },
       ],
       t.oc_por_aprobar,
