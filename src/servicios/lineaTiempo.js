@@ -2,12 +2,33 @@ const lineaTiempoRepositorio = require("../repositorios/lineaTiempoRepositorio")
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const { ErrorProyectoNoEncontrado } = require("../dominio/erroresProyectos");
 
+// Documentos de otros módulos que aparecen en la línea de tiempo del proyecto:
+// de dónde sale su código y qué campo es su estado (si tiene).
+const DOCUMENTOS = {
+  expedientes_diseno: { codigo: "codigo_expediente", estado: "estado_liberacion" },
+  requisiciones: { codigo: "numero_requisicion", estado: "estado" },
+  ordenes_compra: { codigo: "numero_oc", estado: "estado" },
+  reportes_servicio_tecnico: { codigo: "numero_reporte", estado: null },
+  actas_entrega_equipos: { codigo: "numero_acta", estado: null },
+  actas_cierre_satisfaccion: { codigo: "numero_acta", estado: null },
+};
+
+// Según el motor, las columnas JSON llegan ya convertidas o como texto.
+function comoObjeto(valor) {
+  if (typeof valor !== "string") return valor;
+  try {
+    return JSON.parse(valor);
+  } catch {
+    return null;
+  }
+}
+
 // El backend solo extrae los datos del evento (qué cambió, quién, cuándo); la
 // traducción a texto legible (p. ej. nombre de la fase) queda del lado del
 // frontend, igual que el resto de catálogos de la aplicación.
 function normalizarEvento(fila, nombresPorUsuario) {
-  const anterior = fila.datos_anteriores;
-  const nuevo = fila.datos_nuevos;
+  const anterior = comoObjeto(fila.datos_anteriores);
+  const nuevo = comoObjeto(fila.datos_nuevos);
 
   const base = {
     id: fila.id,
@@ -54,6 +75,21 @@ function normalizarEvento(fila, nombresPorUsuario) {
     };
   }
 
+  const documento = DOCUMENTOS[fila.tabla];
+  if (documento) {
+    const campoEstado = documento.estado;
+    const cambioEstado =
+      campoEstado && anterior && nuevo && anterior[campoEstado] !== nuevo[campoEstado]
+        ? { de: anterior[campoEstado], a: nuevo[campoEstado] }
+        : null;
+    return {
+      ...base,
+      documento_id: fila.registro_id,
+      documento_codigo: nuevo?.[documento.codigo] || anterior?.[documento.codigo] || null,
+      documento_cambio_estado: cambioEstado,
+    };
+  }
+
   return base;
 }
 
@@ -68,8 +104,8 @@ async function obtenerLineaTiempoProyecto(pool, proyectoId) {
     ...new Set(
       eventos.flatMap((e) => [
         e.usuario_id,
-        e.tabla === "proyecto_equipo" ? e.datos_nuevos?.usuario_id : null,
-        e.tabla === "proyecto_equipo" ? e.datos_anteriores?.usuario_id : null,
+        e.tabla === "proyecto_equipo" ? comoObjeto(e.datos_nuevos)?.usuario_id : null,
+        e.tabla === "proyecto_equipo" ? comoObjeto(e.datos_anteriores)?.usuario_id : null,
       ])
     ),
   ].filter(Boolean);

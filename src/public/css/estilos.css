@@ -339,6 +339,12 @@ body:not(.app-body)::before {
   border-left-color: var(--good);
 }
 
+.alerta.aviso {
+  background: var(--warn-tint);
+  color: #9a520f;
+  border-left-color: var(--warn);
+}
+
 .oculto {
   display: none;
 }

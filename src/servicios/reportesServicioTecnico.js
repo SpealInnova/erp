@@ -3,6 +3,8 @@ const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoR
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const auditoria = require("./auditoria");
+const { insertarConCodigoUnico } = require("./codigoUnico");
+const coherencia = require("./coherenciaProyecto");
 const { formatearCodigoRST } = require("../dominio/codigoReporteServicio");
 const {
   ErrorReporteNoEncontrado,
@@ -28,36 +30,51 @@ async function generarNumeroReporte(pool) {
   throw new Error("No se pudo generar un número de reporte único");
 }
 
-async function validarReferencias(pool, datos) {
-  const equipo = await expedientesDisenoRepositorio.buscarPorNumeroSerie(
-    pool,
-    datos.equipo_numero_serie
-  );
+// Equipo, proyecto y cliente deben coincidir. El equipo ya pertenece a un
+// proyecto (por su expediente de diseño): si el reporte no indica proyecto,
+// se toma ese; si indica otro, se rechaza. El cliente debe ser el del proyecto.
+// Devuelve el id del proyecto con el que queda el reporte.
+async function resolverReferencias(pool, { equipo_numero_serie, cliente_id, proyecto_id }) {
+  const equipo = await expedientesDisenoRepositorio.buscarPorNumeroSerie(pool, equipo_numero_serie);
   if (!equipo) {
     throw new ErrorEquipoNoExiste();
   }
-  const cliente = await clientesRepositorio.obtenerPorId(pool, datos.cliente_id);
+  const cliente = await clientesRepositorio.obtenerPorId(pool, cliente_id);
   if (!cliente) {
     throw new ErrorClienteNoExiste();
   }
-  if (datos.proyecto_id) {
-    const proyecto = await proyectosRepositorio.obtenerPorId(pool, datos.proyecto_id);
+
+  let proyecto;
+  if (proyecto_id) {
+    proyecto = await proyectosRepositorio.obtenerPorId(pool, proyecto_id);
     if (!proyecto) {
       throw new ErrorProyectoNoExiste();
     }
+    await coherencia.exigirEquipoDelProyecto(pool, equipo, equipo_numero_serie, proyecto);
+  } else {
+    proyecto = await proyectosRepositorio.obtenerPorId(pool, equipo.proyecto_id);
   }
+
+  if (!proyecto) return null;
+  await coherencia.exigirClienteDelProyecto(pool, proyecto, cliente_id);
+  return proyecto.id;
 }
 
 async function crearReporte(pool, datos, usuarioId) {
-  await validarReferencias(pool, datos);
+  const proyectoId = await resolverReferencias(pool, datos);
 
-  const numero = await generarNumeroReporte(pool);
-  const id = await reportesServicioTecnicoRepositorio.crear(pool, {
-    ...datos,
-    numero_reporte: numero,
-    tecnico_responsable_id: usuarioId,
-    created_by: usuarioId,
-  });
+  const id = await insertarConCodigoUnico(
+    "uq_reportes_servicio_numero",
+    () => generarNumeroReporte(pool),
+    (numero) =>
+      reportesServicioTecnicoRepositorio.crear(pool, {
+        ...datos,
+        proyecto_id: proyectoId,
+        numero_reporte: numero,
+        tecnico_responsable_id: usuarioId,
+        created_by: usuarioId,
+      })
+  );
   const reporte = await reportesServicioTecnicoRepositorio.obtenerPorId(pool, id);
 
   await auditoria.registrar(pool, {
@@ -89,15 +106,23 @@ async function listarReportes(pool, { pagina, tamanoPagina }) {
 async function actualizarReporte(pool, id, datos, usuarioId) {
   const anterior = await obtenerReporte(pool, id);
 
+  // Solo se revisan los enlaces si cambia alguno: editar hallazgos o fechas de
+  // un reporte antiguo no debe quedar bloqueado por cómo se registró.
+  let cambios = datos;
   if (datos.equipo_numero_serie || datos.cliente_id || datos.proyecto_id) {
-    await validarReferencias(pool, {
+    const cambiaEquipo =
+      Boolean(datos.equipo_numero_serie) &&
+      datos.equipo_numero_serie !== anterior.equipo_numero_serie;
+    const proyectoId = await resolverReferencias(pool, {
       equipo_numero_serie: datos.equipo_numero_serie || anterior.equipo_numero_serie,
       cliente_id: datos.cliente_id || anterior.cliente_id,
-      proyecto_id: datos.proyecto_id,
+      // con otro equipo y sin proyecto indicado, el proyecto sale del equipo nuevo
+      proyecto_id: datos.proyecto_id || (cambiaEquipo ? null : anterior.proyecto_id),
     });
+    cambios = { ...datos, proyecto_id: proyectoId };
   }
 
-  await reportesServicioTecnicoRepositorio.actualizar(pool, id, datos);
+  await reportesServicioTecnicoRepositorio.actualizar(pool, id, cambios);
   const actualizado = await reportesServicioTecnicoRepositorio.obtenerPorId(pool, id);
 
   await auditoria.registrar(pool, {

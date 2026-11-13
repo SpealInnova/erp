@@ -91,7 +91,7 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
     expect(respuesta.status).toBe(400);
   });
 
-  test("crea un reporte vinculado por numero_serie real, sin proyecto (opcional)", async () => {
+  test("crea un reporte por numero_serie real y, sin proyecto indicado, toma el del equipo", async () => {
     const respuesta = await request(app)
       .post("/reportes-servicio-tecnico")
       .set(autorizacion())
@@ -105,10 +105,9 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
 
     expect(respuesta.status).toBe(201);
     reporteId = respuesta.body.reporte.id;
-    expect(respuesta.body.reporte.numero_reporte).toMatch(
-      new RegExp(`^RST-${anioActual}-\\d{3}$`)
-    );
-    expect(respuesta.body.reporte.proyecto_id).toBeNull();
+    expect(respuesta.body.reporte.numero_reporte).toMatch(new RegExp(`^RST-${anioActual}-\\d{3}$`));
+    // el equipo pertenece al proyecto por su expediente de diseño
+    expect(respuesta.body.reporte.proyecto_id).toBe(proyectoId);
     expect(respuesta.body.reporte.tecnico_responsable_id).toBe(usuarioId);
     expect(respuesta.body.reporte.en_garantia).toBe(1);
   });
