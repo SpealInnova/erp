@@ -56,6 +56,13 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
       [`EXP-${sufijoUnico()}`, proyectoId, numeroSerie, usuarioId]
     );
     expedienteId = expediente.insertId;
+    // el expediente se insertó directo: su equipo se registra igual que lo
+    // haría el servicio de expedientes
+    await pool.query(
+      `INSERT INTO equipos (numero_serie, cliente_id, proyecto_id, expediente_id, descripcion, origen)
+       VALUES (?, ?, ?, ?, 'Producto con serie', 'expediente')`,
+      [numeroSerie, clienteId, proyectoId, expedienteId]
+    );
 
     app = crearApp();
   });
@@ -69,6 +76,7 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
     await pool.query("DELETE FROM reportes_servicio_tecnico WHERE tecnico_responsable_id = ?", [
       usuarioId,
     ]);
+    await pool.query("DELETE FROM equipos WHERE expediente_id = ?", [expedienteId]);
     await pool.query("DELETE FROM expedientes_diseno WHERE id = ?", [expedienteId]);
     await pool.query("DELETE FROM proyectos WHERE id = ?", [proyectoId]);
     await pool.query("DELETE FROM clientes WHERE id = ?", [clienteId]);

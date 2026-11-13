@@ -163,6 +163,10 @@ const SECCIONES_POR_MODULO = {
     { seccion: "ordenes-compra", texto: "Órdenes de compra", ruta: "#/ordenes-compra" },
     { seccion: "proveedores", texto: "Proveedores", ruta: "#/proveedores" },
   ],
+  soporte: [
+    { seccion: "reportes-servicio", texto: "Reportes de servicio", ruta: "#/reportes-servicio" },
+    { seccion: "equipos", texto: "Equipos", ruta: "#/equipos" },
+  ],
   entregas: [
     { seccion: "actas-entrega", texto: "Actas de entrega", ruta: "#/actas-entrega" },
     { seccion: "actas-cierre", texto: "Actas de cierre", ruta: "#/actas-cierre" },
@@ -452,8 +456,12 @@ function construirCampo(config, valor) {
   return div;
 }
 
+// Los selectores piden el máximo que admite el API (100); sin esto recibían
+// solo la primera página (20) y los registros más antiguos no aparecían.
+const PAGINA_SELECTORES = "?tamanoPagina=100";
+
 async function obtenerClientes() {
-  const r = await api("GET", "/clientes");
+  const r = await api("GET", `/clientes${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.clientes : [];
 }
 
@@ -463,23 +471,61 @@ async function obtenerUsuarios() {
 }
 
 async function obtenerProyectos() {
-  const r = await api("GET", "/proyectos");
+  const r = await api("GET", `/proyectos${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.proyectos : [];
 }
 
 async function obtenerCotizaciones() {
-  const r = await api("GET", "/cotizaciones");
+  const r = await api("GET", `/cotizaciones${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.cotizaciones : [];
 }
 
 async function obtenerProveedores() {
-  const r = await api("GET", "/proveedores");
+  const r = await api("GET", `/proveedores${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.proveedores : [];
 }
 
 async function obtenerRequisiciones() {
-  const r = await api("GET", "/requisiciones");
+  const r = await api("GET", `/requisiciones${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.requisiciones : [];
+}
+
+// Proyectos de un cliente como opciones de selector ("PRY-… · nombre").
+function opcionesProyectosDeCliente(proyectos, clienteId, textoVacio = "— Elige un proyecto —") {
+  return [
+    { valor: "", texto: textoVacio },
+    ...proyectos
+      .filter((p) => !clienteId || String(p.cliente_id) === String(clienteId))
+      .map((p) => ({ valor: String(p.id), texto: `${p.codigo_pry} · ${p.nombre_proyecto}` })),
+  ];
+}
+
+function recargarSelect(select, opciones, valor = "") {
+  select.replaceChildren(
+    ...normalizarOpciones(opciones).map((op) => {
+      const o = document.createElement("option");
+      o.value = op.valor;
+      o.textContent = op.texto;
+      return o;
+    })
+  );
+  select.value = valor;
+  if (select.value !== String(valor)) select.value = "";
+}
+
+// Al cambiar el cliente, el selector de proyectos muestra solo los suyos.
+function enlazarClienteConProyectos(form, proyectos) {
+  const selectCliente = form.elements.cliente_id;
+  const selectProyecto = form.elements.proyecto_id;
+  if (!selectCliente || !selectProyecto) return;
+  const filtrar = () =>
+    recargarSelect(
+      selectProyecto,
+      opcionesProyectosDeCliente(proyectos, selectCliente.value),
+      selectProyecto.value
+    );
+  selectCliente.addEventListener("change", filtrar);
+  filtrar();
 }
 
 async function vistaClienteForm(id) {
@@ -1443,6 +1489,8 @@ function columnasDocumentosProyecto(docs) {
       lineas: (r) => [
         `Equipo ${r.equipo_numero_serie}${r.en_garantia ? " · en garantía" : ""}`,
         `${fechaCortaTexto(r.fecha_servicio || r.creado)} · ${r.tecnico || "—"}`,
+        // mantenimiento de un equipo de este proyecto registrado en otro del cliente
+        ...(r.nota ? [r.nota] : []),
       ],
     },
   ];
@@ -4116,12 +4164,15 @@ function tipoPillTipoServicio(valor) {
   return "info";
 }
 
+// El equipo va primero: al escribir su serial se completan solos el cliente y
+// el proyecto (el del equipo, que puede cambiarse por otro del mismo cliente,
+// p. ej. un contrato de mantenimiento). Todo reporte queda en un proyecto.
 const CAMPOS_REPORTE = (clientes, proyectos) => [
+  { nombre: "equipo_numero_serie", etiqueta: "Número de serie del equipo", requerido: true },
   { nombre: "cliente_id", etiqueta: "Cliente", tipo: "select", requerido: true,
     opciones: clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social })) },
-  { nombre: "proyecto_id", etiqueta: "Proyecto (opcional)", tipo: "select",
-    opciones: [{ valor: "", texto: "— Sin proyecto —" }, ...proyectos.map((p) => ({ valor: String(p.id), texto: p.nombre_proyecto }))] },
-  { nombre: "equipo_numero_serie", etiqueta: "Número de serie del equipo", requerido: true },
+  { nombre: "proyecto_id", etiqueta: "Proyecto", tipo: "select", requerido: true,
+    opciones: opcionesProyectosDeCliente(proyectos, null) },
   { nombre: "tipo_servicio", etiqueta: "Tipo de servicio", tipo: "select", requerido: true, opciones: TIPOS_SERVICIO },
   { nombre: "en_garantia", etiqueta: "¿En garantía?", tipo: "select",
     opciones: [{ valor: "no", texto: "No" }, { valor: "si", texto: "Sí" }] },
@@ -4166,7 +4217,7 @@ async function vistaReportesServicio() {
   const tabla = document.createElement("table");
   const thead = document.createElement("thead");
   const filaCabecera = document.createElement("tr");
-  ["Equipo (N° serie)", "Cliente", "Tipo de servicio", "Fecha", ""].forEach((texto) => {
+  ["Número", "Equipo (N° serie)", "Cliente", "Proyecto", "Tipo de servicio", "Fecha", ""].forEach((texto) => {
     const th = document.createElement("th");
     th.scope = "col";
     th.textContent = texto;
@@ -4177,8 +4228,10 @@ async function vistaReportesServicio() {
   const tbody = document.createElement("tbody");
   reportes.forEach((r) => {
     const fila = document.createElement("tr");
+    fila.append(celda(r.numero_reporte));
     fila.append(celda(r.equipo_numero_serie));
-    fila.append(celda(nombreCliente(r.cliente_id)));
+    fila.append(celda(r.cliente_nombre || nombreCliente(r.cliente_id)));
+    fila.append(celda(r.proyecto_codigo || "—"));
     fila.append(celda(estadoPill(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio))));
     fila.append(celda(r.fecha_servicio ? r.fecha_servicio.substring(0, 10) : "—"));
     const accion = document.createElement("td");
@@ -4245,10 +4298,66 @@ async function vistaReporteServicioForm(id) {
   guardar.className = "boton boton-pequeno";
   guardar.textContent = id ? "Guardar cambios" : "Crear reporte";
 
-  form.append(grid, guardar);
+  const infoEquipo = document.createElement("p");
+  infoEquipo.className = "subtitulo info-equipo";
+  form.append(grid, infoEquipo, guardar);
   if (!id) form.append(botonCancelar("#/reportes-servicio"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
+
+  enlazarClienteConProyectos(form, proyectos);
+  const inputSerie = form.elements.equipo_numero_serie;
+  // Busca el equipo por su serial y completa cliente y proyecto.
+  async function completarDesdeEquipo({ conservarProyecto = false } = {}) {
+    const serie = inputSerie.value.trim();
+    infoEquipo.replaceChildren();
+    if (!serie) return;
+    const r = await api("GET", `/equipos?numero_serie=${encodeURIComponent(serie)}`);
+    const equipo = r.status === 200 ? r.cuerpo.equipos[0] : null;
+    if (!equipo) {
+      infoEquipo.append(
+        "No hay un equipo registrado con ese número de serie. Si es anterior al ERP, ",
+        Object.assign(document.createElement("a"), {
+          href: "#/equipos/nuevo",
+          textContent: "regístralo en Equipos",
+          className: "enlace-documento",
+        }),
+        "."
+      );
+      return;
+    }
+    const selectCliente = form.elements.cliente_id;
+    const selectProyecto = form.elements.proyecto_id;
+    const proyectoActual = selectProyecto.value;
+    selectCliente.value = String(equipo.cliente_id);
+    const opciones = opcionesProyectosDeCliente(proyectos, equipo.cliente_id);
+    // si el proyecto del equipo no vino en la lista (más de 100), se agrega
+    if (!opciones.some((o) => o.valor === String(equipo.proyecto_id))) {
+      opciones.push({
+        valor: String(equipo.proyecto_id),
+        texto: `${equipo.proyecto_codigo} · ${equipo.proyecto_nombre}`,
+      });
+    }
+    const mismoCliente = opciones.some((o) => o.valor && o.valor === proyectoActual);
+    recargarSelect(
+      selectProyecto,
+      opciones,
+      conservarProyecto && mismoCliente ? proyectoActual : String(equipo.proyecto_id)
+    );
+    infoEquipo.textContent =
+      `${equipo.descripcion} · ${equipo.cliente} · equipo del proyecto ${equipo.proyecto_codigo}` +
+      (equipo.origen === "historico" ? " (equipo histórico)" : "") +
+      ". Puedes elegir otro proyecto del mismo cliente, p. ej. un contrato de mantenimiento.";
+  }
+  inputSerie.addEventListener("change", () => completarDesdeEquipo());
+  const seriePrevia = sessionStorage.getItem("reporte_equipo_serie");
+  if (!id && seriePrevia) {
+    sessionStorage.removeItem("reporte_equipo_serie");
+    inputSerie.value = seriePrevia;
+    completarDesdeEquipo();
+  } else if (id) {
+    completarDesdeEquipo({ conservarProyecto: true });
+  }
 
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
@@ -4281,6 +4390,276 @@ async function vistaReporteServicioForm(id) {
         mensaje.append(alerta("error", mensajes.join(" · ")));
       } else {
         mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el reporte."));
+      }
+    } catch (error) {
+      if (error.message !== "sesion-expirada") {
+        mensaje.append(alerta("error", "No hay conexión con el servidor."));
+      }
+    } finally {
+      guardar.disabled = false;
+    }
+  });
+}
+
+/* ------------------------------------------------------------------
+   Equipos instalados (Soporte técnico): trazabilidad de cada equipo,
+   tenga o no expediente de diseño.
+   ------------------------------------------------------------------ */
+function pillOrigenEquipo(equipo) {
+  return equipo.origen === "historico"
+    ? estadoPill("Histórico", "mute")
+    : estadoPill(`Expediente ${equipo.codigo_expediente || ""}`.trim(), "info");
+}
+
+async function vistaEquipos() {
+  marcarMenu("equipos");
+  mostrarCargando();
+  const { status, cuerpo } = await api("GET", "/equipos");
+  contenido.replaceChildren();
+  if (status !== 200) {
+    contenido.append(encabezado("Equipos"), alerta("error", "No se pudieron cargar los equipos."));
+    return;
+  }
+
+  const nuevo = boton("Registrar equipo histórico", () => (window.location.hash = "#/equipos/nuevo"));
+  contenido.append(encabezado("Equipos instalados", [nuevo]));
+  const nota = document.createElement("p");
+  nota.className = "subtitulo";
+  nota.textContent =
+    "Los equipos con expediente de diseño se registran solos. Aquí se agregan los equipos anteriores al ERP, para poder hacerles reportes de servicio y seguir su historia.";
+  contenido.append(nota);
+
+  const equipos = cuerpo.equipos;
+  if (equipos.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Aún no hay equipos registrados.";
+    contenido.append(p);
+    return;
+  }
+
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Número de serie", "Equipo", "Cliente", "Proyecto", "Origen", "Reportes", "Último servicio", ""].forEach(
+    (texto) => {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.textContent = texto;
+      filaCabecera.append(th);
+    }
+  );
+  thead.append(filaCabecera);
+  const tbody = document.createElement("tbody");
+  equipos.forEach((q) => {
+    const fila = document.createElement("tr");
+    [
+      q.numero_serie,
+      q.descripcion,
+      q.cliente,
+      q.proyecto_codigo,
+      pillOrigenEquipo(q),
+      String(q.reportes),
+      q.ultimo_servicio ? fechaCortaTexto(q.ultimo_servicio) : "—",
+    ].forEach((valor) => fila.append(celda(valor)));
+    const accion = document.createElement("td");
+    const ver = boton("Ver", () => (window.location.hash = `#/equipos/${q.id}`), true);
+    ver.setAttribute("aria-label", `Ver equipo ${q.numero_serie}`);
+    accion.append(ver);
+    fila.append(accion);
+    tbody.append(fila);
+  });
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  contenido.append(tarjeta);
+}
+
+function renderHistorialServicioEquipo(equipo) {
+  const bloque = document.createElement("div");
+  bloque.className = "docs-proyecto";
+  const cabecera = document.createElement("div");
+  cabecera.className = "docs-cabecera";
+  const titulo = document.createElement("h3");
+  titulo.textContent = "Historial de servicio";
+  const nuevo = boton("Nuevo reporte para este equipo", () => {
+    sessionStorage.setItem("reporte_equipo_serie", equipo.numero_serie);
+    window.location.hash = "#/reportes-servicio/nuevo";
+  });
+  cabecera.append(titulo, nuevo);
+  bloque.append(cabecera);
+
+  if (equipo.historial_reportes.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Este equipo aún no tiene reportes de servicio.";
+    bloque.append(p);
+    return bloque;
+  }
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Reporte", "Tipo", "Fecha", "Proyecto", "Técnico", "Garantía"].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+  const tbody = document.createElement("tbody");
+  equipo.historial_reportes.forEach((r) => {
+    const fila = document.createElement("tr");
+    const tdReporte = document.createElement("td");
+    tdReporte.append(
+      Object.assign(document.createElement("a"), {
+        href: `#/reportes-servicio/${r.id}`,
+        textContent: r.numero_reporte,
+        className: "enlace-documento",
+      })
+    );
+    fila.append(
+      tdReporte,
+      celda(estadoPill(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio))),
+      celda(fechaCortaTexto(r.fecha_servicio || r.creado)),
+      celda(r.proyecto_codigo),
+      celda(r.tecnico || "—"),
+      celda(r.en_garantia ? "Sí" : "No")
+    );
+    tbody.append(fila);
+  });
+  tabla.append(thead, tbody);
+  bloque.append(tabla);
+  return bloque;
+}
+
+async function vistaEquipoForm(id) {
+  marcarMenu("equipos");
+  mostrarCargando();
+  const [clientes, proyectos] = await Promise.all([obtenerClientes(), obtenerProyectos()]);
+  let equipo = null;
+  if (id) {
+    const r = await api("GET", `/equipos/${id}`);
+    if (r.status !== 200) {
+      contenido.replaceChildren(encabezado("Equipo"), alerta("error", "No se encontró el equipo."));
+      return;
+    }
+    equipo = r.cuerpo.equipo;
+  }
+
+  contenido.replaceChildren();
+  const volver = boton("Volver a equipos", () => (window.location.hash = "#/equipos"), true);
+  contenido.append(
+    encabezado(equipo ? `Equipo ${equipo.numero_serie}` : "Registrar equipo histórico", [volver])
+  );
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  contenido.append(tarjeta);
+
+  // Los equipos de expediente se ven aquí, pero se corrigen desde su expediente.
+  if (equipo && equipo.origen === "expediente") {
+    const ficha = document.createElement("div");
+    ficha.className = "formulario-grid";
+    [
+      { nombre: "e_serie", etiqueta: "Número de serie", valor: equipo.numero_serie },
+      { nombre: "e_desc", etiqueta: "Equipo", valor: equipo.descripcion },
+      { nombre: "e_modelo", etiqueta: "Modelo", valor: equipo.modelo },
+      { nombre: "e_cliente", etiqueta: "Cliente", valor: equipo.cliente },
+      { nombre: "e_proyecto", etiqueta: "Proyecto", valor: `${equipo.proyecto_codigo} · ${equipo.proyecto_nombre}` },
+    ].forEach((c) => ficha.append(construirCampo({ ...c, tipo: "estatico" }, c.valor)));
+    const nota = document.createElement("p");
+    nota.className = "subtitulo";
+    nota.append(
+      "Este equipo sale del expediente ",
+      Object.assign(document.createElement("a"), {
+        href: `#/expedientes-diseno/${equipo.expediente_id}`,
+        textContent: equipo.codigo_expediente,
+        className: "enlace-documento",
+      }),
+      ": sus datos se corrigen desde allí."
+    );
+    tarjeta.append(ficha, nota, renderHistorialServicioEquipo(equipo));
+    return;
+  }
+
+  const campos = [
+    { nombre: "numero_serie", etiqueta: "Número de serie", requerido: true },
+    { nombre: "descripcion", etiqueta: "Equipo (descripción)", requerido: true },
+    {
+      nombre: "cliente_id",
+      etiqueta: "Cliente",
+      tipo: "select",
+      requerido: true,
+      opciones: [
+        { valor: "", texto: "— Elige el cliente —" },
+        ...clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social })),
+      ],
+    },
+    {
+      nombre: "proyecto_id",
+      etiqueta: "Proyecto",
+      tipo: "select",
+      requerido: true,
+      opciones: opcionesProyectosDeCliente(proyectos, null),
+    },
+    { nombre: "marca", etiqueta: "Marca" },
+    { nombre: "modelo", etiqueta: "Modelo" },
+    { nombre: "fecha_instalacion", etiqueta: "Fecha de instalación", tipo: "date" },
+  ];
+
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+  campos.forEach((config) => {
+    let valor = "";
+    if (equipo) {
+      valor = equipo[config.nombre] === null || equipo[config.nombre] === undefined ? "" : String(equipo[config.nombre]);
+    }
+    grid.append(construirCampo(config, valor));
+  });
+  const ayuda = document.createElement("p");
+  ayuda.className = "subtitulo";
+  ayuda.textContent =
+    "El proyecto es aquel en el que se vendió o instaló el equipo. Si es anterior al ERP, usa el proyecto con el que se le da soporte a ese cliente.";
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.textContent = equipo ? "Guardar cambios" : "Registrar equipo";
+  form.append(grid, ayuda, guardar);
+  if (!equipo) form.append(botonCancelar("#/equipos"));
+  tarjeta.append(mensaje, form);
+  enlazarClienteConProyectos(form, proyectos);
+  if (equipo) tarjeta.append(renderHistorialServicioEquipo(equipo));
+
+  form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    mensaje.replaceChildren();
+    const datos = {};
+    campos.forEach((config) => {
+      const valor = form.elements[config.nombre].value.trim();
+      if (valor !== "") datos[config.nombre] = valor;
+    });
+    if (campos.some((c) => c.requerido && !datos[c.nombre])) {
+      mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+      return;
+    }
+    if (!equipo && !confirmarCreacion("este equipo")) return;
+    guardar.disabled = true;
+    try {
+      const r = equipo
+        ? await api("PUT", `/equipos/${equipo.id}`, datos)
+        : await api("POST", "/equipos", datos);
+      if (r.status === 200 || r.status === 201) {
+        window.location.hash = `#/equipos/${r.cuerpo.equipo.id}`;
+        if (equipo) vistaEquipoForm(equipo.id);
+        return;
+      }
+      if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+        mensaje.append(alerta("error", mostrarErroresValidacion(form, campos, r.cuerpo.detalles).join(" · ")));
+      } else {
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el equipo."));
       }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
@@ -5213,6 +5592,11 @@ function enrutar() {
   const editarReporte = ruta.match(/^#\/reportes-servicio\/(\d+)$/);
   if (editarReporte) return vistaReporteServicioForm(editarReporte[1]);
   if (/^#\/reportes-servicio$/.test(ruta)) return vistaReportesServicio();
+
+  if (/^#\/equipos\/nuevo$/.test(ruta)) return vistaEquipoForm(null);
+  const verEquipo = ruta.match(/^#\/equipos\/(\d+)$/);
+  if (verEquipo) return vistaEquipoForm(verEquipo[1]);
+  if (/^#\/equipos$/.test(ruta)) return vistaEquipos();
 
   if (/^#\/actas-cierre\/nuevo$/.test(ruta)) return vistaActaCierreForm(null);
   const editarActa = ruta.match(/^#\/actas-cierre\/(\d+)$/);

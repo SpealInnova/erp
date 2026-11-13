@@ -51,7 +51,12 @@ async function obtenerPorId(pool, id) {
 
 async function listar(pool, { limite, offset }) {
   const [filas] = await pool.query(
-    "SELECT * FROM reportes_servicio_tecnico WHERE deleted_at IS NULL ORDER BY id DESC LIMIT ? OFFSET ?",
+    `SELECT r.*, p.codigo_pry AS proyecto_codigo, c.nombre_razon_social AS cliente_nombre
+     FROM reportes_servicio_tecnico r
+     JOIN proyectos p ON p.id = r.proyecto_id
+     JOIN clientes c ON c.id = r.cliente_id
+     WHERE r.deleted_at IS NULL
+     ORDER BY r.id DESC LIMIT ? OFFSET ?`,
     [limite, offset]
   );
   return filas;

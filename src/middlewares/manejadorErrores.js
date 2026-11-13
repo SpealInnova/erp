@@ -6,7 +6,10 @@ const {
   ErrorUsuarioBloqueado,
   ErrorTokenInvalido,
 } = require("../dominio/erroresAuth");
-const { ErrorClienteNoEncontrado, ErrorIdentificacionDuplicada } = require("../dominio/erroresClientes");
+const {
+  ErrorClienteNoEncontrado,
+  ErrorIdentificacionDuplicada,
+} = require("../dominio/erroresClientes");
 const {
   ErrorProyectoNoEncontrado,
   ErrorClienteInvalido,
@@ -86,6 +89,12 @@ const {
   ErrorItemsVacios: ErrorItemsVaciosActaEntrega,
 } = require("../dominio/erroresActasEntrega");
 const { ErrorEnlaceInconsistente } = require("../dominio/erroresEnlaces");
+const {
+  ErrorEquipoNoEncontrado,
+  ErrorNumeroSerieEnUso,
+  ErrorEquipoDeExpediente,
+  ErrorEquipoConReportes,
+} = require("../dominio/erroresEquipos");
 const {
   ErrorTablaNoPermitida,
   ErrorRegistroNoExiste,
@@ -264,6 +273,16 @@ function manejadorErrores(error, req, res, next) {
 
   if (error instanceof ErrorEnlaceInconsistente) {
     return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorEquipoNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorNumeroSerieEnUso ||
+    error instanceof ErrorEquipoDeExpediente ||
+    error instanceof ErrorEquipoConReportes
+  ) {
+    return res.status(409).json({ error: error.message });
   }
 
   if (error instanceof ErrorNotificacionNoEncontrada) {
