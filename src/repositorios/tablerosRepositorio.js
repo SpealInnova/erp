@@ -120,7 +120,7 @@ async function listarRequisiciones(pool) {
 
 async function listarOrdenesCompra(pool) {
   const [filas] = await pool.query(
-    `SELECT oc.id, oc.numero_oc, oc.estado, pr.razon_social AS proveedor,
+    `SELECT oc.id, oc.numero_oc, oc.estado, oc.created_by, pr.razon_social AS proveedor,
             p.id AS proyecto_id, p.codigo_pry, r.procedencia,
             DATE_FORMAT(oc.created_at, '%Y-%m-%d') AS creada,
             COUNT(oci.id) AS items,
@@ -133,7 +133,7 @@ async function listarOrdenesCompra(pool) {
      JOIN proyectos p ON p.id = r.proyecto_id
      LEFT JOIN orden_compra_items oci ON oci.orden_compra_id = oc.id
      WHERE oc.deleted_at IS NULL AND r.deleted_at IS NULL
-     GROUP BY oc.id, oc.numero_oc, oc.estado, pr.razon_social, p.id, p.codigo_pry,
+     GROUP BY oc.id, oc.numero_oc, oc.estado, oc.created_by, pr.razon_social, p.id, p.codigo_pry,
               r.procedencia, oc.created_at
      ORDER BY oc.created_at, oc.id`
   );
@@ -198,7 +198,7 @@ async function listarPresupuestoProyectos(pool, estadosTerminados, estadosPagado
 
 async function listarOrdenesPorAprobar(pool) {
   const [filas] = await pool.query(
-    `SELECT oc.id, oc.numero_oc, pr.razon_social AS proveedor,
+    `SELECT oc.id, oc.numero_oc, oc.created_by, pr.razon_social AS proveedor,
             p.id AS proyecto_id, p.codigo_pry, r.procedencia,
             DATE_FORMAT(oc.created_at, '%Y-%m-%d') AS creada,
             COUNT(oci.id) AS items,
@@ -211,7 +211,7 @@ async function listarOrdenesPorAprobar(pool) {
      JOIN proyectos p ON p.id = r.proyecto_id
      LEFT JOIN orden_compra_items oci ON oci.orden_compra_id = oc.id
      WHERE oc.deleted_at IS NULL AND oc.estado = 'pte_aprobar'
-     GROUP BY oc.id, oc.numero_oc, pr.razon_social, p.id, p.codigo_pry, r.procedencia, oc.created_at
+     GROUP BY oc.id, oc.numero_oc, oc.created_by, pr.razon_social, p.id, p.codigo_pry, r.procedencia, oc.created_at
      ORDER BY oc.created_at`
   );
   return filas.map((f) => ({ ...f, items: Number(f.items), valor: Number(f.valor) }));
@@ -219,7 +219,7 @@ async function listarOrdenesPorAprobar(pool) {
 
 async function listarCambiosDisenoPendientes(pool) {
   const [filas] = await pool.query(
-    `SELECT cd.id, cd.expediente_id, cd.numero, cd.descripcion,
+    `SELECT cd.id, cd.expediente_id, cd.numero, cd.descripcion, cd.created_by,
             DATE_FORMAT(cd.created_at, '%Y-%m-%d') AS creado,
             e.codigo_expediente, e.producto_nombre, u.nombre AS solicitante
      FROM cambios_diseno cd

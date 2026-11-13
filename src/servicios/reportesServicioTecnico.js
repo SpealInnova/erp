@@ -6,6 +6,7 @@ const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const coherencia = require("./coherenciaProyecto");
 const versiones = require("./versiones");
+const { exigirPermiso } = require("./autorizacion");
 const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoRST } = require("../dominio/codigoReporteServicio");
 const {
@@ -147,6 +148,7 @@ async function eliminarReporte(pool, id) {
 }
 
 async function crearVersionReporte(pool, id, { motivo, ...datos }, usuarioId) {
+  await exigirPermiso(pool, usuarioId, "versionar_reporte");
   await versiones.crearNuevaVersion(pool, {
     tabla: TABLA,
     registroId: id,

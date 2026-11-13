@@ -4,6 +4,7 @@ const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const equiposServicio = require("./equipos");
+const { exigirPermiso } = require("./autorizacion");
 const { formatearCodigoExp } = require("../dominio/codigoExpedienteDiseno");
 const { transicionar, ESTADOS } = require("../dominio/estadoExpedienteDiseno");
 const {
@@ -137,6 +138,8 @@ async function actualizarExpediente(pool, id, datos, usuarioId) {
 async function cambiarEstadoExpediente(pool, id, estadoDestino, usuarioId) {
   const anterior = await obtenerExpediente(pool, id);
   transicionar(anterior.estado_liberacion, estadoDestino);
+  // Toda transición sale de "pendiente" hacia una decisión final (liberar o rechazar).
+  await exigirPermiso(pool, usuarioId, "aprobar_diseno");
 
   await expedientesDisenoRepositorio.actualizarEstado(pool, id, estadoDestino);
   const actualizado = await expedientesDisenoRepositorio.obtenerPorId(pool, id);

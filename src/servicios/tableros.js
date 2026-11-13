@@ -79,6 +79,7 @@ function armarAprobaciones(ordenes, cambios, cotizaciones, hoyTexto) {
   const deOrdenes = ordenes.map((o) => ({
     tipo: "orden_compra",
     id: o.id,
+    creado_por: o.created_by,
     codigo: o.numero_oc,
     titulo: o.primer_item
       ? `${o.primer_item}${o.items > 1 ? ` y ${o.items - 1} ítem(s) más` : ""}`
@@ -91,6 +92,7 @@ function armarAprobaciones(ordenes, cambios, cotizaciones, hoyTexto) {
   const deCambios = cambios.map((c) => ({
     tipo: "cambio_diseno",
     id: c.id,
+    creado_por: c.created_by,
     expediente_id: c.expediente_id,
     codigo: `${c.codigo_expediente} · C-${String(c.numero).padStart(2, "0")}`,
     titulo: c.descripcion || `Cambio de diseño en ${c.producto_nombre}`,

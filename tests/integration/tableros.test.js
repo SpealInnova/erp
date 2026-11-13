@@ -33,7 +33,7 @@ describirSiHayBD("Tablero gerencial (integración contra BD real)", () => {
 
     const passwordHash = await bcrypt.hash("ClaveSegura123", 10);
     const [usuario] = await pool.query(
-      "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, ?, 'tester', 1)",
+      "INSERT INTO usuarios (nombre, correo, password_hash, rol, cargo, activo) VALUES (?, ?, ?, 'tester', 'Gerente General', 1)",
       [`Tablero ${sufijo}`, `tablero-${sufijo}@speal.test`, passwordHash]
     );
     ids.usuario = usuario.insertId;

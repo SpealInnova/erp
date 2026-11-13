@@ -1,5 +1,7 @@
 const autenticacion = require("../servicios/autenticacion");
 const recuperacionPassword = require("../servicios/recuperacionPassword");
+const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
+const { permisosDe, esSuperusuario } = require("../dominio/permisos");
 const {
   loginSchema,
   solicitarRecuperacionSchema,
@@ -25,8 +27,21 @@ function crearAuthControlador(pool) {
     res.status(200).json({ mensaje: "Contraseña actualizada." });
   }
 
+  // Además de los datos del token, devuelve nombre, cargo y permisos leídos de
+  // la base: el frontend los usa para mostrar u ocultar acciones (el servidor
+  // vuelve a validar cada una).
   async function perfil(req, res) {
-    res.status(200).json({ usuario: req.usuario });
+    const usuario = await usuariosRepositorio.buscarPorId(pool, req.usuario.id);
+    res.status(200).json({
+      usuario: {
+        ...req.usuario,
+        nombre: usuario ? usuario.nombre : null,
+        cargo: usuario ? usuario.cargo : null,
+        permisos: permisosDe(usuario),
+        // exento de la regla "quien crea no aprueba" (admin o Gerente General)
+        superusuario: Boolean(usuario && usuario.activo) && esSuperusuario(usuario),
+      },
+    });
   }
 
   return { login, solicitarRecuperacion, restablecerPassword, perfil };

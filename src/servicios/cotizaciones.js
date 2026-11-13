@@ -5,6 +5,7 @@ const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const versiones = require("./versiones");
+const { exigirPermiso } = require("./autorizacion");
 const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoCot } = require("../dominio/codigoCotizacion");
 const { transicionar, ESTADOS } = require("../dominio/estadoCotizacion");
@@ -134,6 +135,11 @@ async function actualizarCotizacion(pool, id, datos, usuarioId, opciones = {}) {
 async function cambiarEstadoCotizacion(pool, id, estadoDestino, usuarioId) {
   const anterior = await obtenerConItems(pool, id);
   transicionar(anterior.estado, estadoDestino);
+  // Sacar una cotización de "en aprobación" (enviarla o devolverla a borrador)
+  // es decidir sobre ella.
+  if (anterior.estado === ESTADOS.APROBACION) {
+    await exigirPermiso(pool, usuarioId, "aprobar_cotizacion");
+  }
 
   await cotizacionesRepositorio.actualizarEstado(pool, id, estadoDestino);
   const actualizada = await obtenerConItems(pool, id);
@@ -175,6 +181,7 @@ async function eliminarCotizacion(pool, id, usuarioId) {
 }
 
 async function crearVersionCotizacion(pool, id, { motivo, ...datos }, usuarioId) {
+  await exigirPermiso(pool, usuarioId, "versionar_cotizacion");
   await versiones.crearNuevaVersion(pool, {
     tabla: TABLA,
     registroId: id,

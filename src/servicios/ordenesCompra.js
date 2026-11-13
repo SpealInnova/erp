@@ -5,6 +5,7 @@ const proveedoresRepositorio = require("../repositorios/proveedoresRepositorio")
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const versiones = require("./versiones");
+const { exigirPermiso, exigirOtroAprobador } = require("./autorizacion");
 const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoOC } = require("../dominio/codigoOrdenCompra");
 const { transicionar, ESTADOS } = require("../dominio/estadoOrdenCompra");
@@ -130,9 +131,24 @@ async function actualizarOrdenCompra(pool, id, datos, usuarioId, opciones = {}) 
   return actualizada;
 }
 
+// Permiso que exige cada estado destino (matriz en dominio/permisos.js).
+const PERMISO_POR_DESTINO = {
+  [ESTADOS.APROBADA_PTE_PAGO]: "aprobar_oc",
+  [ESTADOS.PAGA]: "pagar_oc",
+  [ESTADOS.CONTABILIZADA]: "pagar_oc",
+};
+
 async function cambiarEstadoOrdenCompra(pool, id, estadoDestino, usuarioId) {
   const anterior = await obtenerConItems(pool, id);
   transicionar(anterior.estado, estadoDestino);
+
+  const permiso = PERMISO_POR_DESTINO[estadoDestino];
+  if (permiso) {
+    const usuario = await exigirPermiso(pool, usuarioId, permiso);
+    if (estadoDestino === ESTADOS.APROBADA_PTE_PAGO) {
+      exigirOtroAprobador(usuario, anterior.created_by);
+    }
+  }
 
   const opciones =
     estadoDestino === ESTADOS.APROBADA_PTE_PAGO
@@ -177,6 +193,7 @@ async function eliminarOrdenCompra(pool, id, usuarioId) {
 // sus ítems o el proveedor, vuelve a "pendiente de aprobar": la aprobación se
 // dio sobre otros valores. Si ya se pagó, conserva su estado.
 async function crearVersionOrdenCompra(pool, id, { motivo, ...datos }, usuarioId) {
+  await exigirPermiso(pool, usuarioId, "versionar_oc");
   await versiones.crearNuevaVersion(pool, {
     tabla: TABLA,
     registroId: id,

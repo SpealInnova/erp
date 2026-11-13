@@ -6,6 +6,7 @@ const cotizacionesRepositorio = require("../repositorios/cotizacionesRepositorio
 const auditoria = require("./auditoria");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const versiones = require("./versiones");
+const { exigirPermiso } = require("./autorizacion");
 const proyectoDocumentosRepositorio = require("../repositorios/proyectoDocumentosRepositorio");
 const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const proyectoActividadesServicio = require("./proyectoActividades");
@@ -152,6 +153,9 @@ async function actualizarProyecto(pool, id, datos, usuarioId) {
 async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observacion) {
   const anterior = await obtenerProyecto(pool, id);
   transicionar(anterior.estado, estadoDestino);
+  if (estadoDestino === ESTADOS.CANCELADO) {
+    await exigirPermiso(pool, usuarioId, "cancelar_proyecto");
+  }
 
   await proyectosRepositorio.actualizarEstado(pool, id, estadoDestino);
   const actualizado = await proyectosRepositorio.obtenerPorId(pool, id);
@@ -205,7 +209,7 @@ async function eliminarProyecto(pool, id, { password, justificacion }, usuarioId
   const anterior = await obtenerProyecto(pool, id);
   await exigirSinDocumentos(pool, anterior);
 
-  const usuario = await usuariosRepositorio.buscarPorId(pool, usuarioId);
+  const usuario = await exigirPermiso(pool, usuarioId, "cancelar_proyecto");
   const passwordValida = usuario && (await bcrypt.compare(password, usuario.password_hash));
   if (!passwordValida) {
     throw new ErrorPasswordInvalida();
@@ -227,6 +231,7 @@ async function eliminarProyecto(pool, id, { password, justificacion }, usuarioId
 // corrección se aplica con las mismas validaciones de la edición. El cliente no
 // cambia: los documentos enlazados están a su nombre.
 async function crearVersionProyecto(pool, id, { motivo, ...datos }, usuarioId) {
+  await exigirPermiso(pool, usuarioId, "versionar_proyecto");
   await versiones.crearNuevaVersion(pool, {
     tabla: TABLA,
     registroId: id,
