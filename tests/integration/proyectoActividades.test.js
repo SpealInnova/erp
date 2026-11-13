@@ -119,6 +119,22 @@ describirSiHayBD("Actividades de proyecto por fase (integración contra BD real)
     expect(respuesta.body.actividad.completada_en).not.toBeNull();
   });
 
+  test("quita el responsable con null sin tocar lo demás", async () => {
+    const respuesta = await request(app)
+      .put(`/proyectos/${proyectoId}/actividades/${actividadId}`)
+      .set(autorizacion())
+      .send({ responsable_id: null });
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.actividad.responsable_id).toBeNull();
+    expect(respuesta.body.actividad.estado).toBe("completada");
+
+    const vuelta = await request(app)
+      .put(`/proyectos/${proyectoId}/actividades/${actividadId}`)
+      .set(autorizacion())
+      .send({ responsable_id: usuarioId });
+    expect(vuelta.body.actividad.responsable_id).toBe(usuarioId);
+  });
+
   test("asigna fecha de inicio y fin a una actividad", async () => {
     const respuesta = await request(app)
       .put(`/proyectos/${proyectoId}/actividades/${actividadId}`)

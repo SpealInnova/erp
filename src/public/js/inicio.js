@@ -901,155 +901,10 @@ function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
   return tarjeta;
 }
 
-function formatearFechaISO(fecha) {
-  const anio = fecha.getFullYear();
-  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
-  const dia = String(fecha.getDate()).padStart(2, "0");
-  return `${anio}-${mes}-${dia}`;
-}
-
-const DIAS_SEMANA_ABREV = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const MESES_NOMBRE = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
-
-function semanaDelMes(fecha) {
-  return Math.ceil(fecha.getDate() / 7);
-}
-
-function normalizarFechaISO(valor) {
-  if (!valor) return valor;
-  return formatearFechaISO(new Date(valor));
-}
-
-function aplicarEncabezadoPersonalizado(gantt) {
-  gantt.get_date_info = function (date, last_date, i) {
-    const primeraColumna = i === 0;
-    const referencia = last_date || date;
-    const cambioMes = primeraColumna || date.getMonth() !== referencia.getMonth();
-    const cambioSemana =
-      primeraColumna || cambioMes || semanaDelMes(date) !== semanaDelMes(referencia);
-
-    const lower_text = `${DIAS_SEMANA_ABREV[date.getDay()]} ${date.getDate()}`;
-    const upper_text = cambioSemana
-      ? `Semana ${semanaDelMes(date)}${cambioMes ? ` · ${MESES_NOMBRE[date.getMonth()]}` : ""}`
-      : "";
-
-    const ancho = this.options.column_width;
-    return {
-      upper_text,
-      lower_text,
-      upper_x: i * ancho + (ancho * 7) / 2,
-      upper_y: this.options.header_height - 25,
-      lower_x: i * ancho + ancho / 2,
-      lower_y: this.options.header_height,
-    };
-  };
-}
-
-function renderizarGantt(contenedor, actividades, proyectoId) {
-  contenedor.replaceChildren();
-  if (typeof window.Gantt === "undefined" || actividades.length === 0) {
-    return;
-  }
-
-  const UN_DIA_MS = 24 * 60 * 60 * 1000;
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-
-  const tareas = actividades.map((actividad, indice) => {
-    let inicio = normalizarFechaISO(actividad.fecha_inicio);
-    let fin = normalizarFechaISO(actividad.fecha_fin);
-    if (!inicio) {
-      const base = new Date(hoy);
-      base.setDate(base.getDate() + indice);
-      inicio = formatearFechaISO(base);
-    }
-    if (!fin) {
-      const base = new Date(`${inicio}T00:00:00`);
-      base.setDate(base.getDate() + 1);
-      fin = formatearFechaISO(base);
-    }
-    return {
-      id: String(actividad.id),
-      name: `${textoEstadoProyecto(actividad.fase)}: ${actividad.descripcion}`,
-      start: inicio,
-      end: fin,
-      progress: actividad.estado === "completada" ? 100 : 0,
-    };
-  });
-
-  let inicioReal = null;
-  let finReal = null;
-  tareas.forEach((tarea) => {
-    const ini = new Date(`${tarea.start}T00:00:00`);
-    const fin = new Date(`${tarea.end}T00:00:00`);
-    if (!inicioReal || ini < inicioReal) inicioReal = ini;
-    if (!finReal || fin > finReal) finReal = fin;
-  });
-
-  const controles = document.createElement("div");
-  controles.className = "gantt-controles";
-  const lienzo = document.createElement("div");
-  contenedor.append(controles, lienzo);
-
-  const gantt = new window.Gantt(lienzo, tareas, {
-    view_mode: "Day",
-    language: "es",
-    on_date_change: async (tarea, inicio, fin) => {
-      await api("PUT", `/proyectos/${proyectoId}/actividades/${tarea.id}`, {
-        fecha_inicio: formatearFechaISO(inicio),
-        fecha_fin: formatearFechaISO(fin),
-      });
-    },
-  });
-
-  aplicarEncabezadoPersonalizado(gantt);
-
-  function redibujarConLimites(nuevoInicio, nuevoFin) {
-    gantt.gantt_start = nuevoInicio;
-    gantt.gantt_end = nuevoFin;
-    gantt.setup_date_values();
-    gantt.render();
-  }
-
-  // Frappe agrega hasta ±1 mes de relleno automático alrededor de las
-  // actividades; lo reemplazamos por el mes en curso (nunca antes de hoy),
-  // extendiéndolo si ya hay actividades reales más allá de fin de mes.
-  const margen = 2;
-  const finDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
-  finDeMesActual.setHours(0, 0, 0, 0);
-  const finConMargen = new Date(finReal.getTime() + (margen + 1) * UN_DIA_MS);
-  redibujarConLimites(
-    new Date(Math.max(hoy.getTime(), inicioReal.getTime() - margen * UN_DIA_MS)),
-    finConMargen > finDeMesActual ? finConMargen : finDeMesActual
-  );
-
-  function ajustarRango(dias) {
-    if (dias < 0) {
-      const propuesto = new Date(gantt.gantt_start.getTime() + dias * UN_DIA_MS);
-      redibujarConLimites(propuesto < hoy ? new Date(hoy) : propuesto, gantt.gantt_end);
-    } else {
-      redibujarConLimites(gantt.gantt_start, new Date(gantt.gantt_end.getTime() + dias * UN_DIA_MS));
-    }
-  }
-
-  controles.append(
-    boton("+ Días atrás", () => ajustarRango(-7), true),
-    boton("+ Días adelante", () => ajustarRango(7), true)
-  );
-}
+// Agregar subactividades está suspendido por ahora (decisión del 2026-11-13):
+// las fases traen sus actividades de la plantilla. El API sigue aceptando
+// altas; para reactivarlo basta con poner esta constante en true.
+const SUBACTIVIDADES_HABILITADAS = false;
 
 async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   const tarjeta = document.createElement("div");
@@ -1066,14 +921,57 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   const contenedorGrupos = document.createElement("div");
   tarjeta.append(mensaje, contenedorGrupos);
 
+  // Se conservan entre recargas de la sección (después de guardar o mover
+  // una barra): qué fases están abiertas y cuántos días sumó el usuario.
+  const fasesAbiertas = new Set();
+  const ajustesRango = new Map();
+  let primeraCarga = true;
+
+  const mostrarError = (texto) => mensaje.replaceChildren(alerta("error", texto));
+
+  function filaAgregarSubactividad(fase) {
+    const filaAgregar = document.createElement("div");
+    filaAgregar.style.marginTop = "8px";
+    const mostrarFormAgregar = () => {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "Nombre de la subactividad";
+      input.setAttribute("aria-label", `Nueva subactividad en ${textoEstadoProyecto(fase)}`);
+      input.style.marginRight = "8px";
+      const confirmar = boton(
+        "Agregar",
+        async () => {
+          const nombre = input.value.trim();
+          if (!nombre) return;
+          const r2 = await api("POST", `/proyectos/${proyectoId}/actividades`, {
+            categoria: "General",
+            descripcion: nombre,
+            fase,
+          });
+          if (r2.status !== 201) {
+            mostrarError(r2.cuerpo?.error || "No se pudo agregar la subactividad.");
+            return;
+          }
+          cargar();
+        },
+        true
+      );
+      const cancelar = boton("Cancelar", () => filaAgregar.replaceChildren(botonMas), true);
+      filaAgregar.replaceChildren(input, confirmar, cancelar);
+      input.focus();
+    };
+    const botonMas = boton("+ Agregar subactividad", mostrarFormAgregar, true);
+    filaAgregar.append(botonMas);
+    return filaAgregar;
+  }
+
   async function cargar() {
-    mensaje.replaceChildren();
-    contenedorGrupos.replaceChildren();
     const r = await api("GET", `/proyectos/${proyectoId}/actividades`);
     if (r.status !== 200) {
-      mensaje.append(alerta("error", "No se pudieron cargar las actividades."));
+      mostrarError("No se pudieron cargar las actividades.");
       return;
     }
+    mensaje.replaceChildren();
     const actividades = r.cuerpo.actividades;
 
     const porFase = new Map();
@@ -1082,23 +980,30 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       porFase.get(actividad.fase).push(actividad);
     });
 
-    const fasesConActividades = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter(
-      (fase) => (porFase.get(fase) || []).length > 0
-    );
-    const ultimaFase = fasesConActividades[fasesConActividades.length - 1];
+    if (primeraCarga) {
+      const fasesConActividades = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter(
+        (fase) => (porFase.get(fase) || []).length > 0
+      );
+      const ultimaFase = fasesConActividades[fasesConActividades.length - 1];
+      if (ultimaFase) fasesAbiertas.add(ultimaFase);
+      primeraCarga = false;
+    }
 
-    ETAPAS_PROYECTO_LINEAL.forEach((etapa) => {
+    // Se arma todo antes de reemplazar: la sección no parpadea ni salta.
+    const grupos = ETAPAS_PROYECTO_LINEAL.map((etapa) => {
       const fase = etapa.valor;
       const lista = porFase.get(fase) || [];
       const completadas = lista.filter((actividad) => actividad.estado === "completada").length;
 
       const detalles = document.createElement("details");
-      detalles.open = fase === ultimaFase;
-      detalles.style.marginBottom = "12px";
+      detalles.className = "fase-actividades";
+      detalles.open = fasesAbiertas.has(fase);
+      detalles.addEventListener("toggle", () => {
+        if (detalles.open) fasesAbiertas.add(fase);
+        else fasesAbiertas.delete(fase);
+      });
 
       const resumen = document.createElement("summary");
-      resumen.style.cursor = "pointer";
-      resumen.style.fontWeight = "700";
       resumen.append(document.createTextNode(`${textoEstadoProyecto(fase)} `));
       if (lista.length > 0) {
         resumen.append(
@@ -1122,189 +1027,32 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       contenidoFase.style.padding = "8px 0 0";
 
       if (lista.length > 0) {
-        const contenedorGanttFase = document.createElement("div");
-        contenedorGanttFase.style.marginBottom = "16px";
-        contenedorGanttFase.style.overflowX = "auto";
-        contenidoFase.append(contenedorGanttFase);
-        renderizarGantt(contenedorGanttFase, lista, proyectoId);
+        if (!ajustesRango.has(fase)) ajustesRango.set(fase, { atras: 0, adelante: 0 });
+        contenidoFase.append(
+          window.montarGanttActividades({
+            actividades: lista,
+            proyectoId,
+            textoFase: textoEstadoProyecto(fase),
+            usuarios: opcionesUsuarios,
+            ajuste: ajustesRango.get(fase),
+            alCambiar: cargar,
+            mostrarError,
+          })
+        );
+      } else {
+        const vacio = document.createElement("p");
+        vacio.className = "subtitulo";
+        vacio.style.margin = "0";
+        vacio.textContent = "Esta fase no tiene actividades.";
+        contenidoFase.append(vacio);
       }
 
-      const tabla = document.createElement("table");
-      tabla.className = "tabla-items";
-      const thead = document.createElement("thead");
-      const filaCabecera = document.createElement("tr");
-      ["", "Categoría", "Actividad", "Responsable", "", ""].forEach((texto) => {
-        const th = document.createElement("th");
-        th.scope = "col";
-        th.textContent = texto;
-        filaCabecera.append(th);
-      });
-      thead.append(filaCabecera);
-      const tbody = document.createElement("tbody");
-
-      lista.forEach((actividad) => {
-        const fila = document.createElement("tr");
-
-        const tdCheck = document.createElement("td");
-        const check = document.createElement("input");
-        check.type = "checkbox";
-        check.checked = actividad.estado === "completada";
-        check.setAttribute("aria-label", `Marcar "${actividad.descripcion}" como completada`);
-        check.addEventListener("change", async () => {
-          const deseado = check.checked;
-          check.disabled = true;
-          const r2 = await api("PUT", `/proyectos/${proyectoId}/actividades/${actividad.id}`, {
-            estado: deseado ? "completada" : "pendiente",
-          });
-          if (r2.status !== 200) {
-            mensaje.replaceChildren(
-              alerta("error", r2.cuerpo?.error || "No se pudo actualizar la actividad.")
-            );
-            check.disabled = false;
-            return;
-          }
-          cargar();
-        });
-        tdCheck.append(check);
-        fila.append(tdCheck);
-
-        fila.append(celda(actividad.categoria));
-
-        const tdDescripcion = document.createElement("td");
-        tdDescripcion.textContent = actividad.descripcion;
-        if (actividad.estado === "completada") {
-          tdDescripcion.style.textDecoration = "line-through";
-          tdDescripcion.style.color = "var(--ink-mute)";
-        }
-        fila.append(tdDescripcion);
-
-        const tdResponsable = document.createElement("td");
-        const selectResponsable = document.createElement("select");
-        selectResponsable.setAttribute("aria-label", `Responsable de "${actividad.descripcion}"`);
-        const vacio = document.createElement("option");
-        vacio.value = "";
-        vacio.textContent = "— Sin asignar —";
-        selectResponsable.append(vacio);
-        opcionesUsuarios.forEach((op) => {
-          const o = document.createElement("option");
-          o.value = op.valor;
-          o.textContent = op.texto;
-          selectResponsable.append(o);
-        });
-        selectResponsable.value = actividad.responsable_id ? String(actividad.responsable_id) : "";
-        selectResponsable.addEventListener("change", async () => {
-          await api("PUT", `/proyectos/${proyectoId}/actividades/${actividad.id}`, {
-            responsable_id: Number(selectResponsable.value) || undefined,
-          });
-        });
-        tdResponsable.append(selectResponsable);
-        fila.append(tdResponsable);
-
-        const filaEvidencias = document.createElement("tr");
-        filaEvidencias.style.display = "none";
-        const tdEvidenciasContenido = document.createElement("td");
-        tdEvidenciasContenido.colSpan = 6;
-        filaEvidencias.append(tdEvidenciasContenido);
-        let evidenciasCargadas = false;
-
-        const tdEvidencias = document.createElement("td");
-        tdEvidencias.append(
-          boton(
-            "Evidencias",
-            () => {
-              const abierta = filaEvidencias.style.display !== "none";
-              if (abierta) {
-                filaEvidencias.style.display = "none";
-                return;
-              }
-              if (!evidenciasCargadas) {
-                tdEvidenciasContenido.append(
-                  contenidoEvidencias("proyecto_actividades", actividad.id)
-                );
-                evidenciasCargadas = true;
-              }
-              filaEvidencias.style.display = "";
-            },
-            true
-          )
-        );
-        fila.append(tdEvidencias);
-
-        const tdAccion = document.createElement("td");
-        const quitarBtn = boton(
-          "Quitar",
-          async () => {
-            if (!window.confirm("¿Quitar esta actividad?")) return;
-            const r2 = await api(
-              "DELETE",
-              `/proyectos/${proyectoId}/actividades/${actividad.id}`
-            );
-            if (r2.status === 204) {
-              cargar();
-              return;
-            }
-            mensaje.replaceChildren(
-              alerta("error", r2.cuerpo?.error || "No se pudo quitar la actividad.")
-            );
-          },
-          true
-        );
-        tdAccion.append(quitarBtn);
-        fila.append(tdAccion);
-
-        tbody.append(fila, filaEvidencias);
-      });
-
-      if (lista.length > 0) {
-        tabla.append(thead, tbody);
-        contenidoFase.append(tabla);
-      }
-
-      const filaAgregar = document.createElement("div");
-      filaAgregar.style.marginTop = "8px";
-      const mostrarFormAgregar = () => {
-        const input = document.createElement("input");
-        input.type = "text";
-        input.placeholder = "Nombre de la subactividad";
-        input.setAttribute("aria-label", `Nueva subactividad en ${textoEstadoProyecto(fase)}`);
-        input.style.marginRight = "8px";
-        const confirmar = boton(
-          "Agregar",
-          async () => {
-            const nombre = input.value.trim();
-            if (!nombre) return;
-            const r2 = await api("POST", `/proyectos/${proyectoId}/actividades`, {
-              categoria: "General",
-              descripcion: nombre,
-              fase,
-            });
-            if (r2.status !== 201) {
-              mensaje.replaceChildren(
-                alerta("error", r2.cuerpo?.error || "No se pudo agregar la subactividad.")
-              );
-              return;
-            }
-            cargar();
-          },
-          true
-        );
-        const cancelar = boton(
-          "Cancelar",
-          () => {
-            filaAgregar.replaceChildren(botonMas);
-          },
-          true
-        );
-        filaAgregar.replaceChildren(input, confirmar, cancelar);
-        input.focus();
-      };
-      const botonMas = boton("+ Agregar subactividad", mostrarFormAgregar, true);
-      filaAgregar.append(botonMas);
-      contenidoFase.append(filaAgregar);
+      if (SUBACTIVIDADES_HABILITADAS) contenidoFase.append(filaAgregarSubactividad(fase));
 
       detalles.append(contenidoFase);
-      contenedorGrupos.append(detalles);
+      return detalles;
     });
+    contenedorGrupos.replaceChildren(...grupos);
   }
 
   await cargar();
