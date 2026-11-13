@@ -1,13 +1,14 @@
 const { Readable } = require("stream");
-const { google } = require("googleapis");
+// Solo el cliente de Drive (no todo "googleapis", que pesa ~210 MB).
+const { drive: crearDrive, auth } = require("@googleapis/drive");
 
 function crearClienteDrive() {
-  const oAuth2Client = new google.auth.OAuth2(
+  const oAuth2Client = new auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
     process.env.GMAIL_CLIENT_SECRET
   );
   oAuth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
-  return google.drive({ version: "v3", auth: oAuth2Client });
+  return crearDrive({ version: "v3", auth: oAuth2Client });
 }
 
 async function subirArchivo({ nombre, mimeType, buffer, parentId }) {

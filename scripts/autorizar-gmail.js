@@ -1,7 +1,8 @@
 require("dotenv").config();
 const http = require("http");
 const { URL } = require("url");
-const { google } = require("googleapis");
+// OAuth2 de google-auth-library, el mismo que traen @googleapis/gmail y /drive.
+const { auth } = require("@googleapis/gmail");
 
 const PUERTO = 53682;
 const REDIRECT_URI = `http://localhost:${PUERTO}/callback`;
@@ -16,7 +17,7 @@ async function autorizar() {
     return;
   }
 
-  const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, REDIRECT_URI);
+  const oAuth2Client = new auth.OAuth2(clientId, clientSecret, REDIRECT_URI);
 
   const urlAutorizacion = oAuth2Client.generateAuthUrl({
     access_type: "offline",
