@@ -528,3 +528,22 @@ html[data-contraste="alto"] .gantt-marco {
   outline: 2px solid var(--warn);
   outline-offset: 1px;
 }
+
+/* Botones de la cabecera de la ventana: evidencias (redondo, como los de la
+   barra superior) y cerrar */
+.dialogo-cabecera-acciones {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.dialogo-cabecera-acciones .campana-boton[aria-expanded="true"] {
+  color: var(--accent-ink);
+  background: var(--accent-tint);
+  border-color: var(--accent-tint-2);
+}
+
+.campana-contador--info {
+  background: var(--accent);
+}

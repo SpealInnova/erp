@@ -774,7 +774,9 @@ async function apiSubirArchivo(ruta, formData) {
   return { status: respuesta.status, cuerpo: texto };
 }
 
-function contenidoEvidencias(tabla, registroId) {
+// alCargar(cantidad), opcional: se llama cada vez que se recarga la lista
+// (al abrir, subir o quitar), p. ej. para un contador.
+function contenidoEvidencias(tabla, registroId, alCargar) {
   const contenedor = document.createElement("div");
   const mensaje = document.createElement("div");
   const lista = document.createElement("ul");
@@ -792,6 +794,7 @@ function contenidoEvidencias(tabla, registroId) {
       return;
     }
     const archivos = r.cuerpo.archivos;
+    if (alCargar) alCargar(archivos.length);
     if (archivos.length === 0) {
       const li = document.createElement("li");
       li.className = "subtitulo";
