@@ -15,8 +15,13 @@ function crearRequisicionesControlador(pool) {
 
   async function listar(req, res) {
     const query = listarRequisicionesQuerySchema.parse(req.query);
-    const requisiciones = await requisicionesServicio.listarRequisiciones(pool, query);
-    res.status(200).json({ requisiciones });
+    const { filas, total } = await requisicionesServicio.listarRequisiciones(pool, query);
+    res.status(200).json({
+      requisiciones: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

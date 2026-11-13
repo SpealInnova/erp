@@ -2,6 +2,7 @@ const requisicionesRepositorio = require("../repositorios/requisicionesRepositor
 const requisicionItemsRepositorio = require("../repositorios/requisicionItemsRepositorio");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { transicionar, ESTADOS } = require("../dominio/estadoRequisicion");
 const {
   ErrorRequisicionNoEncontrada,
@@ -58,10 +59,13 @@ async function crearRequisicion(pool, datos, usuarioId) {
   return requisicion;
 }
 
-async function listarRequisiciones(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return requisicionesRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarRequisiciones(pool, { pagina, tamanoPagina, q, estado }) {
+  return requisicionesRepositorio.listar(pool, {
+    ...aLimites({ pagina, tamanoPagina }),
+    q,
+    estado,
+  });
 }
 
 async function actualizarRequisicion(pool, id, datos, usuarioId) {

@@ -17,8 +17,13 @@ function crearProyectosControlador(pool) {
 
   async function listar(req, res) {
     const query = listarProyectosQuerySchema.parse(req.query);
-    const proyectos = await proyectosServicio.listarProyectos(pool, query);
-    res.status(200).json({ proyectos });
+    const { filas, total } = await proyectosServicio.listarProyectos(pool, query);
+    res.status(200).json({
+      proyectos: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

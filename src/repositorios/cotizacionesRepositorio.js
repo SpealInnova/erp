@@ -1,3 +1,5 @@
+const { listarPaginado } = require("./consultaListado");
+
 async function contarPorAnio(pool, anio) {
   const [filas] = await pool.query(
     "SELECT COUNT(*) AS total FROM cotizaciones WHERE numero_cotizacion LIKE ?",
@@ -38,12 +40,22 @@ async function obtenerPorId(pool, id) {
   return filas[0] || null;
 }
 
-async function listar(pool, { limite, offset }) {
-  const [filas] = await pool.query(
-    "SELECT * FROM cotizaciones WHERE deleted_at IS NULL ORDER BY id DESC LIMIT ? OFFSET ?",
-    [limite, offset]
-  );
-  return filas;
+// Página de la lista (más recientes primero) con búsqueda por texto y estado;
+// trae resueltos los nombres que la tabla muestra. Devuelve { filas, total }.
+async function listar(pool, { limite, offset, q, estado }) {
+  return listarPaginado(pool, {
+    columnas: "q.*, c.nombre_razon_social AS cliente_nombre, u.nombre AS asesor_nombre",
+    desde: `FROM cotizaciones q
+       LEFT JOIN clientes c ON c.id = q.cliente_id
+       LEFT JOIN usuarios u ON u.id = q.asesor_comercial_id`,
+    condiciones: ["q.deleted_at IS NULL"],
+    q,
+    buscarEn: ["q.numero_cotizacion", "c.nombre_razon_social"],
+    filtros: { "q.estado": estado },
+    orden: "q.id DESC",
+    limite,
+    offset,
+  });
 }
 
 async function actualizar(pool, id, datos) {

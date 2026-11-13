@@ -2,6 +2,7 @@ const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoR
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const equiposServicio = require("./equipos");
 const { exigirPermiso } = require("./autorizacion");
@@ -87,10 +88,13 @@ async function obtenerExpediente(pool, id) {
   return expediente;
 }
 
-async function listarExpedientes(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return expedientesDisenoRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarExpedientes(pool, { pagina, tamanoPagina, q, estado }) {
+  return expedientesDisenoRepositorio.listar(pool, {
+    ...aLimites({ pagina, tamanoPagina }),
+    q,
+    estado,
+  });
 }
 
 async function actualizarExpediente(pool, id, datos, usuarioId) {

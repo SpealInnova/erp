@@ -15,8 +15,13 @@ function crearReportesServicioTecnicoControlador(pool) {
 
   async function listar(req, res) {
     const query = listarReportesQuerySchema.parse(req.query);
-    const reportes = await reportesServicioTecnicoServicio.listarReportes(pool, query);
-    res.status(200).json({ reportes });
+    const { filas, total } = await reportesServicioTecnicoServicio.listarReportes(pool, query);
+    res.status(200).json({
+      reportes: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

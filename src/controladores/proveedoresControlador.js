@@ -14,8 +14,13 @@ function crearProveedoresControlador(pool) {
 
   async function listar(req, res) {
     const query = listarProveedoresQuerySchema.parse(req.query);
-    const proveedores = await proveedoresServicio.listarProveedores(pool, query);
-    res.status(200).json({ proveedores });
+    const { filas, total } = await proveedoresServicio.listarProveedores(pool, query);
+    res.status(200).json({
+      proveedores: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

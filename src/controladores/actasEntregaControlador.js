@@ -15,8 +15,13 @@ function crearActasEntregaControlador(pool) {
 
   async function listar(req, res) {
     const query = listarActasEntregaQuerySchema.parse(req.query);
-    const actas = await actasEntregaServicio.listarActasEntrega(pool, query);
-    res.status(200).json({ actas });
+    const { filas, total } = await actasEntregaServicio.listarActasEntrega(pool, query);
+    res.status(200).json({
+      actas: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

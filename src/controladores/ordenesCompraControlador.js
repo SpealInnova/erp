@@ -16,8 +16,13 @@ function crearOrdenesCompraControlador(pool) {
 
   async function listar(req, res) {
     const query = listarOrdenesCompraQuerySchema.parse(req.query);
-    const ordenes = await ordenesCompraServicio.listarOrdenesCompra(pool, query);
-    res.status(200).json({ ordenes });
+    const { filas, total } = await ordenesCompraServicio.listarOrdenesCompra(pool, query);
+    res.status(200).json({
+      ordenes: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

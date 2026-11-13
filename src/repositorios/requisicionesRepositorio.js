@@ -1,3 +1,5 @@
+const { listarPaginado } = require("./consultaListado");
+
 async function buscarPorNumero(pool, numero) {
   const [filas] = await pool.query("SELECT id FROM requisiciones WHERE numero_requisicion = ?", [
     numero,
@@ -22,12 +24,22 @@ async function obtenerPorId(pool, id) {
   return filas[0] || null;
 }
 
-async function listar(pool, { limite, offset }) {
-  const [filas] = await pool.query(
-    "SELECT * FROM requisiciones WHERE deleted_at IS NULL ORDER BY id DESC LIMIT ? OFFSET ?",
-    [limite, offset]
-  );
-  return filas;
+// Página de la lista (más recientes primero) con búsqueda por texto y estado;
+// trae resueltos los nombres que la tabla muestra. Devuelve { filas, total }.
+async function listar(pool, { limite, offset, q, estado }) {
+  return listarPaginado(pool, {
+    columnas: "r.*, p.codigo_pry AS proyecto_codigo, p.nombre_proyecto AS proyecto_nombre, u.nombre AS solicitante_nombre",
+    desde: `FROM requisiciones r
+       LEFT JOIN proyectos p ON p.id = r.proyecto_id
+       LEFT JOIN usuarios u ON u.id = r.solicitante_id`,
+    condiciones: ["r.deleted_at IS NULL"],
+    q,
+    buscarEn: ["r.numero_requisicion", "p.codigo_pry", "p.nombre_proyecto"],
+    filtros: { "r.estado": estado },
+    orden: "r.id DESC",
+    limite,
+    offset,
+  });
 }
 
 async function actualizar(pool, id, datos) {

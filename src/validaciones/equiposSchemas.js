@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { esquemaListado } = require("./listados");
 
 const crearEquipoSchema = z.object({
   numero_serie: z.string().trim().min(1),
@@ -12,7 +13,7 @@ const crearEquipoSchema = z.object({
 
 const actualizarEquipoSchema = crearEquipoSchema.partial();
 
-const listarEquiposQuerySchema = z.object({
+const listarEquiposQuerySchema = esquemaListado({
   cliente_id: z.coerce.number().int().positive().optional(),
   proyecto_id: z.coerce.number().int().positive().optional(),
   numero_serie: z.string().trim().min(1).optional(),

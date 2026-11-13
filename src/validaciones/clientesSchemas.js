@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { esquemaListado } = require("./listados");
 
 const crearClienteSchema = z.object({
   nombre_razon_social: z.string().min(1),
@@ -14,9 +15,6 @@ const crearClienteSchema = z.object({
 
 const actualizarClienteSchema = crearClienteSchema.partial();
 
-const listarClientesQuerySchema = z.object({
-  pagina: z.coerce.number().int().min(1).optional().default(1),
-  tamanoPagina: z.coerce.number().int().min(1).max(100).optional().default(20),
-});
+const listarClientesQuerySchema = esquemaListado();
 
 module.exports = { crearClienteSchema, actualizarClienteSchema, listarClientesQuerySchema };

@@ -2,6 +2,7 @@ const equiposRepositorio = require("../repositorios/equiposRepositorio");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const coherencia = require("./coherenciaProyecto");
 const {
   ErrorEquipoNoEncontrado,
@@ -21,8 +22,9 @@ const {
 //   a mano para poder hacerles reportes de servicio y tener su trazabilidad.
 const TABLA = "equipos";
 
-async function listarEquipos(pool, filtros) {
-  return equiposRepositorio.listar(pool, filtros);
+// Página del registro con filtros y búsqueda; devuelve { filas, total }.
+async function listarEquipos(pool, { pagina, tamanoPagina, ...filtros }) {
+  return equiposRepositorio.listar(pool, { ...filtros, ...aLimites({ pagina, tamanoPagina }) });
 }
 
 async function obtenerEquipo(pool, id) {
