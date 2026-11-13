@@ -3,6 +3,7 @@ const cotizacionItemsRepositorio = require("../repositorios/cotizacionItemsRepos
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const versiones = require("./versiones");
 const { exigirPermiso } = require("./autorizacion");
@@ -85,10 +86,9 @@ async function crearCotizacion(pool, datos, usuarioId) {
   return cotizacion;
 }
 
-async function listarCotizaciones(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return cotizacionesRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarCotizaciones(pool, { pagina, tamanoPagina, q, estado }) {
+  return cotizacionesRepositorio.listar(pool, { ...aLimites({ pagina, tamanoPagina }), q, estado });
 }
 
 // opciones.comoVersion: una nueva versión corrige la cotización en cualquier

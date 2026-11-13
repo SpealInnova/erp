@@ -3,6 +3,7 @@ const ordenCompraItemsRepositorio = require("../repositorios/ordenCompraItemsRep
 const requisicionesRepositorio = require("../repositorios/requisicionesRepositorio");
 const proveedoresRepositorio = require("../repositorios/proveedoresRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const versiones = require("./versiones");
 const { exigirPermiso, exigirOtroAprobador } = require("./autorizacion");
@@ -84,10 +85,13 @@ async function crearOrdenCompra(pool, datos, usuarioId) {
   return orden;
 }
 
-async function listarOrdenesCompra(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return ordenesCompraRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarOrdenesCompra(pool, { pagina, tamanoPagina, q, estado }) {
+  return ordenesCompraRepositorio.listar(pool, {
+    ...aLimites({ pagina, tamanoPagina }),
+    q,
+    estado,
+  });
 }
 
 // opciones.comoVersion: una nueva versión corrige la OC en cualquier estado

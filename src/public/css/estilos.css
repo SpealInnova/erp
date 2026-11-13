@@ -813,6 +813,68 @@ body.app-body::before {
   background: var(--surface-2);
 }
 
+/* Listas: buscador + filtro de estado + total, y paginador (listados.js) */
+.controles-listado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 14px;
+  /* al cambiar de página se desplaza hasta aquí: que no quede bajo la barra superior fija */
+  scroll-margin-top: 88px;
+}
+
+.controles-listado input[type="search"],
+.controles-listado select {
+  padding: 10px 14px;
+  font: inherit;
+  color: var(--ink);
+  border: 1.5px solid var(--borde);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.controles-listado input[type="search"] {
+  flex: 1 1 280px;
+  max-width: 460px;
+}
+
+.controles-listado select {
+  flex: 0 1 220px;
+}
+
+.controles-listado input[type="search"]:focus,
+.controles-listado select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-tint);
+}
+
+.resumen-listado {
+  margin-left: auto;
+  color: var(--ink-mute);
+  font-size: 0.85rem;
+}
+
+.resultados-listado[aria-busy="true"] {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.paginador {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.paginador:empty {
+  display: none;
+}
+
 .formulario-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

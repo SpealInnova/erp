@@ -8,12 +8,20 @@ const {
 function crearEquiposControlador(pool) {
   async function listar(req, res) {
     const query = listarEquiposQuerySchema.parse(req.query);
-    const equipos = await equiposServicio.listarEquipos(pool, {
+    const { filas, total } = await equiposServicio.listarEquipos(pool, {
       clienteId: query.cliente_id,
       proyectoId: query.proyecto_id,
       numeroSerie: query.numero_serie,
+      q: query.q,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
     });
-    res.status(200).json({ equipos });
+    res.status(200).json({
+      equipos: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

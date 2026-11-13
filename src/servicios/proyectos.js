@@ -4,6 +4,7 @@ const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const cotizacionesRepositorio = require("../repositorios/cotizacionesRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const versiones = require("./versiones");
 const { exigirPermiso } = require("./autorizacion");
@@ -103,10 +104,9 @@ async function obtenerProyectoConResumen(pool, id) {
   return { ...proyecto, gasto_real: gastoReal };
 }
 
-async function listarProyectos(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return proyectosRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarProyectos(pool, { pagina, tamanoPagina, q, estado }) {
+  return proyectosRepositorio.listar(pool, { ...aLimites({ pagina, tamanoPagina }), q, estado });
 }
 
 async function actualizarProyecto(pool, id, datos, usuarioId) {

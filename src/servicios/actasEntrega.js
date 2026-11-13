@@ -4,6 +4,7 @@ const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const coherencia = require("./coherenciaProyecto");
 const versiones = require("./versiones");
@@ -109,10 +110,9 @@ async function crearActaEntrega(pool, datos, usuarioId) {
   return acta;
 }
 
-async function listarActasEntrega(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return actasEntregaRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarActasEntrega(pool, { pagina, tamanoPagina, q, estado }) {
+  return actasEntregaRepositorio.listar(pool, { ...aLimites({ pagina, tamanoPagina }), q, estado });
 }
 
 async function actualizarActaEntrega(pool, id, datos, usuarioId) {

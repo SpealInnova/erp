@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { esquemaListado } = require("./listados");
 
 const TIPOS_SERVICIO = [
   "instalacion",
@@ -26,9 +27,6 @@ const crearReporteSchema = z.object({
 
 const actualizarReporteSchema = crearReporteSchema.partial();
 
-const listarReportesQuerySchema = z.object({
-  pagina: z.coerce.number().int().min(1).optional().default(1),
-  tamanoPagina: z.coerce.number().int().min(1).max(100).optional().default(20),
-});
+const listarReportesQuerySchema = esquemaListado();
 
 module.exports = { crearReporteSchema, actualizarReporteSchema, listarReportesQuerySchema };

@@ -1,3 +1,5 @@
+const { listarPaginado } = require("./consultaListado");
+
 const COLUMNAS_LISTADO = `
   q.id, q.numero_serie, q.cliente_id, q.proyecto_id, q.expediente_id, q.descripcion,
   q.marca, q.modelo, q.origen,
@@ -40,28 +42,32 @@ async function obtenerPorId(pool, id) {
   return normalizar(filas[0]);
 }
 
-async function listar(pool, { clienteId, proyectoId, numeroSerie } = {}) {
-  const condiciones = ["q.deleted_at IS NULL"];
-  const parametros = [];
-  if (clienteId) {
-    condiciones.push("q.cliente_id = ?");
-    parametros.push(clienteId);
-  }
-  if (proyectoId) {
-    condiciones.push("q.proyecto_id = ?");
-    parametros.push(proyectoId);
-  }
-  if (numeroSerie) {
-    condiciones.push("q.numero_serie = ?");
-    parametros.push(numeroSerie);
-  }
-  const [filas] = await pool.query(
-    `SELECT ${COLUMNAS_LISTADO} ${DESDE_LISTADO}
-     WHERE ${condiciones.join(" AND ")}
-     ORDER BY c.nombre_razon_social, q.numero_serie`,
-    parametros
-  );
-  return filas.map(normalizar);
+// Página del registro de equipos (por cliente y serial), con búsqueda por
+// texto y filtros exactos. Devuelve { filas, total }.
+async function listar(pool, { clienteId, proyectoId, numeroSerie, q, limite, offset }) {
+  const { filas, total } = await listarPaginado(pool, {
+    columnas: COLUMNAS_LISTADO,
+    desde: DESDE_LISTADO,
+    condiciones: ["q.deleted_at IS NULL"],
+    filtros: {
+      "q.cliente_id": clienteId,
+      "q.proyecto_id": proyectoId,
+      "q.numero_serie": numeroSerie,
+    },
+    q,
+    buscarEn: [
+      "q.numero_serie",
+      "q.descripcion",
+      "q.marca",
+      "q.modelo",
+      "c.nombre_razon_social",
+      "p.codigo_pry",
+    ],
+    orden: "c.nombre_razon_social, q.numero_serie",
+    limite,
+    offset,
+  });
+  return { filas: filas.map(normalizar), total };
 }
 
 async function listarReportes(pool, numeroSerie) {

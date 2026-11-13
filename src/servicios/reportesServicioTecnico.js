@@ -3,6 +3,7 @@ const equiposRepositorio = require("../repositorios/equiposRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const coherencia = require("./coherenciaProyecto");
 const versiones = require("./versiones");
@@ -98,10 +99,13 @@ async function obtenerReporte(pool, id) {
   return reporte;
 }
 
-async function listarReportes(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return reportesServicioTecnicoRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarReportes(pool, { pagina, tamanoPagina, q, estado }) {
+  return reportesServicioTecnicoRepositorio.listar(pool, {
+    ...aLimites({ pagina, tamanoPagina }),
+    q,
+    estado,
+  });
 }
 
 async function actualizarReporte(pool, id, datos, usuarioId) {

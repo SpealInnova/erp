@@ -1,3 +1,5 @@
+const { listarPaginado } = require("./consultaListado");
+
 async function crear(pool, datos) {
   const [resultado] = await pool.query(
     `INSERT INTO clientes
@@ -38,12 +40,19 @@ async function obtenerPorId(pool, id) {
   return filas[0] || null;
 }
 
-async function listar(pool, { limite, offset }) {
-  const [filas] = await pool.query(
-    "SELECT * FROM clientes WHERE deleted_at IS NULL ORDER BY id DESC LIMIT ? OFFSET ?",
-    [limite, offset]
-  );
-  return filas;
+// Página de la lista (más recientes primero) con búsqueda por texto;
+// trae resueltos los nombres que la tabla muestra. Devuelve { filas, total }.
+async function listar(pool, { limite, offset, q }) {
+  return listarPaginado(pool, {
+    columnas: "c.*",
+    desde: "FROM clientes c",
+    condiciones: ["c.deleted_at IS NULL"],
+    q,
+    buscarEn: ["c.nombre_razon_social", "c.numero_identificacion", "c.ciudad"],
+    orden: "c.id DESC",
+    limite,
+    offset,
+  });
 }
 
 async function actualizar(pool, id, datos) {

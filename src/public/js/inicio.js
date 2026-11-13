@@ -1,3 +1,4 @@
+/* global montarListado */ // listados.js
 const token = sessionStorage.getItem("erp_token");
 const contenido = document.getElementById("contenido");
 
@@ -378,27 +379,20 @@ inicializarNotificaciones();
 
 async function vistaClientes() {
   marcarMenu("clientes");
-  mostrarCargando();
-  const { status, cuerpo } = await api("GET", "/clientes");
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Clientes"), alerta("error", "No se pudieron cargar los clientes."));
-    return;
-  }
-
   const nuevo = boton("Nuevo cliente", () => (window.location.hash = "#/clientes/nuevo"));
-  contenido.append(encabezado("Clientes", [nuevo]));
+  contenido.replaceChildren(encabezado("Clientes", [nuevo]));
+  await montarListado({
+    clave: "clientes",
+    api: "/clientes",
+    campo: "clientes",
+    titulo: "clientes",
+    buscar: "Buscar por nombre, identificación o ciudad",
+    vacio: "Aún no hay clientes registrados.",
+    pintar: tablaClientes,
+  });
+}
 
-  const clientes = cuerpo.clientes;
-  if (clientes.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay clientes registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaClientes(clientes) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -434,7 +428,7 @@ async function vistaClientes() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 const CAMPOS_CLIENTE = [
@@ -2006,34 +2000,22 @@ async function bloqueoEliminacionProyecto(proyecto, alCerrar) {
 
 async function vistaProyectos() {
   marcarMenu("proyectos");
-  mostrarCargando();
-  const [{ status, cuerpo }, clientes, usuarios] = await Promise.all([
-    api("GET", "/proyectos"),
-    obtenerClientes(),
-    obtenerUsuarios(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Proyectos"), alerta("error", "No se pudieron cargar los proyectos."));
-    return;
-  }
-
-  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
-  const nombreUsuario = (id) => usuarios.find((u) => u.id === id)?.nombre || "—";
-
   const nuevo = boton("Nuevo proyecto", () => (window.location.hash = "#/proyectos/nuevo"));
-  contenido.append(encabezado("Proyectos", [nuevo]));
+  contenido.replaceChildren(encabezado("Proyectos", [nuevo]));
+  await montarListado({
+    clave: "proyectos",
+    api: "/proyectos",
+    campo: "proyectos",
+    titulo: "proyectos",
+    buscar: "Buscar por código, nombre o cliente",
+    estados: ESTADOS_PROYECTO,
+    vacio: "Aún no hay proyectos registrados.",
+    pintar: tablaProyectos,
+  });
+}
 
-  const proyectos = cuerpo.proyectos;
-  if (proyectos.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay proyectos registrados.";
-    contenido.append(p);
-    return;
-  }
-
+// Nombres de cliente y responsable llegan resueltos del API (JOIN).
+function tablaProyectos(proyectos, recargar) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -2053,9 +2035,9 @@ async function vistaProyectos() {
     [
       p.codigo_pry,
       p.nombre_proyecto,
-      nombreCliente(p.cliente_id),
+      p.cliente_nombre || "—",
       estadoPill(textoEstadoProyecto(p.estado), tipoPillProyecto(p.estado)),
-      nombreUsuario(p.responsable_id),
+      p.responsable_nombre || "—",
     ].forEach((valor) => {
       fila.append(celda(valor));
     });
@@ -2111,7 +2093,8 @@ async function vistaProyectos() {
         }
         const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
         if (r.status === 204) {
-          vistaProyectos();
+          // recarga la misma página de la lista, con la búsqueda vigente
+          recargar();
           return;
         }
         mensajeEliminar.replaceChildren(
@@ -2161,7 +2144,7 @@ async function vistaProyectos() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 // opciones.modoVersion: corrige el proyecto como una nueva versión (con motivo).
@@ -2430,34 +2413,21 @@ function formatearMoneda(valor) {
 
 async function vistaCotizaciones() {
   marcarMenu("cotizaciones");
-  mostrarCargando();
-  const [{ status, cuerpo }, clientes, usuarios] = await Promise.all([
-    api("GET", "/cotizaciones"),
-    obtenerClientes(),
-    obtenerUsuarios(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Cotizaciones"), alerta("error", "No se pudieron cargar las cotizaciones."));
-    return;
-  }
-
-  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
-  const nombreUsuario = (id) => usuarios.find((u) => u.id === id)?.nombre || "—";
-
   const nuevo = boton("Nueva cotización", () => (window.location.hash = "#/cotizaciones/nuevo"));
-  contenido.append(encabezado("Cotizaciones", [nuevo]));
+  contenido.replaceChildren(encabezado("Cotizaciones", [nuevo]));
+  await montarListado({
+    clave: "cotizaciones",
+    api: "/cotizaciones",
+    campo: "cotizaciones",
+    titulo: "cotizaciones",
+    buscar: "Buscar por número o cliente",
+    estados: ESTADOS_COTIZACION,
+    vacio: "Aún no hay cotizaciones registradas.",
+    pintar: tablaCotizaciones,
+  });
+}
 
-  const cotizaciones = cuerpo.cotizaciones;
-  if (cotizaciones.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay cotizaciones registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaCotizaciones(cotizaciones) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -2476,8 +2446,8 @@ async function vistaCotizaciones() {
     const fila = document.createElement("tr");
     [
       c.numero_cotizacion,
-      nombreCliente(c.cliente_id),
-      nombreUsuario(c.asesor_comercial_id),
+      c.cliente_nombre || "—",
+      c.asesor_nombre || "—",
       estadoPill(textoEstadoCotizacion(c.estado), tipoPillCotizacion(c.estado)),
       c.fecha_validez ? c.fecha_validez.substring(0, 10) : "—",
     ].forEach((valor) => {
@@ -2497,7 +2467,7 @@ async function vistaCotizaciones() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 const ETIQUETAS_ITEM_COTIZACION = {
@@ -2921,27 +2891,20 @@ function tipoPillClasificacionProveedor(valor) {
 
 async function vistaProveedores() {
   marcarMenu("proveedores");
-  mostrarCargando();
-  const { status, cuerpo } = await api("GET", "/proveedores");
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Proveedores"), alerta("error", "No se pudieron cargar los proveedores."));
-    return;
-  }
-
   const nuevo = boton("Nuevo proveedor", () => (window.location.hash = "#/proveedores/nuevo"));
-  contenido.append(encabezado("Proveedores", [nuevo]));
+  contenido.replaceChildren(encabezado("Proveedores", [nuevo]));
+  await montarListado({
+    clave: "proveedores",
+    api: "/proveedores",
+    campo: "proveedores",
+    titulo: "proveedores",
+    buscar: "Buscar por razón social o NIT",
+    vacio: "Aún no hay proveedores registrados.",
+    pintar: tablaProveedores,
+  });
+}
 
-  const proveedores = cuerpo.proveedores;
-  if (proveedores.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay proveedores registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaProveedores(proveedores) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -2978,7 +2941,7 @@ async function vistaProveedores() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 async function vistaProveedorForm(id) {
@@ -3092,32 +3055,21 @@ function textoProcedencia(valor) {
 
 async function vistaRequisiciones() {
   marcarMenu("requisiciones");
-  mostrarCargando();
-  const [{ status, cuerpo }, proyectos] = await Promise.all([
-    api("GET", "/requisiciones"),
-    obtenerProyectos(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Requisiciones"), alerta("error", "No se pudieron cargar las requisiciones."));
-    return;
-  }
-
-  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
-
   const nuevo = boton("Nueva requisición", () => (window.location.hash = "#/requisiciones/nuevo"));
-  contenido.append(encabezado("Requisiciones", [nuevo]));
+  contenido.replaceChildren(encabezado("Requisiciones", [nuevo]));
+  await montarListado({
+    clave: "requisiciones",
+    api: "/requisiciones",
+    campo: "requisiciones",
+    titulo: "requisiciones",
+    buscar: "Buscar por número o proyecto",
+    estados: ESTADOS_REQUISICION,
+    vacio: "Aún no hay requisiciones registradas.",
+    pintar: tablaRequisiciones,
+  });
+}
 
-  const requisiciones = cuerpo.requisiciones;
-  if (requisiciones.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay requisiciones registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaRequisiciones(requisiciones) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -3136,7 +3088,7 @@ async function vistaRequisiciones() {
     const fila = document.createElement("tr");
     [
       r.numero_requisicion,
-      nombreProyecto(r.proyecto_id),
+      r.proyecto_nombre || "—",
       textoProcedencia(r.procedencia),
       estadoPill(textoEstadoRequisicion(r.estado), tipoPillRequisicion(r.estado)),
     ].forEach((valor) => {
@@ -3156,7 +3108,7 @@ async function vistaRequisiciones() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 function construirFilaItemSimple(item, campos, editable, onEliminar) {
@@ -3459,38 +3411,27 @@ function calcularTotalItemOC(item) {
 
 async function vistaOrdenesCompra() {
   marcarMenu("ordenes-compra");
-  mostrarCargando();
-  const [{ status, cuerpo }, proveedores] = await Promise.all([
-    api("GET", "/ordenes-compra"),
-    obtenerProveedores(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Órdenes de compra"), alerta("error", "No se pudieron cargar las órdenes de compra."));
-    return;
-  }
-
-  const nombreProveedor = (id) => proveedores.find((p) => p.id === id)?.razon_social || "—";
-
   const nuevo = boton("Nueva orden de compra", () => (window.location.hash = "#/ordenes-compra/nuevo"));
-  contenido.append(encabezado("Órdenes de compra", [nuevo]));
+  contenido.replaceChildren(encabezado("Órdenes de compra", [nuevo]));
+  await montarListado({
+    clave: "ordenes-compra",
+    api: "/ordenes-compra",
+    campo: "ordenes",
+    titulo: "órdenes de compra",
+    buscar: "Buscar por número, proveedor, requisición o proyecto",
+    estados: ESTADOS_ORDEN_COMPRA,
+    vacio: "Aún no hay órdenes de compra registradas.",
+    pintar: tablaOrdenesCompra,
+  });
+}
 
-  const ordenes = cuerpo.ordenes;
-  if (ordenes.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay órdenes de compra registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaOrdenesCompra(ordenes) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
   const thead = document.createElement("thead");
   const filaCabecera = document.createElement("tr");
-  ["Número", "Proveedor", "Estado", ""].forEach((texto) => {
+  ["Número", "Proveedor", "Proyecto", "Estado", ""].forEach((texto) => {
     const th = document.createElement("th");
     th.scope = "col";
     th.textContent = texto;
@@ -3503,7 +3444,8 @@ async function vistaOrdenesCompra() {
     const fila = document.createElement("tr");
     [
       o.numero_oc,
-      nombreProveedor(o.proveedor_id),
+      o.proveedor_nombre || "—",
+      o.proyecto_codigo || "—",
       estadoPill(textoEstadoOrdenCompra(o.estado), tipoPillOrdenCompra(o.estado)),
     ].forEach((valor) => {
       fila.append(celda(valor));
@@ -3522,7 +3464,7 @@ async function vistaOrdenesCompra() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 // opciones.modoVersion: corrige la OC como nueva versión, en cualquier estado.
@@ -3888,34 +3830,21 @@ function tipoPillExpediente(valor) {
 
 async function vistaExpedientes() {
   marcarMenu("expedientes-diseno");
-  mostrarCargando();
-  const [{ status, cuerpo }, proyectos, usuarios] = await Promise.all([
-    api("GET", "/expedientes-diseno"),
-    obtenerProyectos(),
-    obtenerUsuarios(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Expedientes de diseño"), alerta("error", "No se pudieron cargar los expedientes."));
-    return;
-  }
-
-  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
-  const nombreUsuario = (id) => usuarios.find((u) => u.id === id)?.nombre || "—";
-
   const nuevo = boton("Nuevo expediente", () => (window.location.hash = "#/expedientes-diseno/nuevo"));
-  contenido.append(encabezado("Expedientes de diseño", [nuevo]));
+  contenido.replaceChildren(encabezado("Expedientes de diseño", [nuevo]));
+  await montarListado({
+    clave: "expedientes-diseno",
+    api: "/expedientes-diseno",
+    campo: "expedientes",
+    titulo: "expedientes de diseño",
+    buscar: "Buscar por código, producto, serial o proyecto",
+    estados: ESTADOS_EXPEDIENTE,
+    vacio: "Aún no hay expedientes de diseño registrados.",
+    pintar: tablaExpedientes,
+  });
+}
 
-  const expedientes = cuerpo.expedientes;
-  if (expedientes.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay expedientes de diseño registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaExpedientes(expedientes) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -3935,8 +3864,8 @@ async function vistaExpedientes() {
     [
       e.codigo_expediente,
       e.producto_nombre,
-      nombreProyecto(e.proyecto_id),
-      nombreUsuario(e.responsable_diseno_id),
+      e.proyecto_codigo || "—",
+      e.responsable_nombre || "—",
       estadoPill(textoEstadoExpediente(e.estado_liberacion), tipoPillExpediente(e.estado_liberacion)),
     ].forEach((valor) => {
       fila.append(celda(valor));
@@ -3955,7 +3884,7 @@ async function vistaExpedientes() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 async function vistaExpedienteForm(id) {
@@ -4588,32 +4517,20 @@ const CAMPOS_REPORTE = (clientes, proyectos) => [
 
 async function vistaReportesServicio() {
   marcarMenu("reportes-servicio");
-  mostrarCargando();
-  const [{ status, cuerpo }, clientes] = await Promise.all([
-    api("GET", "/reportes-servicio-tecnico"),
-    obtenerClientes(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Reportes de servicio"), alerta("error", "No se pudieron cargar los reportes."));
-    return;
-  }
-
-  const nombreCliente = (idCliente) => clientes.find((c) => c.id === idCliente)?.nombre_razon_social || "—";
-
   const nuevo = boton("Nuevo reporte", () => (window.location.hash = "#/reportes-servicio/nuevo"));
-  contenido.append(encabezado("Reportes de servicio técnico", [nuevo]));
+  contenido.replaceChildren(encabezado("Reportes de servicio técnico", [nuevo]));
+  await montarListado({
+    clave: "reportes-servicio",
+    api: "/reportes-servicio-tecnico",
+    campo: "reportes",
+    titulo: "reportes de servicio",
+    buscar: "Buscar por número, serial, cliente o proyecto",
+    vacio: "Aún no hay reportes de servicio registrados.",
+    pintar: tablaReportesServicio,
+  });
+}
 
-  const reportes = cuerpo.reportes;
-  if (reportes.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay reportes de servicio registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaReportesServicio(reportes) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -4632,7 +4549,7 @@ async function vistaReportesServicio() {
     const fila = document.createElement("tr");
     fila.append(celda(r.numero_reporte));
     fila.append(celda(r.equipo_numero_serie));
-    fila.append(celda(r.cliente_nombre || nombreCliente(r.cliente_id)));
+    fila.append(celda(r.cliente_nombre || "—"));
     fila.append(celda(r.proyecto_codigo || "—"));
     fila.append(celda(estadoPill(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio))));
     fila.append(celda(r.fecha_servicio ? r.fecha_servicio.substring(0, 10) : "—"));
@@ -4646,7 +4563,7 @@ async function vistaReportesServicio() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 // opciones.modoVersion: corrige el reporte como nueva versión (no se elimina).
@@ -4828,31 +4745,24 @@ function pillOrigenEquipo(equipo) {
 
 async function vistaEquipos() {
   marcarMenu("equipos");
-  mostrarCargando();
-  const { status, cuerpo } = await api("GET", "/equipos");
-  contenido.replaceChildren();
-  if (status !== 200) {
-    contenido.append(encabezado("Equipos"), alerta("error", "No se pudieron cargar los equipos."));
-    return;
-  }
-
   const nuevo = boton("Registrar equipo histórico", () => (window.location.hash = "#/equipos/nuevo"));
-  contenido.append(encabezado("Equipos instalados", [nuevo]));
   const nota = document.createElement("p");
   nota.className = "subtitulo";
   nota.textContent =
     "Los equipos con expediente de diseño se registran solos. Aquí se agregan los equipos anteriores al ERP, para poder hacerles reportes de servicio y seguir su historia.";
-  contenido.append(nota);
+  contenido.replaceChildren(encabezado("Equipos instalados", [nuevo]), nota);
+  await montarListado({
+    clave: "equipos",
+    api: "/equipos",
+    campo: "equipos",
+    titulo: "equipos",
+    buscar: "Buscar por serial, equipo, marca, cliente o proyecto",
+    vacio: "Aún no hay equipos registrados.",
+    pintar: tablaEquipos,
+  });
+}
 
-  const equipos = cuerpo.equipos;
-  if (equipos.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay equipos registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaEquipos(equipos) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -4888,7 +4798,7 @@ async function vistaEquipos() {
   });
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 function renderHistorialServicioEquipo(equipo) {
@@ -5113,34 +5023,20 @@ function tipoPillTipoEntrega(valor) {
 
 async function vistaActasCierre() {
   marcarMenu("actas-cierre");
-  mostrarCargando();
-  const [{ status, cuerpo }, proyectos, clientes] = await Promise.all([
-    api("GET", "/actas-cierre-satisfaccion"),
-    obtenerProyectos(),
-    obtenerClientes(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Actas de cierre"), alerta("error", "No se pudieron cargar las actas."));
-    return;
-  }
-
-  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
-  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
-
   const nuevo = boton("Nueva acta", () => (window.location.hash = "#/actas-cierre/nuevo"));
-  contenido.append(encabezado("Actas de cierre a satisfacción", [nuevo]));
+  contenido.replaceChildren(encabezado("Actas de cierre a satisfacción", [nuevo]));
+  await montarListado({
+    clave: "actas-cierre",
+    api: "/actas-cierre-satisfaccion",
+    campo: "actas",
+    titulo: "actas de cierre",
+    buscar: "Buscar por número, proyecto o cliente",
+    vacio: "Aún no hay actas de cierre registradas.",
+    pintar: tablaActasCierre,
+  });
+}
 
-  const actas = cuerpo.actas;
-  if (actas.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay actas de cierre registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaActasCierre(actas) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -5157,7 +5053,7 @@ async function vistaActasCierre() {
   const tbody = document.createElement("tbody");
   actas.forEach((a) => {
     const fila = document.createElement("tr");
-    [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id)].forEach((valor) => {
+    [a.numero_acta, a.proyecto_codigo || "—", a.cliente_nombre || "—"].forEach((valor) => {
       fila.append(celda(valor));
     });
     fila.append(celda(estadoPill(textoTipoEntrega(a.tipo_entrega), tipoPillTipoEntrega(a.tipo_entrega))));
@@ -5171,7 +5067,7 @@ async function vistaActasCierre() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 // opciones.modoVersion: corrige el acta firmada como nueva versión (no se elimina).
@@ -5436,34 +5332,20 @@ async function obtenerActasEntrega() {
 
 async function vistaActasEntrega() {
   marcarMenu("actas-entrega");
-  mostrarCargando();
-  const [{ status, cuerpo }, proyectos, clientes] = await Promise.all([
-    api("GET", "/actas-entrega-equipos"),
-    obtenerProyectos(),
-    obtenerClientes(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Actas de entrega de equipos"), alerta("error", "No se pudieron cargar las actas."));
-    return;
-  }
-
-  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
-  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
-
   const nuevo = boton("Nueva acta", () => (window.location.hash = "#/actas-entrega/nuevo"));
-  contenido.append(encabezado("Actas de entrega de equipos", [nuevo]));
+  contenido.replaceChildren(encabezado("Actas de entrega de equipos", [nuevo]));
+  await montarListado({
+    clave: "actas-entrega",
+    api: "/actas-entrega-equipos",
+    campo: "actas",
+    titulo: "actas de entrega",
+    buscar: "Buscar por número, proyecto o cliente",
+    vacio: "Aún no hay actas de entrega registradas.",
+    pintar: tablaActasEntrega,
+  });
+}
 
-  const actas = cuerpo.actas;
-  if (actas.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay actas de entrega registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaActasEntrega(actas) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -5480,7 +5362,7 @@ async function vistaActasEntrega() {
   const tbody = document.createElement("tbody");
   actas.forEach((a) => {
     const fila = document.createElement("tr");
-    [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id), a.lugar_entrega || "—"].forEach(
+    [a.numero_acta, a.proyecto_codigo || "—", a.cliente_nombre || "—", a.lugar_entrega || "—"].forEach(
       (valor) => {
         fila.append(celda(valor));
       }
@@ -5495,7 +5377,7 @@ async function vistaActasEntrega() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 // opciones.modoVersion: corrige el acta firmada como nueva versión (no se elimina).
@@ -5819,6 +5701,19 @@ async function vistaUsuarios() {
     return;
   }
 
+  // Lista corta: se filtra en el navegador (nombre, correo, cédula o cargo).
+  const barra = document.createElement("div");
+  barra.className = "controles-listado";
+  const buscador = document.createElement("input");
+  buscador.type = "search";
+  buscador.placeholder = "Buscar por nombre, correo, cédula o cargo";
+  buscador.setAttribute("aria-label", "Buscar usuarios");
+  const resumen = document.createElement("span");
+  resumen.className = "resumen-listado";
+  resumen.setAttribute("aria-live", "polite");
+  barra.append(buscador, resumen);
+  buscador.addEventListener("input", () => renderTabla());
+
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -5826,7 +5721,13 @@ async function vistaUsuarios() {
   const tbody = document.createElement("tbody");
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  contenido.append(barra, tarjeta);
+
+  const sinTildes = (texto) =>
+    String(texto || "")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase();
 
   const COLUMNAS_ORDENABLES = [
     { texto: "Nombre", campo: "nombre" },
@@ -5840,7 +5741,14 @@ async function vistaUsuarios() {
   let ascendente = true;
 
   function renderTabla() {
-    const ordenados = [...usuarios].sort((a, b) => {
+    const texto = sinTildes(buscador.value.trim());
+    const visibles = texto
+      ? usuarios.filter((u) =>
+          [u.nombre, u.correo, u.cedula, u.cargo].some((v) => sinTildes(v).includes(texto))
+        )
+      : usuarios;
+    resumen.textContent = `${visibles.length} ${visibles.length === 1 ? "usuario" : "usuarios"}`;
+    const ordenados = [...visibles].sort((a, b) => {
       const valorA = (a[campoOrden] || "").toString();
       const valorB = (b[campoOrden] || "").toString();
       return ascendente

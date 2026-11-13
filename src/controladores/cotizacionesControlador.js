@@ -16,8 +16,13 @@ function crearCotizacionesControlador(pool) {
 
   async function listar(req, res) {
     const query = listarCotizacionesQuerySchema.parse(req.query);
-    const cotizaciones = await cotizacionesServicio.listarCotizaciones(pool, query);
-    res.status(200).json({ cotizaciones });
+    const { filas, total } = await cotizacionesServicio.listarCotizaciones(pool, query);
+    res.status(200).json({
+      cotizaciones: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

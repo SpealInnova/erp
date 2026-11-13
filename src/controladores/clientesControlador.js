@@ -14,8 +14,13 @@ function crearClientesControlador(pool) {
 
   async function listar(req, res) {
     const query = listarClientesQuerySchema.parse(req.query);
-    const clientes = await clientesServicio.listarClientes(pool, query);
-    res.status(200).json({ clientes });
+    const { filas, total } = await clientesServicio.listarClientes(pool, query);
+    res.status(200).json({
+      clientes: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

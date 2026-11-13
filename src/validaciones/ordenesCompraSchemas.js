@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { esquemaListado, filtroEstado } = require("./listados");
 const { ESTADOS } = require("../dominio/estadoOrdenCompra");
 
 const itemSchema = z.object({
@@ -22,10 +23,7 @@ const cambiarEstadoSchema = z.object({
   estado: z.nativeEnum(ESTADOS),
 });
 
-const listarOrdenesCompraQuerySchema = z.object({
-  pagina: z.coerce.number().int().min(1).optional().default(1),
-  tamanoPagina: z.coerce.number().int().min(1).max(100).optional().default(20),
-});
+const listarOrdenesCompraQuerySchema = esquemaListado(filtroEstado(ESTADOS));
 
 module.exports = {
   crearOrdenCompraSchema,

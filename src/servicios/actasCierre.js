@@ -4,6 +4,7 @@ const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const actasEntregaRepositorio = require("../repositorios/actasEntregaRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { insertarConCodigoUnico } = require("./codigoUnico");
 const coherencia = require("./coherenciaProyecto");
 const versiones = require("./versiones");
@@ -93,10 +94,9 @@ async function crearActa(pool, datos, usuarioId) {
   return acta;
 }
 
-async function listarActas(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return actasCierreRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarActas(pool, { pagina, tamanoPagina, q, estado }) {
+  return actasCierreRepositorio.listar(pool, { ...aLimites({ pagina, tamanoPagina }), q, estado });
 }
 
 async function actualizarActa(pool, id, datos, usuarioId) {

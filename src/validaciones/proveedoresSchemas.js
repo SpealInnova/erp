@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { esquemaListado } = require("./listados");
 
 const crearProveedorSchema = z.object({
   nit_cc: z.string().min(1),
@@ -20,9 +21,6 @@ const crearProveedorSchema = z.object({
 
 const actualizarProveedorSchema = crearProveedorSchema.partial();
 
-const listarProveedoresQuerySchema = z.object({
-  pagina: z.coerce.number().int().min(1).optional().default(1),
-  tamanoPagina: z.coerce.number().int().min(1).max(100).optional().default(20),
-});
+const listarProveedoresQuerySchema = esquemaListado();
 
 module.exports = { crearProveedorSchema, actualizarProveedorSchema, listarProveedoresQuerySchema };
