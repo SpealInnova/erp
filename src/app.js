@@ -30,6 +30,7 @@ const { crearActasCierreRutas } = require("./rutas/actasCierreRutas");
 const { crearActasEntregaRutas } = require("./rutas/actasEntregaRutas");
 const { crearUsuariosRutas } = require("./rutas/usuariosRutas");
 const { crearNotificacionesRutas } = require("./rutas/notificacionesRutas");
+const { crearMisActividadesRutas } = require("./rutas/misActividadesRutas");
 const { crearArchivosAdjuntosRutas } = require("./rutas/archivosAdjuntosRutas");
 const { crearTablerosRutas } = require("./rutas/tablerosRutas");
 const { crearEquiposRutas } = require("./rutas/equiposRutas");
@@ -41,6 +42,8 @@ function crearApp() {
   const app = express();
   const APP_ENV = process.env.APP_ENV || "desconocido";
   const pool = crearPool();
+  // index.js lo usa para los avisos periódicos de vencimiento.
+  app.locals.pool = pool;
 
   app.use(express.json());
 
@@ -160,6 +163,7 @@ function crearApp() {
   app.use("/actas-entrega-equipos", requireAuth, crearActasEntregaRutas(pool));
   app.use("/usuarios", requireAuth, crearUsuariosRutas(pool));
   app.use("/notificaciones", requireAuth, crearNotificacionesRutas(pool));
+  app.use("/actividades", requireAuth, crearMisActividadesRutas(pool));
   app.use("/archivos-adjuntos", requireAuth, crearArchivosAdjuntosRutas(pool));
   app.use("/tableros", requireAuth, crearTablerosRutas(pool));
   app.use("/equipos", requireAuth, crearEquiposRutas(pool));

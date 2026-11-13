@@ -38,7 +38,18 @@ async function marcarTodasLeidas(pool, usuarioId) {
   );
 }
 
+async function existeReciente(pool, { usuarioId, tipo, enlace, dias }) {
+  const [filas] = await pool.query(
+    `SELECT 1 FROM notificaciones
+      WHERE usuario_id = ? AND tipo = ? AND enlace = ? AND created_at >= NOW() - INTERVAL ? DAY
+      LIMIT 1`,
+    [usuarioId, tipo, enlace, dias]
+  );
+  return filas.length > 0;
+}
+
 module.exports = {
+  existeReciente,
   crear,
   obtenerPorId,
   listarPorUsuario,

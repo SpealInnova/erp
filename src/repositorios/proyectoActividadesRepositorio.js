@@ -79,7 +79,54 @@ async function softDelete(pool, id) {
   await pool.query("UPDATE proyecto_actividades SET deleted_at = NOW() WHERE id = ?", [id]);
 }
 
+// Lo que se le pide al usuario: las actividades pendientes que tiene
+// asignadas y las sin responsable de los proyectos que dirige. No cuenta
+// proyectos eliminados, cerrados ni cancelados.
+const CONDICION_PENDIENTE = `a.deleted_at IS NULL AND a.estado = 'pendiente'
+   AND p.deleted_at IS NULL AND p.estado NOT IN ('cerrado', 'cancelado')`;
+
+async function listarPendientesDeUsuario(pool, usuarioId) {
+  const [filas] = await pool.query(
+    `SELECT a.id, a.proyecto_id, a.fase, a.categoria, a.descripcion, a.fecha_inicio,
+            a.fecha_fin, a.responsable_id, p.codigo_pry, p.nombre_proyecto
+       FROM proyecto_actividades a
+       JOIN proyectos p ON p.id = a.proyecto_id
+      WHERE ${CONDICION_PENDIENTE}
+        AND (a.responsable_id = ? OR (a.responsable_id IS NULL AND p.responsable_id = ?))
+      ORDER BY a.fecha_fin IS NULL, a.fecha_fin, a.id`,
+    [usuarioId, usuarioId]
+  );
+  return filas;
+}
+
+// Pendientes que vencen entre hace diasVencida días y dentro de diasAviso
+// días. El aviso va al responsable o, si no tiene, al del proyecto.
+async function listarParaAviso(pool, { diasAviso, diasVencida, usuarioId }) {
+  const parametros = [diasVencida, diasAviso];
+  let filtroUsuario = "";
+  if (usuarioId) {
+    filtroUsuario = "AND COALESCE(a.responsable_id, p.responsable_id) = ?";
+    parametros.push(usuarioId);
+  }
+  const [filas] = await pool.query(
+    `SELECT a.id, a.proyecto_id, a.descripcion, a.fecha_fin, p.codigo_pry,
+            COALESCE(a.responsable_id, p.responsable_id) AS destinatario_id,
+            DATEDIFF(a.fecha_fin, CURDATE()) AS dias_restantes
+       FROM proyecto_actividades a
+       JOIN proyectos p ON p.id = a.proyecto_id
+      WHERE ${CONDICION_PENDIENTE}
+        AND a.fecha_fin BETWEEN CURDATE() - INTERVAL ? DAY AND CURDATE() + INTERVAL ? DAY
+        AND COALESCE(a.responsable_id, p.responsable_id) IS NOT NULL
+        ${filtroUsuario}
+      ORDER BY a.fecha_fin, a.id`,
+    parametros
+  );
+  return filas;
+}
+
 module.exports = {
+  listarPendientesDeUsuario,
+  listarParaAviso,
   crear,
   crearMuchas,
   obtenerPorId,

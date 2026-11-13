@@ -360,7 +360,8 @@ function inicializarNotificaciones() {
   boton.addEventListener("click", () => abrir(panel.classList.contains("oculto")));
 
   document.addEventListener("click", (evento) => {
-    if (!panel.classList.contains("oculto") && !panel.contains(evento.target) && evento.target !== boton) {
+    // contains(): el clic suele caer en el ícono (svg) dentro del botón
+    if (!panel.classList.contains("oculto") && !panel.contains(evento.target) && !boton.contains(evento.target)) {
       abrir(false);
     }
   });
@@ -889,6 +890,151 @@ function contenidoEvidencias(tabla, registroId) {
   return contenedor;
 }
 
+// Pestañas dentro de una vista (patrón ARIA "tabs"). definiciones:
+// [{ clave, texto, alActivar(panel) }]; alActivar corre cada vez que se abre.
+function pestanasVista(definiciones) {
+  const lista = document.createElement("div");
+  lista.className = "pestanas-vista";
+  lista.setAttribute("role", "tablist");
+  const paneles = {};
+  const botones = definiciones.map((def, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.id = `pestana-${def.clave}`;
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-controls", `panel-${def.clave}`);
+    b.textContent = def.texto;
+    const panel = document.createElement("div");
+    panel.id = `panel-${def.clave}`;
+    panel.className = "panel-pestana";
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", b.id);
+    paneles[def.clave] = panel;
+    b.addEventListener("click", () => activar(i));
+    lista.append(b);
+    return b;
+  });
+
+  function activar(indice, conFoco = false) {
+    botones.forEach((b, j) => {
+      const elegida = j === indice;
+      b.setAttribute("aria-selected", String(elegida));
+      b.tabIndex = elegida ? 0 : -1;
+      paneles[definiciones[j].clave].hidden = !elegida;
+    });
+    if (conFoco) botones[indice].focus();
+    const def = definiciones[indice];
+    if (def.alActivar) def.alActivar(paneles[def.clave]);
+  }
+
+  lista.addEventListener("keydown", (evento) => {
+    const actual = botones.indexOf(document.activeElement);
+    if (actual < 0) return;
+    const destinos = {
+      ArrowRight: (actual + 1) % botones.length,
+      ArrowLeft: (actual - 1 + botones.length) % botones.length,
+      Home: 0,
+      End: botones.length - 1,
+    };
+    if (!(evento.key in destinos)) return;
+    evento.preventDefault();
+    activar(destinos[evento.key], true);
+  });
+
+  activar(0);
+  return { lista, paneles, activar };
+}
+
+// Ventana modal genérica. Sus formularios tienen su propio guardar, así que
+// no activan el aviso de "cambios sin guardar" de la página.
+function abrirDialogo({ titulo, subtitulo, cuerpo, alCerrar }) {
+  const dialogo = document.createElement("dialog");
+  dialogo.className = "dialogo";
+  const idTitulo = `dialogo-titulo-${Date.now()}`;
+  dialogo.setAttribute("aria-labelledby", idTitulo);
+
+  const cabecera = document.createElement("header");
+  cabecera.className = "dialogo-cabecera";
+  const textos = document.createElement("div");
+  if (subtitulo) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = subtitulo;
+    textos.append(p);
+  }
+  const h3 = document.createElement("h3");
+  h3.id = idTitulo;
+  h3.textContent = titulo;
+  textos.append(h3);
+  const cerrar = document.createElement("button");
+  cerrar.type = "button";
+  cerrar.className = "boton-icono";
+  cerrar.textContent = "×";
+  cerrar.setAttribute("aria-label", "Cerrar");
+  cerrar.addEventListener("click", () => dialogo.close());
+  cabecera.append(textos, cerrar);
+
+  const contenedor = document.createElement("div");
+  contenedor.className = "dialogo-cuerpo";
+  contenedor.append(cuerpo);
+  dialogo.append(cabecera, contenedor);
+  dialogo.querySelectorAll("form").forEach((f) => (f.dataset.sucioVigilado = "1"));
+  dialogo.addEventListener("close", () => {
+    dialogo.remove();
+    if (alCerrar) alCerrar();
+  });
+  contenido.append(dialogo);
+  dialogo.showModal();
+  return dialogo;
+}
+
+// Las evidencias del proyecto no se muestran en la ficha: este botón abre
+// la sección (lista + carga) en una ventana, solo cuando se necesita.
+function botonEvidenciasProyecto(proyectoId) {
+  const b = boton(
+    "Agregar evidencias",
+    () =>
+      abrirDialogo({
+        titulo: "Evidencias del proyecto",
+        subtitulo: "Documentos y soportes",
+        cuerpo: contenidoEvidencias("proyectos", proyectoId),
+        alCerrar: contar,
+      }),
+    true
+  );
+  b.title = "Ver o agregar evidencias del proyecto";
+  async function contar() {
+    const r = await api("GET", `/archivos-adjuntos?tabla=proyectos&registro_id=${proyectoId}`);
+    if (r.status !== 200) return;
+    const n = r.cuerpo.archivos.length;
+    b.textContent = n > 0 ? `Evidencias (${n})` : "Agregar evidencias";
+  }
+  contar();
+  return b;
+}
+
+// Enlace directo a una actividad: la lleva a la vista, la resalta y abre su
+// resumen en el Gantt.
+function enfocarActividad(actividadId) {
+  requestAnimationFrame(() => {
+    const barra = contenido.querySelector(`.gantt-barra[data-actividad-id="${actividadId}"]`);
+    if (!barra) {
+      const seccion = [...contenido.querySelectorAll(".tarjeta-ancha")].find((el) =>
+        el.textContent.startsWith("Actividades por fase")
+      );
+      if (seccion) {
+        seccion
+          .querySelector("h3")
+          .after(alerta("aviso", "Esa actividad ya no está en el proyecto: fue quitada."));
+      }
+      return;
+    }
+    barra.scrollIntoView({ block: "center" });
+    barra.classList.add("gantt-barra--resaltada");
+    barra.click();
+  });
+}
+
 function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -906,7 +1052,7 @@ function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
 // altas; para reactivarlo basta con poner esta constante en true.
 const SUBACTIVIDADES_HABILITADAS = false;
 
-async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
+async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, opciones = {}) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   tarjeta.style.marginTop = "24px";
@@ -980,12 +1126,16 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       porFase.get(actividad.fase).push(actividad);
     });
 
+    const eraPrimeraCarga = primeraCarga;
     if (primeraCarga) {
       const fasesConActividades = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter(
         (fase) => (porFase.get(fase) || []).length > 0
       );
       const ultimaFase = fasesConActividades[fasesConActividades.length - 1];
       if (ultimaFase) fasesAbiertas.add(ultimaFase);
+      // Enlace directo a una actividad: su fase se abre aunque no sea la última.
+      const enlazada = actividades.find((a) => String(a.id) === String(opciones.actividadId));
+      if (enlazada) fasesAbiertas.add(enlazada.fase);
       primeraCarga = false;
     }
 
@@ -1053,131 +1203,9 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       return detalles;
     });
     contenedorGrupos.replaceChildren(...grupos);
+    // Una actividad guardada, movida o quitada cambia la ventana de pendientes.
+    if (!eraPrimeraCarga && window.actualizarMisActividades) window.actualizarMisActividades();
   }
-
-  await cargar();
-  return tarjeta;
-}
-
-async function renderSeccionEquipoProyecto(proyectoId, opcionesUsuarios) {
-  const tarjeta = document.createElement("div");
-  tarjeta.className = "tarjeta-ancha";
-  tarjeta.style.marginTop = "24px";
-
-  const h3 = document.createElement("h3");
-  h3.style.margin = "0 0 16px";
-  h3.style.fontSize = "1.125rem";
-  h3.textContent = "Equipo del proyecto";
-  tarjeta.append(h3);
-
-  const mensaje = document.createElement("div");
-  const tabla = document.createElement("table");
-  tabla.className = "tabla-items";
-  tarjeta.append(mensaje, tabla);
-
-  async function cargar() {
-    mensaje.replaceChildren();
-    tabla.replaceChildren();
-    const r = await api("GET", `/proyectos/${proyectoId}/equipo`);
-    if (r.status !== 200) {
-      mensaje.append(alerta("error", "No se pudo cargar el equipo."));
-      return;
-    }
-    const equipo = r.cuerpo.equipo;
-
-    const thead = document.createElement("thead");
-    const filaCabecera = document.createElement("tr");
-    ["Integrante", "Rol en el proyecto", ""].forEach((texto) => {
-      const th = document.createElement("th");
-      th.scope = "col";
-      th.textContent = texto;
-      filaCabecera.append(th);
-    });
-    thead.append(filaCabecera);
-    tabla.append(thead);
-
-    const tbody = document.createElement("tbody");
-    if (equipo.length === 0) {
-      const fila = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 3;
-      td.className = "subtitulo";
-      td.textContent = "Aún no hay integrantes asignados.";
-      fila.append(td);
-      tbody.append(fila);
-    }
-    equipo.forEach((miembro) => {
-      const fila = document.createElement("tr");
-      fila.append(celda(miembro.usuario_nombre), celda(miembro.rol_en_proyecto));
-
-      const tdAccion = document.createElement("td");
-      const quitarBtn = boton(
-        "Quitar",
-        async () => {
-          if (!window.confirm(`¿Quitar a ${miembro.usuario_nombre} del equipo?`)) return;
-          const r2 = await api("DELETE", `/proyectos/${proyectoId}/equipo/${miembro.id}`);
-          if (r2.status === 204) {
-            cargar();
-            return;
-          }
-          mensaje.replaceChildren(
-            alerta("error", r2.cuerpo?.error || "No se pudo quitar al integrante.")
-          );
-        },
-        true
-      );
-      tdAccion.append(quitarBtn);
-      fila.append(tdAccion);
-
-      tbody.append(fila);
-    });
-    tabla.append(tbody);
-  }
-
-  const formAgregar = document.createElement("form");
-  formAgregar.noValidate = true;
-  formAgregar.style.marginTop = "16px";
-  const gridAgregar = document.createElement("div");
-  gridAgregar.className = "formulario-grid";
-  gridAgregar.append(
-    construirCampo(
-      {
-        nombre: "equipo_usuario_id",
-        etiqueta: "Integrante",
-        tipo: "select",
-        requerido: true,
-        opciones: opcionesUsuarios,
-      },
-      ""
-    ),
-    construirCampo({ nombre: "equipo_rol", etiqueta: "Rol en el proyecto", requerido: true }, "")
-  );
-  const agregarBtn = document.createElement("button");
-  agregarBtn.type = "submit";
-  agregarBtn.className = "boton boton-pequeno";
-  agregarBtn.textContent = "Agregar al equipo";
-  formAgregar.append(gridAgregar, agregarBtn);
-
-  formAgregar.addEventListener("submit", async (evento) => {
-    evento.preventDefault();
-    const usuarioId = formAgregar.elements.equipo_usuario_id.value;
-    const rol = formAgregar.elements.equipo_rol.value.trim();
-    if (!usuarioId || !rol) return;
-    const r = await api("POST", `/proyectos/${proyectoId}/equipo`, {
-      usuario_id: Number(usuarioId),
-      rol_en_proyecto: rol,
-    });
-    if (r.status !== 201) {
-      mensaje.replaceChildren(
-        alerta("error", r.cuerpo?.error || "No se pudo agregar al integrante.")
-      );
-      return;
-    }
-    formAgregar.reset();
-    cargar();
-  });
-
-  tarjeta.append(formAgregar);
 
   await cargar();
   return tarjeta;
@@ -1644,7 +1672,6 @@ function formatoFechaHora(valor) {
 async function renderSeccionLineaTiempoProyecto(proyectoId) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
-  tarjeta.style.marginTop = "24px";
 
   const h3 = document.createElement("h3");
   h3.style.margin = "0 0 16px";
@@ -1943,7 +1970,31 @@ async function vistaProyectoForm(id, opciones = {}) {
   const tituloProyecto = id
     ? `${modoVersion ? "Nueva versión del proyecto" : "Proyecto"} ${proyecto.codigo_pry}${proyecto.version > 1 ? ` · v${proyecto.version}` : ""}`
     : "Nuevo proyecto";
-  contenido.append(encabezado(tituloProyecto, [volver]));
+  // La ficha de un proyecto existente va en pestañas: "Proyecto" (todo lo
+  // de abajo) y "Línea de tiempo" (se carga al abrirla, siempre al día).
+  const conFicha = Boolean(id) && !modoVersion;
+  const acciones = document.createElement("div");
+  acciones.className = "encabezado-acciones";
+  if (conFicha) acciones.append(botonEvidenciasProyecto(id));
+  acciones.append(volver);
+  contenido.append(encabezado(tituloProyecto, [acciones]));
+  const pestanas = conFicha
+    ? pestanasVista([
+        { clave: "ficha", texto: "Proyecto" },
+        {
+          clave: "linea",
+          texto: "Línea de tiempo",
+          alActivar: async (panel) => {
+            const cargando = document.createElement("p");
+            cargando.className = "subtitulo";
+            cargando.textContent = "Cargando…";
+            panel.replaceChildren(cargando);
+            panel.replaceChildren(await renderSeccionLineaTiempoProyecto(id));
+          },
+        },
+      ])
+    : null;
+  if (pestanas) contenido.append(pestanas.lista, ...Object.values(pestanas.paneles));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -2014,7 +2065,7 @@ async function vistaProyectoForm(id, opciones = {}) {
   form.append(grid, guardar);
   if (!id) form.append(botonCancelar("#/proyectos"));
   tarjeta.append(mensaje, form);
-  contenido.append(tarjeta);
+  (pestanas ? pestanas.paneles.ficha : contenido).append(tarjeta);
 
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
@@ -2114,10 +2165,12 @@ async function vistaProyectoForm(id, opciones = {}) {
 
     tarjeta.append(renderSeccionPresupuestoProyecto(proyecto));
     tarjeta.append(await renderSeccionDocumentosProyecto(id));
-    tarjeta.append(await renderSeccionActividadesProyecto(id, opcionesUsuarios));
-    tarjeta.append(await renderSeccionEquipoProyecto(id, opcionesUsuarios));
-    tarjeta.append(renderSeccionEvidencias("proyectos", id, "Evidencias del proyecto"));
-    tarjeta.append(await renderSeccionLineaTiempoProyecto(id));
+    tarjeta.append(
+      await renderSeccionActividadesProyecto(id, opcionesUsuarios, {
+        actividadId: opciones.actividadId,
+      })
+    );
+    if (opciones.actividadId) enfocarActividad(opciones.actividadId);
   }
 }
 
@@ -5689,6 +5742,11 @@ function enrutar() {
   if (/^#\/clientes$/.test(ruta)) return vistaClientes();
 
   if (/^#\/proyectos\/nuevo$/.test(ruta)) return vistaProyectoForm(null);
+  // Enlace directo a una actividad (avisos y ventana "Actividades pendientes")
+  const actividadProyecto = ruta.match(/^#\/proyectos\/(\d+)\/actividades\/(\d+)$/);
+  if (actividadProyecto) {
+    return vistaProyectoForm(actividadProyecto[1], { actividadId: actividadProyecto[2] });
+  }
   const editarProyecto = ruta.match(/^#\/proyectos\/(\d+)$/);
   if (editarProyecto) return vistaProyectoForm(editarProyecto[1]);
   if (/^#\/proyectos$/.test(ruta)) return vistaProyectos();
