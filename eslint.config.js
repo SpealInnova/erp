@@ -26,4 +26,10 @@ module.exports = [
       globals: { ...globals.browser },
     },
   },
+  {
+    files: ["tests/e2e/**/*.js"],
+    languageOptions: {
+      globals: { ...globals.browser },
+    },
+  },
 ];

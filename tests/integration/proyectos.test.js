@@ -29,7 +29,7 @@ describirSiHayBD("CRUD de Proyectos (integración contra BD real)", () => {
 
     const passwordHash = await bcrypt.hash("ClaveSegura123", 10);
     const [usuario] = await pool.query(
-      "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, ?, 'tester', 1)",
+      "INSERT INTO usuarios (nombre, correo, password_hash, rol, cargo, activo) VALUES (?, ?, ?, 'tester', 'Gerente General', 1)",
       ["Usuario de prueba", correoUsuario, passwordHash]
     );
     usuarioId = usuario.insertId;
@@ -109,7 +109,9 @@ describirSiHayBD("CRUD de Proyectos (integración contra BD real)", () => {
     expect(respuesta.status).toBe(201);
     const numeroAnterior = Number(primerCodigo.split("-")[2]);
     const numeroNuevo = Number(respuesta.body.proyecto.codigo_pry.split("-")[2]);
-    expect(numeroNuevo).toBe(numeroAnterior + 1);
+    // Otras suites crean proyectos en paralelo y pueden tomar el número
+    // intermedio: lo que se garantiza es que el consecutivo siempre avanza.
+    expect(numeroNuevo).toBeGreaterThan(numeroAnterior);
 
     await pool.query("DELETE FROM proyectos WHERE id = ?", [respuesta.body.proyecto.id]);
   });
@@ -204,8 +206,24 @@ describirSiHayBD("CRUD de Proyectos (integración contra BD real)", () => {
     expect(respuesta.body.proyecto.estado).toBe("planeacion");
   });
 
-  test("elimina (soft-delete) el proyecto", async () => {
+  test("rechaza eliminar sin contraseña ni justificación", async () => {
     const respuesta = await request(app).delete(`/proyectos/${proyectoId}`).set(autorizacion());
+    expect(respuesta.status).toBe(400);
+  });
+
+  test("rechaza eliminar con la contraseña incorrecta", async () => {
+    const respuesta = await request(app)
+      .delete(`/proyectos/${proyectoId}`)
+      .set(autorizacion())
+      .send({ password: "ClaveIncorrecta", justificacion: "Proyecto de prueba duplicado" });
+    expect(respuesta.status).toBe(403);
+  });
+
+  test("elimina (soft-delete) el proyecto con contraseña y justificación válidas", async () => {
+    const respuesta = await request(app)
+      .delete(`/proyectos/${proyectoId}`)
+      .set(autorizacion())
+      .send({ password: "ClaveSegura123", justificacion: "Proyecto de prueba duplicado" });
     expect(respuesta.status).toBe(204);
 
     const obtener = await request(app).get(`/proyectos/${proyectoId}`).set(autorizacion());

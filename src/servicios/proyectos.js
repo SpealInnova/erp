@@ -1,8 +1,15 @@
+const bcrypt = require("bcryptjs");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const cotizacionesRepositorio = require("../repositorios/cotizacionesRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
+const { insertarConCodigoUnico } = require("./codigoUnico");
+const versiones = require("./versiones");
+const { exigirPermiso } = require("./autorizacion");
+const proyectoDocumentosRepositorio = require("../repositorios/proyectoDocumentosRepositorio");
+const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const proyectoActividadesServicio = require("./proyectoActividades");
 const notificacionesServicio = require("./notificaciones");
 const archivosDrive = require("./archivosDrive");
@@ -15,6 +22,7 @@ const {
   ErrorResponsableInvalido,
   ErrorCotizacionInvalida,
   ErrorCodigoPryDuplicado,
+  ErrorPasswordInvalida,
 } = require("../dominio/erroresProyectos");
 
 const TABLA = "proyectos";
@@ -58,13 +66,16 @@ async function crearProyecto(pool, datos, usuarioId) {
     await validarCotizacion(pool, datos.cotizacion_id, datos.cliente_id);
   }
 
-  const codigoPry = await generarCodigoPry(pool);
-
-  const id = await proyectosRepositorio.crear(pool, {
-    ...datos,
-    codigo_pry: codigoPry,
-    estado: ESTADOS.PROSPECTO,
-  });
+  const id = await insertarConCodigoUnico(
+    "uq_proyectos_codigo_pry",
+    () => generarCodigoPry(pool),
+    (codigoPry) =>
+      proyectosRepositorio.crear(pool, {
+        ...datos,
+        codigo_pry: codigoPry,
+        estado: ESTADOS.PROSPECTO,
+      })
+  );
   const proyecto = await proyectosRepositorio.obtenerPorId(pool, id);
 
   await auditoria.registrar(pool, {
@@ -93,10 +104,9 @@ async function obtenerProyectoConResumen(pool, id) {
   return { ...proyecto, gasto_real: gastoReal };
 }
 
-async function listarProyectos(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return proyectosRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarProyectos(pool, { pagina, tamanoPagina, q, estado }) {
+  return proyectosRepositorio.listar(pool, { ...aLimites({ pagina, tamanoPagina }), q, estado });
 }
 
 async function actualizarProyecto(pool, id, datos, usuarioId) {
@@ -143,6 +153,9 @@ async function actualizarProyecto(pool, id, datos, usuarioId) {
 async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observacion) {
   const anterior = await obtenerProyecto(pool, id);
   transicionar(anterior.estado, estadoDestino);
+  if (estadoDestino === ESTADOS.CANCELADO) {
+    await exigirPermiso(pool, usuarioId, "cancelar_proyecto");
+  }
 
   await proyectosRepositorio.actualizarEstado(pool, id, estadoDestino);
   const actualizado = await proyectosRepositorio.obtenerPorId(pool, id);
@@ -156,12 +169,7 @@ async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observa
     datosNuevos: observacion ? { ...actualizado, observacion } : actualizado,
   });
 
-  await proyectoActividadesServicio.generarActividadesParaFase(
-    pool,
-    id,
-    estadoDestino,
-    usuarioId
-  );
+  await proyectoActividadesServicio.generarActividadesParaFase(pool, id, estadoDestino, usuarioId);
 
   await notificacionesServicio.notificar(pool, {
     usuarioId: actualizado.responsable_id,
@@ -174,8 +182,39 @@ async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observa
   return actualizado;
 }
 
-async function eliminarProyecto(pool, id, usuarioId) {
+const NOMBRES_DOCUMENTOS = {
+  expedientes: "expedientes de diseño",
+  requisiciones: "requisiciones",
+  ordenes_compra: "órdenes de compra",
+  reportes_servicio: "reportes de servicio",
+  actas_entrega: "actas de entrega",
+  actas_cierre: "actas de cierre",
+  equipos: "equipos",
+};
+
+// Un proyecto con documentos enlazados no se elimina: se corrige con una
+// nueva versión, para no dejar documentos apuntando a un proyecto borrado.
+async function exigirSinDocumentos(pool, proyecto) {
+  const conteo = await proyectoDocumentosRepositorio.contarDocumentosEnlazados(pool, proyecto.id);
+  const presentes = Object.entries(conteo).filter(([, n]) => n > 0);
+  if (presentes.length === 0) return;
+  const lista = presentes.map(([clave, n]) => `${n} ${NOMBRES_DOCUMENTOS[clave]}`).join(", ");
+  throw new ErrorEliminacionBloqueada(
+    `El proyecto ${proyecto.codigo_pry} no se puede eliminar porque tiene ${lista}. Para corregirlo, crea una nueva versión.`,
+    { documentos: conteo }
+  );
+}
+
+async function eliminarProyecto(pool, id, { password, justificacion }, usuarioId) {
   const anterior = await obtenerProyecto(pool, id);
+  await exigirSinDocumentos(pool, anterior);
+
+  const usuario = await exigirPermiso(pool, usuarioId, "cancelar_proyecto");
+  const passwordValida = usuario && (await bcrypt.compare(password, usuario.password_hash));
+  if (!passwordValida) {
+    throw new ErrorPasswordInvalida();
+  }
+
   await proyectosRepositorio.softDelete(pool, id);
 
   await auditoria.registrar(pool, {
@@ -184,12 +223,29 @@ async function eliminarProyecto(pool, id, usuarioId) {
     accion: "eliminar",
     usuarioId,
     datosAnteriores: anterior,
-    datosNuevos: null,
+    datosNuevos: { justificacion },
   });
+}
+
+// Nueva versión: la copia del proyecto tal como está queda en el historial y la
+// corrección se aplica con las mismas validaciones de la edición. El cliente no
+// cambia: los documentos enlazados están a su nombre.
+async function crearVersionProyecto(pool, id, { motivo, ...datos }, usuarioId) {
+  await exigirPermiso(pool, usuarioId, "versionar_proyecto");
+  await versiones.crearNuevaVersion(pool, {
+    tabla: TABLA,
+    registroId: id,
+    motivo,
+    usuarioId,
+    obtener: (conexion) => obtenerProyecto(conexion, id),
+    actualizar: (conexion) => actualizarProyecto(conexion, id, datos, usuarioId),
+  });
+  return obtenerProyecto(pool, id);
 }
 
 module.exports = {
   crearProyecto,
+  crearVersionProyecto,
   obtenerProyecto,
   obtenerProyectoConResumen,
   listarProyectos,

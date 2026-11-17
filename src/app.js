@@ -8,6 +8,7 @@ const { crearProyectosRutas } = require("./rutas/proyectosRutas");
 const { crearProyectoActividadesRutas } = require("./rutas/proyectoActividadesRutas");
 const { crearLineaTiempoRutas } = require("./rutas/lineaTiempoRutas");
 const { crearProyectoEquipoRutas } = require("./rutas/proyectoEquipoRutas");
+const { crearProyectoDocumentosRutas } = require("./rutas/proyectoDocumentosRutas");
 const { crearCotizacionesRutas } = require("./rutas/cotizacionesRutas");
 const { crearProveedoresRutas } = require("./rutas/proveedoresRutas");
 const { crearRequisicionesRutas } = require("./rutas/requisicionesRutas");
@@ -29,7 +30,11 @@ const { crearActasCierreRutas } = require("./rutas/actasCierreRutas");
 const { crearActasEntregaRutas } = require("./rutas/actasEntregaRutas");
 const { crearUsuariosRutas } = require("./rutas/usuariosRutas");
 const { crearNotificacionesRutas } = require("./rutas/notificacionesRutas");
+const { crearMisActividadesRutas } = require("./rutas/misActividadesRutas");
 const { crearArchivosAdjuntosRutas } = require("./rutas/archivosAdjuntosRutas");
+const { crearTablerosRutas } = require("./rutas/tablerosRutas");
+const { crearEquiposRutas } = require("./rutas/equiposRutas");
+const { crearVersionesRutas } = require("./rutas/versionesRutas");
 const { requireAuth } = require("./middlewares/requireAuth");
 const { manejadorErrores } = require("./middlewares/manejadorErrores");
 
@@ -37,6 +42,8 @@ function crearApp() {
   const app = express();
   const APP_ENV = process.env.APP_ENV || "desconocido";
   const pool = crearPool();
+  // index.js lo usa para los avisos periódicos de vencimiento.
+  app.locals.pool = pool;
 
   app.use(express.json());
 
@@ -91,6 +98,11 @@ function crearApp() {
     "/proyectos/:proyectoId/equipo",
     requireAuth,
     crearProyectoEquipoRutas(pool)
+  );
+  app.use(
+    "/proyectos/:proyectoId/documentos",
+    requireAuth,
+    crearProyectoDocumentosRutas(pool)
   );
   app.use("/cotizaciones", requireAuth, crearCotizacionesRutas(pool));
   app.use("/proveedores", requireAuth, crearProveedoresRutas(pool));
@@ -151,7 +163,11 @@ function crearApp() {
   app.use("/actas-entrega-equipos", requireAuth, crearActasEntregaRutas(pool));
   app.use("/usuarios", requireAuth, crearUsuariosRutas(pool));
   app.use("/notificaciones", requireAuth, crearNotificacionesRutas(pool));
+  app.use("/actividades", requireAuth, crearMisActividadesRutas(pool));
   app.use("/archivos-adjuntos", requireAuth, crearArchivosAdjuntosRutas(pool));
+  app.use("/tableros", requireAuth, crearTablerosRutas(pool));
+  app.use("/equipos", requireAuth, crearEquiposRutas(pool));
+  app.use("/versiones", requireAuth, crearVersionesRutas(pool));
 
   app.use(manejadorErrores);
 

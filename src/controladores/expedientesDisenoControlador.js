@@ -15,8 +15,13 @@ function crearExpedientesDisenoControlador(pool) {
 
   async function listar(req, res) {
     const query = listarExpedientesQuerySchema.parse(req.query);
-    const expedientes = await expedientesDisenoServicio.listarExpedientes(pool, query);
-    res.status(200).json({ expedientes });
+    const { filas, total } = await expedientesDisenoServicio.listarExpedientes(pool, query);
+    res.status(200).json({
+      expedientes: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {

@@ -1,5 +1,6 @@
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { ErrorClienteNoEncontrado, ErrorIdentificacionDuplicada } = require("../dominio/erroresClientes");
 
 const TABLA = "clientes";
@@ -36,10 +37,9 @@ async function obtenerCliente(pool, id) {
   return cliente;
 }
 
-async function listarClientes(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return clientesRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarClientes(pool, { pagina, tamanoPagina, q, estado }) {
+  return clientesRepositorio.listar(pool, { ...aLimites({ pagina, tamanoPagina }), q, estado });
 }
 
 async function actualizarCliente(pool, id, datos, usuarioId) {

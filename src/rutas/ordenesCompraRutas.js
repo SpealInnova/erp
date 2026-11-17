@@ -10,6 +10,7 @@ function crearOrdenesCompraRutas(pool) {
   router.get("/", envolverAsync(controlador.listar));
   router.get("/:id", envolverAsync(controlador.obtener));
   router.put("/:id", envolverAsync(controlador.actualizar));
+  router.post("/:id/versiones", envolverAsync(controlador.crearVersion));
   router.patch("/:id/estado", envolverAsync(controlador.cambiarEstado));
   router.delete("/:id", envolverAsync(controlador.eliminar));
 

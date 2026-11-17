@@ -15,6 +15,14 @@ module.exports = defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: "retain-on-failure",
+    // La ventana "Actividades pendientes" no se abre sola (taparía botones de
+    // otras pruebas); actividades-pendientes.spec.js la vuelve a activar.
+    storageState: {
+      cookies: [],
+      origins: [
+        { origin: BASE_URL, localStorage: [{ name: "actividades-pendientes-auto", value: "0" }] },
+      ],
+    },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

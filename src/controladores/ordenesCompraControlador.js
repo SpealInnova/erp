@@ -5,6 +5,7 @@ const {
   cambiarEstadoSchema,
   listarOrdenesCompraQuerySchema,
 } = require("../validaciones/ordenesCompraSchemas");
+const { conMotivo } = require("../validaciones/versionesSchemas");
 
 function crearOrdenesCompraControlador(pool) {
   async function crear(req, res) {
@@ -15,8 +16,13 @@ function crearOrdenesCompraControlador(pool) {
 
   async function listar(req, res) {
     const query = listarOrdenesCompraQuerySchema.parse(req.query);
-    const ordenes = await ordenesCompraServicio.listarOrdenesCompra(pool, query);
-    res.status(200).json({ ordenes });
+    const { filas, total } = await ordenesCompraServicio.listarOrdenesCompra(pool, query);
+    res.status(200).json({
+      ordenes: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {
@@ -55,7 +61,19 @@ function crearOrdenesCompraControlador(pool) {
     res.status(204).send();
   }
 
-  return { crear, listar, obtener, actualizar, cambiarEstado, eliminar };
+  async function crearVersion(req, res) {
+    const id = Number(req.params.id);
+    const datos = conMotivo(actualizarOrdenCompraSchema).parse(req.body);
+    const orden = await ordenesCompraServicio.crearVersionOrdenCompra(
+      pool,
+      id,
+      datos,
+      req.usuario.id
+    );
+    res.status(200).json({ orden });
+  }
+
+  return { crear, listar, obtener, actualizar, cambiarEstado, eliminar, crearVersion };
 }
 
 module.exports = { crearOrdenesCompraControlador };

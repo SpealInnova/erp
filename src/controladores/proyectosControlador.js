@@ -2,9 +2,11 @@ const proyectosServicio = require("../servicios/proyectos");
 const {
   crearProyectoSchema,
   actualizarProyectoSchema,
+  eliminarProyectoSchema,
   cambiarEstadoSchema,
   listarProyectosQuerySchema,
 } = require("../validaciones/proyectosSchemas");
+const { conMotivo } = require("../validaciones/versionesSchemas");
 
 function crearProyectosControlador(pool) {
   async function crear(req, res) {
@@ -15,8 +17,13 @@ function crearProyectosControlador(pool) {
 
   async function listar(req, res) {
     const query = listarProyectosQuerySchema.parse(req.query);
-    const proyectos = await proyectosServicio.listarProyectos(pool, query);
-    res.status(200).json({ proyectos });
+    const { filas, total } = await proyectosServicio.listarProyectos(pool, query);
+    res.status(200).json({
+      proyectos: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {
@@ -47,11 +54,19 @@ function crearProyectosControlador(pool) {
 
   async function eliminar(req, res) {
     const id = Number(req.params.id);
-    await proyectosServicio.eliminarProyecto(pool, id, req.usuario.id);
+    const datos = eliminarProyectoSchema.parse(req.body);
+    await proyectosServicio.eliminarProyecto(pool, id, datos, req.usuario.id);
     res.status(204).send();
   }
 
-  return { crear, listar, obtener, actualizar, cambiarEstado, eliminar };
+  async function crearVersion(req, res) {
+    const id = Number(req.params.id);
+    const datos = conMotivo(actualizarProyectoSchema).parse(req.body);
+    const proyecto = await proyectosServicio.crearVersionProyecto(pool, id, datos, req.usuario.id);
+    res.status(200).json({ proyecto });
+  }
+
+  return { crear, listar, obtener, actualizar, cambiarEstado, eliminar, crearVersion };
 }
 
 module.exports = { crearProyectosControlador };

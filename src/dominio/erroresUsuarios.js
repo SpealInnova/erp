@@ -10,4 +10,10 @@ class ErrorCedulaDuplicada extends Error {
   }
 }
 
-module.exports = { ErrorCorreoDuplicado, ErrorCedulaDuplicada };
+class ErrorUsuarioNoEncontrado extends Error {
+  constructor() {
+    super("Usuario no encontrado");
+  }
+}
+
+module.exports = { ErrorCorreoDuplicado, ErrorCedulaDuplicada, ErrorUsuarioNoEncontrado };

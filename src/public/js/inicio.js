@@ -1,3 +1,4 @@
+/* global montarListado */ // listados.js
 const token = sessionStorage.getItem("erp_token");
 const contenido = document.getElementById("contenido");
 
@@ -26,6 +27,45 @@ async function api(metodo, ruta, cuerpo) {
   }
   const texto = respuesta.status === 204 ? null : await respuesta.json().catch(() => null);
   return { status: respuesta.status, cuerpo: texto };
+}
+
+/* Perfil del usuario (cargo y permisos, de GET /auth/perfil). Solo decide qué
+   acciones se muestran: el servidor valida cada una de todas formas. Sin
+   perfil, no se muestra ninguna acción restringida. */
+let PERFIL = { id: null, rol: null, cargo: null, permisos: [], superusuario: false };
+
+async function cargarPerfil() {
+  try {
+    const r = await api("GET", "/auth/perfil");
+    if (r.status === 200 && r.cuerpo?.usuario) {
+      PERFIL = { ...PERFIL, ...r.cuerpo.usuario, permisos: r.cuerpo.usuario.permisos || [] };
+    }
+  } catch {
+    // sin perfil: las acciones restringidas quedan ocultas
+  }
+}
+
+function puede(permiso) {
+  return PERFIL.permisos.includes(permiso);
+}
+
+// Aprobar exige el permiso y, salvo admin o Gerente General, no haber creado
+// el documento (separación de funciones, igual que en el servidor).
+function puedeAprobarDocumento(permiso, creadoPor) {
+  return puede(permiso) && (PERFIL.superusuario || !creadoPor || creadoPor !== PERFIL.id);
+}
+
+// Opciones de un selector de estado que el usuario puede elegir; la actual
+// siempre se incluye.
+function opcionesSegunPermiso(opciones, actual, permitido) {
+  return opciones.filter((o) => o.valor === actual || permitido(o.valor));
+}
+
+function notaSinPermisoEstado(texto) {
+  const p = document.createElement("p");
+  p.className = "subtitulo";
+  p.textContent = texto;
+  return p;
 }
 
 function alerta(tipo, mensaje) {
@@ -133,15 +173,7 @@ function boton(texto, onClick, secundario = false) {
 }
 
 function botonCancelar(rutaVolver) {
-  return boton(
-    "Cancelar",
-    () => {
-      if (window.confirm("¿Deseas cancelar? Se perderán los datos ingresados.")) {
-        window.location.hash = rutaVolver;
-      }
-    },
-    true
-  );
+  return boton("Cancelar", () => (window.location.hash = rutaVolver), true);
 }
 
 function confirmarCreacion(nombreObjeto) {
@@ -156,7 +188,62 @@ function mostrarCargando() {
   contenido.append(p);
 }
 
-function marcarMenu(modulo) {
+// El menú lateral muestra módulos; los módulos con varias entidades las
+// recorren con pestañas horizontales sobre el contenido. Cada vista sigue
+// llamando a marcarMenu() con su propia sección (p. ej. "clientes").
+const SECCIONES_POR_MODULO = {
+  comercial: [
+    { seccion: "resumen-comercial", texto: "Resumen", ruta: "#/comercial" },
+    { seccion: "cotizaciones", texto: "Cotizaciones", ruta: "#/cotizaciones" },
+    { seccion: "clientes", texto: "Clientes", ruta: "#/clientes" },
+  ],
+  compras: [
+    { seccion: "resumen-compras", texto: "Resumen", ruta: "#/compras" },
+    { seccion: "requisiciones", texto: "Requisiciones", ruta: "#/requisiciones" },
+    { seccion: "ordenes-compra", texto: "Órdenes de compra", ruta: "#/ordenes-compra" },
+    { seccion: "proveedores", texto: "Proveedores", ruta: "#/proveedores" },
+  ],
+  soporte: [
+    { seccion: "reportes-servicio", texto: "Reportes de servicio", ruta: "#/reportes-servicio" },
+    { seccion: "equipos", texto: "Equipos", ruta: "#/equipos" },
+  ],
+  entregas: [
+    { seccion: "actas-entrega", texto: "Actas de entrega", ruta: "#/actas-entrega" },
+    { seccion: "actas-cierre", texto: "Actas de cierre", ruta: "#/actas-cierre" },
+  ],
+};
+
+const MODULO_DE_SECCION = {
+  "expedientes-diseno": "diseno",
+  "reportes-servicio": "soporte",
+};
+Object.entries(SECCIONES_POR_MODULO).forEach(([modulo, secciones]) => {
+  secciones.forEach((s) => (MODULO_DE_SECCION[s.seccion] = modulo));
+});
+
+function pintarPestanasModulo(modulo, seccionActual) {
+  const nav = document.getElementById("subtabs");
+  if (!nav) return;
+  const secciones = SECCIONES_POR_MODULO[modulo];
+  if (!secciones) {
+    nav.hidden = true;
+    nav.replaceChildren();
+    return;
+  }
+  nav.replaceChildren(
+    ...secciones.map((s) => {
+      const a = document.createElement("a");
+      a.href = s.ruta;
+      a.textContent = s.texto;
+      if (s.seccion === seccionActual) a.setAttribute("aria-current", "page");
+      return a;
+    })
+  );
+  nav.hidden = false;
+}
+
+function marcarMenu(seccion) {
+  const modulo = MODULO_DE_SECCION[seccion] || seccion;
   const crumb = document.getElementById("crumb-modulo");
   document.querySelectorAll(".menu a[data-modulo]").forEach((a) => {
     if (a.dataset.modulo === modulo) {
@@ -166,6 +253,7 @@ function marcarMenu(modulo) {
       a.removeAttribute("aria-current");
     }
   });
+  pintarPestanasModulo(modulo, seccion);
 }
 
 function inicializarTopbar() {
@@ -272,7 +360,8 @@ function inicializarNotificaciones() {
   boton.addEventListener("click", () => abrir(panel.classList.contains("oculto")));
 
   document.addEventListener("click", (evento) => {
-    if (!panel.classList.contains("oculto") && !panel.contains(evento.target) && evento.target !== boton) {
+    // contains(): el clic suele caer en el ícono (svg) dentro del botón
+    if (!panel.classList.contains("oculto") && !panel.contains(evento.target) && !boton.contains(evento.target)) {
       abrir(false);
     }
   });
@@ -291,27 +380,20 @@ inicializarNotificaciones();
 
 async function vistaClientes() {
   marcarMenu("clientes");
-  mostrarCargando();
-  const { status, cuerpo } = await api("GET", "/clientes");
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Clientes"), alerta("error", "No se pudieron cargar los clientes."));
-    return;
-  }
-
   const nuevo = boton("Nuevo cliente", () => (window.location.hash = "#/clientes/nuevo"));
-  contenido.append(encabezado("Clientes", [nuevo]));
+  contenido.replaceChildren(encabezado("Clientes", [nuevo]));
+  await montarListado({
+    clave: "clientes",
+    api: "/clientes",
+    campo: "clientes",
+    titulo: "clientes",
+    buscar: "Buscar por nombre, identificación o ciudad",
+    vacio: "Aún no hay clientes registrados.",
+    pintar: tablaClientes,
+  });
+}
 
-  const clientes = cuerpo.clientes;
-  if (clientes.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay clientes registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaClientes(clientes) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -347,7 +429,7 @@ async function vistaClientes() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 const CAMPOS_CLIENTE = [
@@ -408,8 +490,12 @@ function construirCampo(config, valor) {
   return div;
 }
 
+// Los selectores piden el máximo que admite el API (100); sin esto recibían
+// solo la primera página (20) y los registros más antiguos no aparecían.
+const PAGINA_SELECTORES = "?tamanoPagina=100";
+
 async function obtenerClientes() {
-  const r = await api("GET", "/clientes");
+  const r = await api("GET", `/clientes${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.clientes : [];
 }
 
@@ -419,23 +505,61 @@ async function obtenerUsuarios() {
 }
 
 async function obtenerProyectos() {
-  const r = await api("GET", "/proyectos");
+  const r = await api("GET", `/proyectos${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.proyectos : [];
 }
 
 async function obtenerCotizaciones() {
-  const r = await api("GET", "/cotizaciones");
+  const r = await api("GET", `/cotizaciones${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.cotizaciones : [];
 }
 
 async function obtenerProveedores() {
-  const r = await api("GET", "/proveedores");
+  const r = await api("GET", `/proveedores${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.proveedores : [];
 }
 
 async function obtenerRequisiciones() {
-  const r = await api("GET", "/requisiciones");
+  const r = await api("GET", `/requisiciones${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.requisiciones : [];
+}
+
+// Proyectos de un cliente como opciones de selector ("PRY-… · nombre").
+function opcionesProyectosDeCliente(proyectos, clienteId, textoVacio = "— Elige un proyecto —") {
+  return [
+    { valor: "", texto: textoVacio },
+    ...proyectos
+      .filter((p) => !clienteId || String(p.cliente_id) === String(clienteId))
+      .map((p) => ({ valor: String(p.id), texto: `${p.codigo_pry} · ${p.nombre_proyecto}` })),
+  ];
+}
+
+function recargarSelect(select, opciones, valor = "") {
+  select.replaceChildren(
+    ...normalizarOpciones(opciones).map((op) => {
+      const o = document.createElement("option");
+      o.value = op.valor;
+      o.textContent = op.texto;
+      return o;
+    })
+  );
+  select.value = valor;
+  if (select.value !== String(valor)) select.value = "";
+}
+
+// Al cambiar el cliente, el selector de proyectos muestra solo los suyos.
+function enlazarClienteConProyectos(form, proyectos) {
+  const selectCliente = form.elements.cliente_id;
+  const selectProyecto = form.elements.proyecto_id;
+  if (!selectCliente || !selectProyecto) return;
+  const filtrar = () =>
+    recargarSelect(
+      selectProyecto,
+      opcionesProyectosDeCliente(proyectos, selectCliente.value),
+      selectProyecto.value
+    );
+  selectCliente.addEventListener("change", filtrar);
+  filtrar();
 }
 
 async function vistaClienteForm(id) {
@@ -650,7 +774,9 @@ async function apiSubirArchivo(ruta, formData) {
   return { status: respuesta.status, cuerpo: texto };
 }
 
-function contenidoEvidencias(tabla, registroId) {
+// alCargar(cantidad), opcional: se llama cada vez que se recarga la lista
+// (al abrir, subir o quitar), p. ej. para un contador.
+function contenidoEvidencias(tabla, registroId, alCargar) {
   const contenedor = document.createElement("div");
   const mensaje = document.createElement("div");
   const lista = document.createElement("ul");
@@ -668,6 +794,7 @@ function contenidoEvidencias(tabla, registroId) {
       return;
     }
     const archivos = r.cuerpo.archivos;
+    if (alCargar) alCargar(archivos.length);
     if (archivos.length === 0) {
       const li = document.createElement("li");
       li.className = "subtitulo";
@@ -766,6 +893,151 @@ function contenidoEvidencias(tabla, registroId) {
   return contenedor;
 }
 
+// Pestañas dentro de una vista (patrón ARIA "tabs"). definiciones:
+// [{ clave, texto, alActivar(panel) }]; alActivar corre cada vez que se abre.
+function pestanasVista(definiciones) {
+  const lista = document.createElement("div");
+  lista.className = "pestanas-vista";
+  lista.setAttribute("role", "tablist");
+  const paneles = {};
+  const botones = definiciones.map((def, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.id = `pestana-${def.clave}`;
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-controls", `panel-${def.clave}`);
+    b.textContent = def.texto;
+    const panel = document.createElement("div");
+    panel.id = `panel-${def.clave}`;
+    panel.className = "panel-pestana";
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", b.id);
+    paneles[def.clave] = panel;
+    b.addEventListener("click", () => activar(i));
+    lista.append(b);
+    return b;
+  });
+
+  function activar(indice, conFoco = false) {
+    botones.forEach((b, j) => {
+      const elegida = j === indice;
+      b.setAttribute("aria-selected", String(elegida));
+      b.tabIndex = elegida ? 0 : -1;
+      paneles[definiciones[j].clave].hidden = !elegida;
+    });
+    if (conFoco) botones[indice].focus();
+    const def = definiciones[indice];
+    if (def.alActivar) def.alActivar(paneles[def.clave]);
+  }
+
+  lista.addEventListener("keydown", (evento) => {
+    const actual = botones.indexOf(document.activeElement);
+    if (actual < 0) return;
+    const destinos = {
+      ArrowRight: (actual + 1) % botones.length,
+      ArrowLeft: (actual - 1 + botones.length) % botones.length,
+      Home: 0,
+      End: botones.length - 1,
+    };
+    if (!(evento.key in destinos)) return;
+    evento.preventDefault();
+    activar(destinos[evento.key], true);
+  });
+
+  activar(0);
+  return { lista, paneles, activar };
+}
+
+// Ventana modal genérica. Sus formularios tienen su propio guardar, así que
+// no activan el aviso de "cambios sin guardar" de la página.
+function abrirDialogo({ titulo, subtitulo, cuerpo, alCerrar }) {
+  const dialogo = document.createElement("dialog");
+  dialogo.className = "dialogo";
+  const idTitulo = `dialogo-titulo-${Date.now()}`;
+  dialogo.setAttribute("aria-labelledby", idTitulo);
+
+  const cabecera = document.createElement("header");
+  cabecera.className = "dialogo-cabecera";
+  const textos = document.createElement("div");
+  if (subtitulo) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = subtitulo;
+    textos.append(p);
+  }
+  const h3 = document.createElement("h3");
+  h3.id = idTitulo;
+  h3.textContent = titulo;
+  textos.append(h3);
+  const cerrar = document.createElement("button");
+  cerrar.type = "button";
+  cerrar.className = "boton-icono";
+  cerrar.textContent = "×";
+  cerrar.setAttribute("aria-label", "Cerrar");
+  cerrar.addEventListener("click", () => dialogo.close());
+  cabecera.append(textos, cerrar);
+
+  const contenedor = document.createElement("div");
+  contenedor.className = "dialogo-cuerpo";
+  contenedor.append(cuerpo);
+  dialogo.append(cabecera, contenedor);
+  dialogo.querySelectorAll("form").forEach((f) => (f.dataset.sucioVigilado = "1"));
+  dialogo.addEventListener("close", () => {
+    dialogo.remove();
+    if (alCerrar) alCerrar();
+  });
+  contenido.append(dialogo);
+  dialogo.showModal();
+  return dialogo;
+}
+
+// Las evidencias del proyecto no se muestran en la ficha: este botón abre
+// la sección (lista + carga) en una ventana, solo cuando se necesita.
+function botonEvidenciasProyecto(proyectoId) {
+  const b = boton(
+    "Agregar evidencias",
+    () =>
+      abrirDialogo({
+        titulo: "Evidencias del proyecto",
+        subtitulo: "Documentos y soportes",
+        cuerpo: contenidoEvidencias("proyectos", proyectoId),
+        alCerrar: contar,
+      }),
+    true
+  );
+  b.title = "Ver o agregar evidencias del proyecto";
+  async function contar() {
+    const r = await api("GET", `/archivos-adjuntos?tabla=proyectos&registro_id=${proyectoId}`);
+    if (r.status !== 200) return;
+    const n = r.cuerpo.archivos.length;
+    b.textContent = n > 0 ? `Evidencias (${n})` : "Agregar evidencias";
+  }
+  contar();
+  return b;
+}
+
+// Enlace directo a una actividad: la lleva a la vista, la resalta y abre su
+// resumen en el Gantt.
+function enfocarActividad(actividadId) {
+  requestAnimationFrame(() => {
+    const barra = contenido.querySelector(`.gantt-barra[data-actividad-id="${actividadId}"]`);
+    if (!barra) {
+      const seccion = [...contenido.querySelectorAll(".tarjeta-ancha")].find((el) =>
+        el.textContent.startsWith("Actividades por fase")
+      );
+      if (seccion) {
+        seccion
+          .querySelector("h3")
+          .after(alerta("aviso", "Esa actividad ya no está en el proyecto: fue quitada."));
+      }
+      return;
+    }
+    barra.scrollIntoView({ block: "center" });
+    barra.classList.add("gantt-barra--resaltada");
+    barra.click();
+  });
+}
+
 function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -778,7 +1050,12 @@ function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
   return tarjeta;
 }
 
-async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
+// Agregar subactividades está suspendido por ahora (decisión del 2026-11-13):
+// las fases traen sus actividades de la plantilla. El API sigue aceptando
+// altas; para reactivarlo basta con poner esta constante en true.
+const SUBACTIVIDADES_HABILITADAS = false;
+
+async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, opciones = {}) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   tarjeta.style.marginTop = "24px";
@@ -793,22 +1070,58 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
   const contenedorGrupos = document.createElement("div");
   tarjeta.append(mensaje, contenedorGrupos);
 
+  // Se conservan entre recargas de la sección (después de guardar o mover
+  // una barra): qué fases están abiertas y cuántos días sumó el usuario.
+  const fasesAbiertas = new Set();
+  const ajustesRango = new Map();
+  let primeraCarga = true;
+
+  const mostrarError = (texto) => mensaje.replaceChildren(alerta("error", texto));
+
+  function filaAgregarSubactividad(fase) {
+    const filaAgregar = document.createElement("div");
+    filaAgregar.style.marginTop = "8px";
+    const mostrarFormAgregar = () => {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "Nombre de la subactividad";
+      input.setAttribute("aria-label", `Nueva subactividad en ${textoEstadoProyecto(fase)}`);
+      input.style.marginRight = "8px";
+      const confirmar = boton(
+        "Agregar",
+        async () => {
+          const nombre = input.value.trim();
+          if (!nombre) return;
+          const r2 = await api("POST", `/proyectos/${proyectoId}/actividades`, {
+            categoria: "General",
+            descripcion: nombre,
+            fase,
+          });
+          if (r2.status !== 201) {
+            mostrarError(r2.cuerpo?.error || "No se pudo agregar la subactividad.");
+            return;
+          }
+          cargar();
+        },
+        true
+      );
+      const cancelar = boton("Cancelar", () => filaAgregar.replaceChildren(botonMas), true);
+      filaAgregar.replaceChildren(input, confirmar, cancelar);
+      input.focus();
+    };
+    const botonMas = boton("+ Agregar subactividad", mostrarFormAgregar, true);
+    filaAgregar.append(botonMas);
+    return filaAgregar;
+  }
+
   async function cargar() {
-    mensaje.replaceChildren();
-    contenedorGrupos.replaceChildren();
     const r = await api("GET", `/proyectos/${proyectoId}/actividades`);
     if (r.status !== 200) {
-      mensaje.append(alerta("error", "No se pudieron cargar las actividades."));
+      mostrarError("No se pudieron cargar las actividades.");
       return;
     }
+    mensaje.replaceChildren();
     const actividades = r.cuerpo.actividades;
-    if (actividades.length === 0) {
-      const p = document.createElement("p");
-      p.className = "subtitulo";
-      p.textContent = "Aún no hay actividades generadas para este proyecto.";
-      contenedorGrupos.append(p);
-      return;
-    }
 
     const porFase = new Map();
     actividades.forEach((actividad) => {
@@ -816,323 +1129,516 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios) {
       porFase.get(actividad.fase).push(actividad);
     });
 
-    const fasesOrdenadas = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter((fase) =>
-      porFase.has(fase)
-    );
-    const ultimaFase = fasesOrdenadas[fasesOrdenadas.length - 1];
+    const eraPrimeraCarga = primeraCarga;
+    if (primeraCarga) {
+      const fasesConActividades = ETAPAS_PROYECTO_LINEAL.map((e) => e.valor).filter(
+        (fase) => (porFase.get(fase) || []).length > 0
+      );
+      const ultimaFase = fasesConActividades[fasesConActividades.length - 1];
+      if (ultimaFase) fasesAbiertas.add(ultimaFase);
+      // Enlace directo a una actividad: su fase se abre aunque no sea la última.
+      const enlazada = actividades.find((a) => String(a.id) === String(opciones.actividadId));
+      if (enlazada) fasesAbiertas.add(enlazada.fase);
+      primeraCarga = false;
+    }
 
-    fasesOrdenadas.forEach((fase) => {
-      const lista = porFase.get(fase);
+    // Se arma todo antes de reemplazar: la sección no parpadea ni salta.
+    const grupos = ETAPAS_PROYECTO_LINEAL.map((etapa) => {
+      const fase = etapa.valor;
+      const lista = porFase.get(fase) || [];
       const completadas = lista.filter((actividad) => actividad.estado === "completada").length;
 
       const detalles = document.createElement("details");
-      detalles.open = fase === ultimaFase;
-      detalles.style.marginBottom = "12px";
+      detalles.className = "fase-actividades";
+      detalles.open = fasesAbiertas.has(fase);
+      detalles.addEventListener("toggle", () => {
+        if (detalles.open) fasesAbiertas.add(fase);
+        else fasesAbiertas.delete(fase);
+      });
 
       const resumen = document.createElement("summary");
-      resumen.style.cursor = "pointer";
-      resumen.style.fontWeight = "700";
       resumen.append(document.createTextNode(`${textoEstadoProyecto(fase)} `));
-      resumen.append(
-        pill(`${completadas}/${lista.length}`, completadas === lista.length ? "good" : "info")
-      );
+      if (lista.length > 0) {
+        resumen.append(
+          pill(`${completadas}/${lista.length}`, completadas === lista.length ? "good" : "info")
+        );
+        const conFechas = lista.filter((a) => a.fecha_inicio && a.fecha_fin);
+        if (conFechas.length > 0) {
+          const inicios = conFechas.map((a) => String(a.fecha_inicio).slice(0, 10)).sort();
+          const fines = conFechas.map((a) => String(a.fecha_fin).slice(0, 10)).sort();
+          const rango = document.createElement("span");
+          rango.className = "subtitulo";
+          rango.style.marginLeft = "8px";
+          rango.style.fontWeight = "400";
+          rango.textContent = `${inicios[0]} → ${fines[fines.length - 1]}`;
+          resumen.append(rango);
+        }
+      }
       detalles.append(resumen);
 
-      const tabla = document.createElement("table");
-      tabla.className = "tabla-items";
-      const thead = document.createElement("thead");
-      const filaCabecera = document.createElement("tr");
-      ["", "Categoría", "Actividad", "Responsable", "", ""].forEach((texto) => {
-        const th = document.createElement("th");
-        th.scope = "col";
-        th.textContent = texto;
-        filaCabecera.append(th);
-      });
-      thead.append(filaCabecera);
-      const tbody = document.createElement("tbody");
+      const contenidoFase = document.createElement("div");
+      contenidoFase.style.padding = "8px 0 0";
 
-      lista.forEach((actividad) => {
-        const fila = document.createElement("tr");
-
-        const tdCheck = document.createElement("td");
-        const check = document.createElement("input");
-        check.type = "checkbox";
-        check.checked = actividad.estado === "completada";
-        check.setAttribute("aria-label", `Marcar "${actividad.descripcion}" como completada`);
-        check.addEventListener("change", async () => {
-          const deseado = check.checked;
-          check.disabled = true;
-          const r2 = await api("PUT", `/proyectos/${proyectoId}/actividades/${actividad.id}`, {
-            estado: deseado ? "completada" : "pendiente",
-          });
-          if (r2.status !== 200) {
-            mensaje.replaceChildren(
-              alerta("error", r2.cuerpo?.error || "No se pudo actualizar la actividad.")
-            );
-            check.disabled = false;
-            return;
-          }
-          cargar();
-        });
-        tdCheck.append(check);
-        fila.append(tdCheck);
-
-        fila.append(celda(actividad.categoria));
-
-        const tdDescripcion = document.createElement("td");
-        tdDescripcion.textContent = actividad.descripcion;
-        if (actividad.estado === "completada") {
-          tdDescripcion.style.textDecoration = "line-through";
-          tdDescripcion.style.color = "var(--ink-mute)";
-        }
-        fila.append(tdDescripcion);
-
-        const tdResponsable = document.createElement("td");
-        const selectResponsable = document.createElement("select");
-        selectResponsable.setAttribute("aria-label", `Responsable de "${actividad.descripcion}"`);
-        const vacio = document.createElement("option");
-        vacio.value = "";
-        vacio.textContent = "— Sin asignar —";
-        selectResponsable.append(vacio);
-        opcionesUsuarios.forEach((op) => {
-          const o = document.createElement("option");
-          o.value = op.valor;
-          o.textContent = op.texto;
-          selectResponsable.append(o);
-        });
-        selectResponsable.value = actividad.responsable_id ? String(actividad.responsable_id) : "";
-        selectResponsable.addEventListener("change", async () => {
-          await api("PUT", `/proyectos/${proyectoId}/actividades/${actividad.id}`, {
-            responsable_id: Number(selectResponsable.value) || undefined,
-          });
-        });
-        tdResponsable.append(selectResponsable);
-        fila.append(tdResponsable);
-
-        const filaEvidencias = document.createElement("tr");
-        filaEvidencias.style.display = "none";
-        const tdEvidenciasContenido = document.createElement("td");
-        tdEvidenciasContenido.colSpan = 6;
-        filaEvidencias.append(tdEvidenciasContenido);
-        let evidenciasCargadas = false;
-
-        const tdEvidencias = document.createElement("td");
-        tdEvidencias.append(
-          boton(
-            "Evidencias",
-            () => {
-              const abierta = filaEvidencias.style.display !== "none";
-              if (abierta) {
-                filaEvidencias.style.display = "none";
-                return;
-              }
-              if (!evidenciasCargadas) {
-                tdEvidenciasContenido.append(
-                  contenidoEvidencias("proyecto_actividades", actividad.id)
-                );
-                evidenciasCargadas = true;
-              }
-              filaEvidencias.style.display = "";
-            },
-            true
-          )
+      if (lista.length > 0) {
+        if (!ajustesRango.has(fase)) ajustesRango.set(fase, { atras: 0, adelante: 0 });
+        contenidoFase.append(
+          window.montarGanttActividades({
+            actividades: lista,
+            proyectoId,
+            textoFase: textoEstadoProyecto(fase),
+            usuarios: opcionesUsuarios,
+            ajuste: ajustesRango.get(fase),
+            alCambiar: cargar,
+            mostrarError,
+          })
         );
-        fila.append(tdEvidencias);
+      } else {
+        const vacio = document.createElement("p");
+        vacio.className = "subtitulo";
+        vacio.style.margin = "0";
+        vacio.textContent = "Esta fase no tiene actividades.";
+        contenidoFase.append(vacio);
+      }
 
-        const tdAccion = document.createElement("td");
-        const quitarBtn = boton(
-          "Quitar",
-          async () => {
-            if (!window.confirm("¿Quitar esta actividad?")) return;
-            const r2 = await api(
-              "DELETE",
-              `/proyectos/${proyectoId}/actividades/${actividad.id}`
-            );
-            if (r2.status === 204) {
-              cargar();
-              return;
-            }
-            mensaje.replaceChildren(
-              alerta("error", r2.cuerpo?.error || "No se pudo quitar la actividad.")
-            );
-          },
-          true
-        );
-        tdAccion.append(quitarBtn);
-        fila.append(tdAccion);
+      if (SUBACTIVIDADES_HABILITADAS) contenidoFase.append(filaAgregarSubactividad(fase));
 
-        tbody.append(fila, filaEvidencias);
-      });
-
-      tabla.append(thead, tbody);
-      detalles.append(tabla);
-      contenedorGrupos.append(detalles);
+      detalles.append(contenidoFase);
+      return detalles;
     });
+    contenedorGrupos.replaceChildren(...grupos);
+    // Una actividad guardada, movida o quitada cambia la ventana de pendientes.
+    if (!eraPrimeraCarga && window.actualizarMisActividades) window.actualizarMisActividades();
   }
-
-  const formAgregar = document.createElement("form");
-  formAgregar.noValidate = true;
-  formAgregar.style.marginTop = "16px";
-  const gridAgregar = document.createElement("div");
-  gridAgregar.className = "formulario-grid";
-  gridAgregar.append(
-    construirCampo({ nombre: "categoria", etiqueta: "Categoría", requerido: true }, ""),
-    construirCampo({ nombre: "descripcion", etiqueta: "Actividad", requerido: true }, "")
-  );
-  const agregarBtn = document.createElement("button");
-  agregarBtn.type = "submit";
-  agregarBtn.className = "boton boton-pequeno";
-  agregarBtn.textContent = "Agregar actividad";
-  formAgregar.append(gridAgregar, agregarBtn);
-
-  formAgregar.addEventListener("submit", async (evento) => {
-    evento.preventDefault();
-    const categoria = formAgregar.elements.categoria.value.trim();
-    const descripcion = formAgregar.elements.descripcion.value.trim();
-    if (!categoria || !descripcion) return;
-    const r = await api("POST", `/proyectos/${proyectoId}/actividades`, {
-      categoria,
-      descripcion,
-    });
-    if (r.status !== 201) {
-      mensaje.replaceChildren(alerta("error", r.cuerpo?.error || "No se pudo agregar la actividad."));
-      return;
-    }
-    formAgregar.reset();
-    cargar();
-  });
-
-  tarjeta.append(formAgregar);
 
   await cargar();
   return tarjeta;
 }
 
-async function renderSeccionEquipoProyecto(proyectoId, opcionesUsuarios) {
-  const tarjeta = document.createElement("div");
-  tarjeta.className = "tarjeta-ancha";
-  tarjeta.style.marginTop = "24px";
+/* ------------------------------------------------------------------
+   Documentos del proyecto: todo lo que los demás módulos tienen
+   enlazado a este proyecto, en el orden del flujo, en una sola franja.
+   ------------------------------------------------------------------ */
+const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
-  const h3 = document.createElement("h3");
-  h3.style.margin = "0 0 16px";
-  h3.style.fontSize = "1.125rem";
-  h3.textContent = "Equipo del proyecto";
-  tarjeta.append(h3);
+function fechaCortaTexto(iso) {
+  if (!iso) return "sin fecha";
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${MESES_CORTOS[m - 1]} ${y}`;
+}
 
-  const mensaje = document.createElement("div");
-  const tabla = document.createElement("table");
-  tabla.className = "tabla-items";
-  tarjeta.append(mensaje, tabla);
+function formatearCop(valor) {
+  return `$${Math.round(Number(valor) || 0).toLocaleString("es-CO")}`;
+}
 
-  async function cargar() {
-    mensaje.replaceChildren();
-    tabla.replaceChildren();
-    const r = await api("GET", `/proyectos/${proyectoId}/equipo`);
-    if (r.status !== 200) {
-      mensaje.append(alerta("error", "No se pudo cargar el equipo."));
-      return;
-    }
-    const equipo = r.cuerpo.equipo;
+// Cada columna: título, ruta para abrir cada documento y cómo describirlo.
+function columnasDocumentosProyecto(docs) {
+  const pillDe = (texto, tipo) => ({ texto, tipo });
+  return [
+    {
+      titulo: "Cotización",
+      items: docs.cotizacion ? [docs.cotizacion] : [],
+      vacio: "Sin cotización de origen",
+      enlace: (c) => `#/cotizaciones/${c.id}`,
+      codigo: (c) => c.numero_cotizacion,
+      pill: (c) => pillDe(textoEstadoCotizacion(c.estado), tipoPillCotizacion(c.estado)),
+      lineas: (c) => [formatearCop(c.valor)],
+    },
+    {
+      titulo: "Expedientes de diseño",
+      items: docs.expedientes,
+      vacio: "Sin expedientes",
+      enlace: (e) => `#/expedientes-diseno/${e.id}`,
+      codigo: (e) => e.codigo_expediente,
+      pill: (e) => pillDe(textoEstadoExpediente(e.estado_liberacion), tipoPillExpediente(e.estado_liberacion)),
+      lineas: (e) => [e.producto_nombre, e.numero_serie ? `Serie ${e.numero_serie}` : "Sin número de serie"],
+    },
+    {
+      titulo: "Requisiciones",
+      items: docs.requisiciones,
+      vacio: "Sin requisiciones",
+      enlace: (r) => `#/requisiciones/${r.id}`,
+      codigo: (r) => r.numero_requisicion,
+      pill: (r) => pillDe(textoEstadoRequisicion(r.estado), tipoPillRequisicion(r.estado)),
+      lineas: (r) => [`${textoProcedencia(r.procedencia)} · ${r.items} ítem${r.items === 1 ? "" : "s"}`, fechaCortaTexto(r.creada)],
+    },
+    {
+      titulo: "Órdenes de compra",
+      items: docs.ordenes_compra,
+      vacio: "Sin órdenes de compra",
+      enlace: (o) => `#/ordenes-compra/${o.id}`,
+      codigo: (o) => o.numero_oc,
+      pill: (o) => pillDe(textoEstadoOrdenCompra(o.estado), tipoPillOrdenCompra(o.estado)),
+      lineas: (o) => [o.proveedor, `${formatearCop(o.valor)} · ${o.numero_requisicion}`],
+    },
+    {
+      titulo: "Actas de entrega",
+      items: docs.actas_entrega,
+      vacio: "Sin actas de entrega",
+      enlace: (a) => `#/actas-entrega/${a.id}`,
+      codigo: (a) => a.numero_acta,
+      pill: null,
+      lineas: (a) => [`${a.equipos} equipo${a.equipos === 1 ? "" : "s"} · recibe ${a.receptor_nombre}`, fechaCortaTexto(a.fecha_elaboracion)],
+    },
+    {
+      titulo: "Actas de cierre",
+      items: docs.actas_cierre,
+      vacio: "Sin actas de cierre",
+      enlace: (a) => `#/actas-cierre/${a.id}`,
+      codigo: (a) => a.numero_acta,
+      pill: (a) => pillDe(textoTipoEntrega(a.tipo_entrega), tipoPillTipoEntrega(a.tipo_entrega)),
+      lineas: (a) => [
+        a.acta_entrega_numero ? `Cierra ${a.acta_entrega_numero}` : "Sin acta de entrega enlazada",
+        fechaCortaTexto(a.fecha_elaboracion),
+      ],
+    },
+    {
+      titulo: "Reportes de servicio",
+      items: docs.reportes_servicio,
+      vacio: "Sin reportes de servicio",
+      enlace: (r) => `#/reportes-servicio/${r.id}`,
+      codigo: (r) => r.numero_reporte,
+      pill: (r) => pillDe(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio)),
+      lineas: (r) => [
+        `Equipo ${r.equipo_numero_serie}${r.en_garantia ? " · en garantía" : ""}`,
+        `${fechaCortaTexto(r.fecha_servicio || r.creado)} · ${r.tecnico || "—"}`,
+        // mantenimiento de un equipo de este proyecto registrado en otro del cliente
+        ...(r.nota ? [r.nota] : []),
+      ],
+    },
+  ];
+}
 
-    const thead = document.createElement("thead");
-    const filaCabecera = document.createElement("tr");
-    ["Integrante", "Rol en el proyecto", ""].forEach((texto) => {
-      const th = document.createElement("th");
-      th.scope = "col";
-      th.textContent = texto;
-      filaCabecera.append(th);
-    });
-    thead.append(filaCabecera);
-    tabla.append(thead);
+async function renderSeccionDocumentosProyecto(proyectoId) {
+  const bloque = document.createElement("section");
+  bloque.className = "docs-proyecto";
+  bloque.setAttribute("aria-labelledby", "docs-proyecto-titulo");
 
-    const tbody = document.createElement("tbody");
-    if (equipo.length === 0) {
-      const fila = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 3;
-      td.className = "subtitulo";
-      td.textContent = "Aún no hay integrantes asignados.";
-      fila.append(td);
-      tbody.append(fila);
-    }
-    equipo.forEach((miembro) => {
-      const fila = document.createElement("tr");
-      fila.append(celda(miembro.usuario_nombre), celda(miembro.rol_en_proyecto));
+  const cabecera = document.createElement("div");
+  cabecera.className = "docs-cabecera";
+  const titulo = document.createElement("h3");
+  titulo.id = "docs-proyecto-titulo";
+  titulo.textContent = "Documentos del proyecto";
+  const resumen = document.createElement("div");
+  resumen.className = "docs-resumen";
+  cabecera.append(titulo, resumen);
+  bloque.append(cabecera);
 
-      const tdAccion = document.createElement("td");
-      const quitarBtn = boton(
-        "Quitar",
-        async () => {
-          if (!window.confirm(`¿Quitar a ${miembro.usuario_nombre} del equipo?`)) return;
-          const r2 = await api("DELETE", `/proyectos/${proyectoId}/equipo/${miembro.id}`);
-          if (r2.status === 204) {
-            cargar();
-            return;
-          }
-          mensaje.replaceChildren(
-            alerta("error", r2.cuerpo?.error || "No se pudo quitar al integrante.")
-          );
-        },
-        true
-      );
-      tdAccion.append(quitarBtn);
-      fila.append(tdAccion);
-
-      tbody.append(fila);
-    });
-    tabla.append(tbody);
+  const r = await api("GET", `/proyectos/${proyectoId}/documentos`);
+  if (r.status !== 200) {
+    bloque.append(alerta("error", "No se pudieron cargar los documentos del proyecto."));
+    return bloque;
   }
+  const docs = r.cuerpo.documentos;
 
-  const formAgregar = document.createElement("form");
-  formAgregar.noValidate = true;
-  formAgregar.style.marginTop = "16px";
-  const gridAgregar = document.createElement("div");
-  gridAgregar.className = "formulario-grid";
-  gridAgregar.append(
-    construirCampo(
-      {
-        nombre: "equipo_usuario_id",
-        etiqueta: "Integrante",
-        tipo: "select",
-        requerido: true,
-        opciones: opcionesUsuarios,
-      },
-      ""
-    ),
-    construirCampo({ nombre: "equipo_rol", etiqueta: "Rol en el proyecto", requerido: true }, "")
-  );
-  const agregarBtn = document.createElement("button");
-  agregarBtn.type = "submit";
-  agregarBtn.className = "boton boton-pequeno";
-  agregarBtn.textContent = "Agregar al equipo";
-  formAgregar.append(gridAgregar, agregarBtn);
-
-  formAgregar.addEventListener("submit", async (evento) => {
-    evento.preventDefault();
-    const usuarioId = formAgregar.elements.equipo_usuario_id.value;
-    const rol = formAgregar.elements.equipo_rol.value.trim();
-    if (!usuarioId || !rol) return;
-    const r = await api("POST", `/proyectos/${proyectoId}/equipo`, {
-      usuario_id: Number(usuarioId),
-      rol_en_proyecto: rol,
-    });
-    if (r.status !== 201) {
-      mensaje.replaceChildren(
-        alerta("error", r.cuerpo?.error || "No se pudo agregar al integrante.")
-      );
-      return;
-    }
-    formAgregar.reset();
-    cargar();
+  const cifras = [
+    ["Cotizado", docs.resumen.valor_cotizado === null ? "—" : formatearCop(docs.resumen.valor_cotizado)],
+    ["Comprometido en OC", formatearCop(docs.resumen.comprometido_oc)],
+    ["Pagado", formatearCop(docs.resumen.pagado_oc)],
+  ];
+  cifras.forEach(([etiqueta, valor]) => {
+    const cifra = document.createElement("span");
+    const b = document.createElement("b");
+    b.textContent = valor;
+    cifra.append(`${etiqueta} `, b);
+    resumen.append(cifra);
   });
 
-  tarjeta.append(formAgregar);
+  const columnas = columnasDocumentosProyecto(docs);
+  const conAlertas = columnas.flatMap((c) => c.items).filter((d) => d.alertas?.length).length;
+  if (conAlertas) {
+    bloque.append(
+      alerta(
+        "aviso",
+        `${conAlertas} documento${conAlertas === 1 ? "" : "s"} con enlaces que no corresponden a este proyecto (marcados abajo). ` +
+          "Ábrelos para corregir el proyecto, el cliente o el equipo."
+      )
+    );
+  }
 
-  await cargar();
-  return tarjeta;
+  const flujo = document.createElement("div");
+  flujo.className = "docs-flujo";
+  columnas.forEach((col) => {
+    const columna = document.createElement("div");
+    columna.className = "docs-col";
+    const encabezadoCol = document.createElement("div");
+    encabezadoCol.className = "docs-col-titulo";
+    const nombre = document.createElement("span");
+    nombre.textContent = col.titulo;
+    const cantidad = document.createElement("span");
+    cantidad.className = "docs-cantidad";
+    cantidad.textContent = String(col.items.length);
+    encabezadoCol.append(nombre, cantidad);
+    columna.append(encabezadoCol);
+
+    const lista = document.createElement("div");
+    lista.className = "docs-lista";
+    if (col.items.length === 0) {
+      const vacio = document.createElement("p");
+      vacio.className = "docs-vacio";
+      vacio.textContent = col.vacio;
+      lista.append(vacio);
+    }
+    col.items.forEach((doc) => {
+      const item = document.createElement("a");
+      item.className = doc.alertas?.length ? "docs-item con-alerta" : "docs-item";
+      item.href = col.enlace(doc);
+      const fila = document.createElement("div");
+      fila.className = "docs-fila";
+      const codigo = document.createElement("span");
+      codigo.className = "docs-codigo";
+      codigo.textContent = col.codigo(doc);
+      fila.append(codigo);
+      if (col.pill) {
+        const p = col.pill(doc);
+        fila.append(pill(p.texto, p.tipo));
+      }
+      item.append(fila);
+      col.lineas(doc).forEach((texto) => {
+        const linea = document.createElement("span");
+        linea.className = "docs-linea";
+        linea.textContent = texto;
+        linea.title = texto;
+        item.append(linea);
+      });
+      (doc.alertas || []).forEach((texto) => {
+        const aviso = document.createElement("span");
+        aviso.className = "docs-alerta";
+        aviso.textContent = texto;
+        item.append(aviso);
+      });
+      lista.append(item);
+    });
+    columna.append(lista);
+    flujo.append(columna);
+  });
+  bloque.append(flujo);
+  return bloque;
+}
+
+/* ------------------------------------------------------------------
+   Versiones de documentos: un documento con enlaces no se elimina; se
+   corrige con una nueva versión y la anterior queda, de solo lectura,
+   en el historial con su vista previa.
+   ------------------------------------------------------------------ */
+const RECURSOS_VERSIONADOS = {
+  proyectos: { tabla: "proyectos", api: "/proyectos", ruta: "#/proyectos", permiso: "versionar_proyecto" },
+  cotizaciones: { tabla: "cotizaciones", api: "/cotizaciones", ruta: "#/cotizaciones", permiso: "versionar_cotizacion" },
+  "ordenes-compra": { tabla: "ordenes_compra", api: "/ordenes-compra", ruta: "#/ordenes-compra", permiso: "versionar_oc" },
+  "actas-entrega": { tabla: "actas_entrega_equipos", api: "/actas-entrega-equipos", ruta: "#/actas-entrega", permiso: "versionar_acta" },
+  "actas-cierre": { tabla: "actas_cierre_satisfaccion", api: "/actas-cierre-satisfaccion", ruta: "#/actas-cierre", permiso: "versionar_acta" },
+  "reportes-servicio": { tabla: "reportes_servicio_tecnico", api: "/reportes-servicio-tecnico", ruta: "#/reportes-servicio", permiso: "versionar_reporte" },
+};
+
+// Encabezado del modo "nueva versión": aviso + motivo obligatorio.
+function bloqueModoVersion(versionActual) {
+  const bloque = document.createElement("div");
+  bloque.append(
+    alerta(
+      "aviso",
+      `Estás creando la versión ${versionActual + 1}. La versión ${versionActual} quedará guardada, de solo lectura, en el historial del documento.`
+    )
+  );
+  const campo = document.createElement("div");
+  campo.className = "campo";
+  const label = document.createElement("label");
+  label.htmlFor = "motivo_version";
+  label.textContent = "Motivo de la nueva versión *";
+  const texto = document.createElement("textarea");
+  texto.id = "motivo_version";
+  texto.name = "motivo_version";
+  texto.rows = 2;
+  texto.required = true;
+  texto.placeholder = "Qué se corrige y por qué";
+  campo.append(label, texto);
+  bloque.append(campo);
+  return bloque;
+}
+
+// Guarda el documento: crear, editar o, en modo versión, nueva versión.
+// Devuelve la respuesta de la API, o null si falta el motivo.
+async function guardarDocumento(recurso, { id, modoVersion, datos, form, mensaje }) {
+  const r = RECURSOS_VERSIONADOS[recurso];
+  if (modoVersion) {
+    const motivo = form.elements.motivo_version.value.trim();
+    if (motivo.length < 5) {
+      mensaje.append(alerta("error", "Explica el motivo de la nueva versión (qué se corrige y por qué)."));
+      return null;
+    }
+    return api("POST", `${r.api}/${id}/versiones`, { ...datos, motivo });
+  }
+  return id ? api("PUT", `${r.api}/${id}`, datos) : api("POST", r.api, datos);
+}
+
+const ETIQUETAS_INSTANTANEA = {
+  codigo_pry: "Código", nombre_proyecto: "Nombre", linea_negocio: "Línea de negocio",
+  presupuesto_estimado: "Presupuesto estimado", estado: "Estado", numero_cotizacion: "Número",
+  numero_oc: "Número", numero_acta: "Número", numero_reporte: "Número", fecha_validez: "Vigencia",
+  objeto: "Objeto", lugar_entrega: "Lugar de entrega", receptor_nombre: "Recibe",
+  receptor_identificacion: "Identificación de quien recibe", receptor_cargo: "Cargo de quien recibe",
+  receptor_cliente_nombre: "Recibe", receptor_cliente_cargo: "Cargo de quien recibe",
+  numero_contrato_oc: "Contrato u orden de compra", observaciones: "Observaciones",
+  fecha_elaboracion: "Fecha de elaboración", tipo_entrega: "Tipo de entrega",
+  tipo_documento_referencia: "Documento de referencia", numero_documento_referencia: "Número del documento",
+  equipo_numero_serie: "Equipo", tipo_servicio: "Tipo de servicio", en_garantia: "En garantía",
+  motivo: "Motivo", hallazgos: "Hallazgos", recomendaciones: "Recomendaciones",
+  fecha_servicio: "Fecha de servicio", hora_inicio: "Hora de inicio", hora_fin: "Hora de fin",
+  descripcion: "Descripción", descripcion_equipo: "Equipo", elemento: "Elemento", cantidad: "Cantidad",
+  unidad: "Unidad", valor_unitario: "Valor unitario", precio_unitario: "Precio unitario",
+  descuento_porcentaje: "Descuento %", iva_porcentaje: "IVA %", cumple: "Cumple", marca: "Marca",
+  modelo: "Modelo", numero_serie: "Número de serie",
+};
+// Campos técnicos que no aportan a la vista previa.
+const OCULTOS_INSTANTANEA = /^(id|version|created_at|updated_at|deleted_at|created_by|updated_by|drive_folder_id|.*_id|aprobado_en)$/;
+
+function valorLegible(valor) {
+  if (valor === null || valor === undefined || valor === "") return "—";
+  if (typeof valor === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(valor)) return fechaCortaTexto(valor.slice(0, 10));
+  // montos y cantidades con separador de miles (p. ej. 620.000.000)
+  if (/^-?\d+(\.\d+)?$/.test(String(valor)) && Math.abs(Number(valor)) >= 1000) {
+    return Number(valor).toLocaleString("es-CO", { maximumFractionDigits: 2 });
+  }
+  return String(valor);
+}
+
+function renderInstantanea(instantanea) {
+  const vista = document.createElement("div");
+  vista.className = "vista-version";
+  const campos = document.createElement("dl");
+  Object.entries(instantanea)
+    .filter(([clave, valor]) => !OCULTOS_INSTANTANEA.test(clave) && !Array.isArray(valor))
+    .forEach(([clave, valor]) => {
+      const dt = document.createElement("dt");
+      dt.textContent = ETIQUETAS_INSTANTANEA[clave] || clave.replace(/_/g, " ");
+      const dd = document.createElement("dd");
+      dd.textContent = valorLegible(valor);
+      campos.append(dt, dd);
+    });
+  vista.append(campos);
+
+  const items = Array.isArray(instantanea.items) ? instantanea.items : [];
+  if (items.length) {
+    const columnas = Object.keys(items[0]).filter((c) => !OCULTOS_INSTANTANEA.test(c));
+    const tabla = document.createElement("table");
+    const thead = document.createElement("thead");
+    const fila = document.createElement("tr");
+    columnas.forEach((c) => {
+      const th = document.createElement("th");
+      th.textContent = ETIQUETAS_INSTANTANEA[c] || c.replace(/_/g, " ");
+      fila.append(th);
+    });
+    thead.append(fila);
+    const tbody = document.createElement("tbody");
+    items.forEach((item) => {
+      const tr = document.createElement("tr");
+      columnas.forEach((c) => tr.append(celda(valorLegible(item[c]))));
+      tbody.append(tr);
+    });
+    tabla.append(thead, tbody);
+    vista.append(tabla);
+  }
+  return vista;
+}
+
+// Panel de versiones de un documento: vigente, botón de nueva versión e
+// historial de las reemplazadas con su vista previa.
+async function renderPanelVersiones(recurso, id) {
+  const { tabla, ruta, permiso } = RECURSOS_VERSIONADOS[recurso];
+  const bloque = document.createElement("section");
+  bloque.className = "docs-proyecto panel-versiones";
+  const cabecera = document.createElement("div");
+  cabecera.className = "docs-cabecera";
+  const titulo = document.createElement("h3");
+  titulo.textContent = "Versiones";
+  cabecera.append(titulo);
+  bloque.append(cabecera);
+
+  const r = await api("GET", `/versiones/${tabla}/${id}`);
+  if (r.status !== 200) {
+    bloque.append(alerta("error", "No se pudo cargar el historial de versiones."));
+    return bloque;
+  }
+  const { version_vigente: vigente, anteriores } = r.cuerpo;
+  const acciones = document.createElement("div");
+  acciones.className = "docs-resumen";
+  const actual = document.createElement("span");
+  actual.append("Versión vigente ", Object.assign(document.createElement("b"), { textContent: `v${vigente}` }));
+  acciones.append(actual);
+  if (puede(permiso)) {
+    acciones.append(
+      boton("Crear nueva versión", () => (window.location.hash = `${ruta}/${id}/nueva-version`), true)
+    );
+  } else {
+    acciones.append(Object.assign(document.createElement("span"), {
+      className: "subtitulo",
+      textContent: "Tu cargo no crea versiones de este documento",
+    }));
+  }
+  cabecera.append(acciones);
+
+  if (anteriores.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent =
+      "Sin correcciones: es la versión original. Si hay que corregirlo y ya no se puede editar o eliminar, crea una nueva versión.";
+    bloque.append(p);
+    return bloque;
+  }
+
+  const lista = document.createElement("ul");
+  lista.className = "lista-versiones";
+  anteriores.forEach((v) => {
+    const item = document.createElement("li");
+    const fila = document.createElement("div");
+    fila.className = "docs-fila";
+    const texto = document.createElement("span");
+    texto.append(
+      Object.assign(document.createElement("b"), { textContent: `v${v.version} reemplazada` }),
+      ` · ${formatoFechaHora(v.reemplazada_en)} · ${v.reemplazada_por || "—"} — ${v.motivo}`
+    );
+    const ver = boton("Ver", () => {
+      const abierta = item.querySelector(".vista-version");
+      if (abierta) {
+        abierta.remove();
+        ver.textContent = "Ver";
+        return;
+      }
+      item.append(renderInstantanea(v.instantanea));
+      ver.textContent = "Ocultar";
+    }, true);
+    ver.setAttribute("aria-label", `Ver la versión ${v.version}`);
+    fila.append(texto, ver);
+    item.append(fila);
+    lista.append(item);
+  });
+  bloque.append(lista);
+  return bloque;
+}
+
+// Documentos de otros módulos en la línea de tiempo: nombre, ruta y estados.
+const DOCUMENTOS_LINEA_TIEMPO = {
+  expedientes_diseno: { nombre: "Expediente de diseño", ruta: "#/expedientes-diseno/", femenino: false, estado: textoEstadoExpediente },
+  requisiciones: { nombre: "Requisición", ruta: "#/requisiciones/", femenino: true, estado: textoEstadoRequisicion },
+  ordenes_compra: { nombre: "Orden de compra", ruta: "#/ordenes-compra/", femenino: true, estado: textoEstadoOrdenCompra },
+  reportes_servicio_tecnico: { nombre: "Reporte de servicio", ruta: "#/reportes-servicio/", femenino: false, estado: null },
+  actas_entrega_equipos: { nombre: "Acta de entrega", ruta: "#/actas-entrega/", femenino: true, estado: null },
+  actas_cierre_satisfaccion: { nombre: "Acta de cierre", ruta: "#/actas-cierre/", femenino: true, estado: null },
+};
+
+function describirEventoDocumento(evento, doc) {
+  const sujeto = `${doc.nombre} ${evento.documento_codigo || ""}`.trim();
+  const terminacion = doc.femenino ? "a" : "o";
+  if (evento.accion === "crear") return `${sujeto} cread${terminacion}`;
+  if (evento.accion === "eliminar") return `${sujeto} eliminad${terminacion}`;
+  if (evento.documento_cambio_estado && doc.estado) {
+    const { de, a } = evento.documento_cambio_estado;
+    return `${sujeto}: ${doc.estado(de)} → ${doc.estado(a)}`;
+  }
+  return `${sujeto} actualizad${terminacion}`;
 }
 
 function describirEventoLineaTiempo(evento) {
+  const documento = DOCUMENTOS_LINEA_TIEMPO[evento.tabla];
+  if (documento) return describirEventoDocumento(evento, documento);
   if (evento.tabla === "proyectos") {
     if (evento.accion === "crear") return "Proyecto creado";
     if (evento.cambio_estado) {
@@ -1169,7 +1675,6 @@ function formatoFechaHora(valor) {
 async function renderSeccionLineaTiempoProyecto(proyectoId) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
-  tarjeta.style.marginTop = "24px";
 
   const h3 = document.createElement("h3");
   h3.style.margin = "0 0 16px";
@@ -1209,7 +1714,15 @@ async function renderSeccionLineaTiempoProyecto(proyectoId) {
     fila.style.justifyContent = "space-between";
     fila.style.gap = "12px";
 
-    const texto = document.createElement("span");
+    // los eventos de otros módulos abren su documento (salvo si se eliminó)
+    const documento = DOCUMENTOS_LINEA_TIEMPO[evento.tabla];
+    const texto = document.createElement(
+      documento && evento.accion !== "eliminar" && evento.documento_id ? "a" : "span"
+    );
+    if (texto.tagName === "A") {
+      texto.href = `${documento.ruta}${evento.documento_id}`;
+      texto.className = "enlace-documento";
+    }
     texto.textContent = describirEventoLineaTiempo(evento);
 
     const meta = document.createElement("span");
@@ -1225,36 +1738,62 @@ async function renderSeccionLineaTiempoProyecto(proyectoId) {
   return tarjeta;
 }
 
+// Si el proyecto tiene documentos de otros módulos, devuelve el aviso de
+// bloqueo con la vista previa de esos documentos y el camino de corrección
+// (nueva versión). Sin documentos, devuelve null y se permite eliminar.
+async function bloqueoEliminacionProyecto(proyecto, alCerrar) {
+  const r = await api("GET", `/proyectos/${proyecto.id}/documentos`);
+  if (r.status !== 200) return null;
+  const d = r.cuerpo.documentos;
+  const propios = (d.reportes_servicio || []).filter((x) => x.proyecto_id === proyecto.id);
+  const total =
+    d.expedientes.length +
+    d.requisiciones.length +
+    d.ordenes_compra.length +
+    propios.length +
+    d.actas_entrega.length +
+    d.actas_cierre.length +
+    (d.equipos || []).length;
+  if (total === 0) return null;
+
+  const bloque = document.createElement("div");
+  bloque.className = "bloqueo-eliminacion";
+  bloque.append(
+    alerta(
+      "aviso",
+      `${proyecto.codigo_pry} no se puede eliminar: tiene ${total} documento${total === 1 ? "" : "s"} enlazado${total === 1 ? "" : "s"} (abajo). Para corregirlo, crea una nueva versión; la actual quedará en su historial.`
+    )
+  );
+  const acciones = document.createElement("div");
+  acciones.className = "acciones-bloqueo";
+  if (puede("versionar_proyecto")) {
+    acciones.append(
+      boton("Crear nueva versión", () => (window.location.hash = `#/proyectos/${proyecto.id}/nueva-version`))
+    );
+  }
+  acciones.append(boton("Cerrar", alCerrar, true));
+  bloque.append(acciones, await renderSeccionDocumentosProyecto(proyecto.id));
+  return bloque;
+}
+
 async function vistaProyectos() {
   marcarMenu("proyectos");
-  mostrarCargando();
-  const [{ status, cuerpo }, clientes, usuarios] = await Promise.all([
-    api("GET", "/proyectos"),
-    obtenerClientes(),
-    obtenerUsuarios(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Proyectos"), alerta("error", "No se pudieron cargar los proyectos."));
-    return;
-  }
-
-  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
-  const nombreUsuario = (id) => usuarios.find((u) => u.id === id)?.nombre || "—";
-
   const nuevo = boton("Nuevo proyecto", () => (window.location.hash = "#/proyectos/nuevo"));
-  contenido.append(encabezado("Proyectos", [nuevo]));
+  contenido.replaceChildren(encabezado("Proyectos", [nuevo]));
+  await montarListado({
+    clave: "proyectos",
+    api: "/proyectos",
+    campo: "proyectos",
+    titulo: "proyectos",
+    buscar: "Buscar por código, nombre o cliente",
+    estados: ESTADOS_PROYECTO,
+    vacio: "Aún no hay proyectos registrados.",
+    pintar: tablaProyectos,
+  });
+}
 
-  const proyectos = cuerpo.proyectos;
-  if (proyectos.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay proyectos registrados.";
-    contenido.append(p);
-    return;
-  }
-
+// Nombres de cliente y responsable llegan resueltos del API (JOIN).
+function tablaProyectos(proyectos, recargar) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -1274,9 +1813,9 @@ async function vistaProyectos() {
     [
       p.codigo_pry,
       p.nombre_proyecto,
-      nombreCliente(p.cliente_id),
+      p.cliente_nombre || "—",
       estadoPill(textoEstadoProyecto(p.estado), tipoPillProyecto(p.estado)),
-      nombreUsuario(p.responsable_id),
+      p.responsable_nombre || "—",
     ].forEach((valor) => {
       fila.append(celda(valor));
     });
@@ -1287,17 +1826,108 @@ async function vistaProyectos() {
       true
     );
     editar.setAttribute("aria-label", `Ver proyecto ${p.codigo_pry}`);
+    const filaConfirmacion = document.createElement("tr");
+    filaConfirmacion.style.display = "none";
+    const tdConfirmacion = document.createElement("td");
+    tdConfirmacion.colSpan = 6;
+
+    const formEliminar = document.createElement("div");
+    formEliminar.style.display = "flex";
+    formEliminar.style.flexDirection = "column";
+    formEliminar.style.gap = "8px";
+    formEliminar.style.padding = "12px 0";
+    formEliminar.style.maxWidth = "420px";
+
+    const nota = document.createElement("p");
+    nota.className = "subtitulo";
+    nota.textContent =
+      "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
+      "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
+    formEliminar.append(nota);
+
+    const inputPassword = document.createElement("input");
+    inputPassword.type = "password";
+    inputPassword.placeholder = "Tu contraseña";
+    inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
+
+    const textareaJustificacion = document.createElement("textarea");
+    textareaJustificacion.rows = 2;
+    textareaJustificacion.placeholder = "Justificación de la eliminación";
+    textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
+
+    const mensajeEliminar = document.createElement("div");
+
+    const confirmarEliminar = boton(
+      "Confirmar eliminación",
+      async () => {
+        const password = inputPassword.value;
+        const justificacion = textareaJustificacion.value.trim();
+        mensajeEliminar.replaceChildren();
+        if (!password || !justificacion) {
+          mensajeEliminar.append(
+            alerta("error", "La contraseña y la justificación son obligatorias.")
+          );
+          return;
+        }
+        const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
+        if (r.status === 204) {
+          // recarga la misma página de la lista, con la búsqueda vigente
+          recargar();
+          return;
+        }
+        mensajeEliminar.replaceChildren(
+          alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
+        );
+      },
+      true
+    );
+
+    const cancelarEliminar = boton(
+      "Cancelar",
+      () => {
+        filaConfirmacion.style.display = "none";
+        inputPassword.value = "";
+        textareaJustificacion.value = "";
+        mensajeEliminar.replaceChildren();
+      },
+      true
+    );
+
+    formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
+    tdConfirmacion.append(formEliminar);
+    filaConfirmacion.append(tdConfirmacion);
+
+    const eliminar = boton(
+      "Eliminar",
+      async () => {
+        if (filaConfirmacion.style.display !== "none") {
+          filaConfirmacion.style.display = "none";
+          return;
+        }
+        filaConfirmacion.style.display = "";
+        // con documentos enlazados no se elimina: se muestra qué lo bloquea
+        const bloqueo = await bloqueoEliminacionProyecto(p, () => {
+          filaConfirmacion.style.display = "none";
+        });
+        tdConfirmacion.replaceChildren(bloqueo || formEliminar);
+      },
+      true
+    );
+    eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
     accion.append(editar);
+    if (puede("cancelar_proyecto")) accion.append(eliminar);
     fila.append(accion);
-    tbody.append(fila);
+    tbody.append(fila, filaConfirmacion);
   });
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
-async function vistaProyectoForm(id) {
+// opciones.modoVersion: corrige el proyecto como una nueva versión (con motivo).
+async function vistaProyectoForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("proyectos");
   mostrarCargando();
 
@@ -1337,8 +1967,37 @@ async function vistaProyectoForm(id) {
   ];
 
   contenido.replaceChildren();
-  const volver = boton("Volver a proyectos", () => (window.location.hash = "#/proyectos"), true);
-  contenido.append(encabezado(id ? `Proyecto ${proyecto.codigo_pry}` : "Nuevo proyecto", [volver]));
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/proyectos/${id}`), true)
+    : boton("Volver a proyectos", () => (window.location.hash = "#/proyectos"), true);
+  const tituloProyecto = id
+    ? `${modoVersion ? "Nueva versión del proyecto" : "Proyecto"} ${proyecto.codigo_pry}${proyecto.version > 1 ? ` · v${proyecto.version}` : ""}`
+    : "Nuevo proyecto";
+  // La ficha de un proyecto existente va en pestañas: "Proyecto" (todo lo
+  // de abajo) y "Línea de tiempo" (se carga al abrirla, siempre al día).
+  const conFicha = Boolean(id) && !modoVersion;
+  const acciones = document.createElement("div");
+  acciones.className = "encabezado-acciones";
+  if (conFicha) acciones.append(botonEvidenciasProyecto(id));
+  acciones.append(volver);
+  contenido.append(encabezado(tituloProyecto, [acciones]));
+  const pestanas = conFicha
+    ? pestanasVista([
+        { clave: "ficha", texto: "Proyecto" },
+        {
+          clave: "linea",
+          texto: "Línea de tiempo",
+          alActivar: async (panel) => {
+            const cargando = document.createElement("p");
+            cargando.className = "subtitulo";
+            cargando.textContent = "Cargando…";
+            panel.replaceChildren(cargando);
+            panel.replaceChildren(await renderSeccionLineaTiempoProyecto(id));
+          },
+        },
+      ])
+    : null;
+  if (pestanas) contenido.append(pestanas.lista, ...Object.values(pestanas.paneles));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -1399,12 +2058,17 @@ async function vistaProyectoForm(id) {
   const guardar = document.createElement("button");
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
-  guardar.textContent = id ? "Guardar cambios" : "Crear proyecto";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(proyecto.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear proyecto";
 
+  if (modoVersion) form.append(bloqueModoVersion(proyecto.version || 1));
   form.append(grid, guardar);
   if (!id) form.append(botonCancelar("#/proyectos"));
   tarjeta.append(mensaje, form);
-  contenido.append(tarjeta);
+  (pestanas ? pestanas.paneles.ficha : contenido).append(tarjeta);
 
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
@@ -1427,10 +2091,13 @@ async function vistaProyectoForm(id) {
 
     guardar.disabled = true;
     try {
-      const r = id
-        ? await api("PUT", `/proyectos/${id}`, datos)
-        : await api("POST", "/proyectos", datos);
+      const r = await guardarDocumento("proyectos", { id, modoVersion, datos, form, mensaje });
+      if (!r) return;
       if (r.status === 200 || r.status === 201) {
+        if (modoVersion) {
+          window.location.hash = `#/proyectos/${id}`;
+          return;
+        }
         window.location.hash = id ? `#/proyectos/${id}` : "#/proyectos";
         if (id) vistaProyectoForm(id);
         return;
@@ -1450,7 +2117,10 @@ async function vistaProyectoForm(id) {
     }
   });
 
+  if (modoVersion) return;
   if (id) {
+    tarjeta.append(await renderPanelVersiones("proyectos", id));
+
     const bloqueFase = document.createElement("div");
     bloqueFase.style.marginTop = "24px";
     bloqueFase.style.paddingTop = "24px";
@@ -1466,7 +2136,14 @@ async function vistaProyectoForm(id) {
     filaFase.className = "formulario-grid";
     filaFase.append(
       construirCampo(
-        { nombre: "nueva_fase", etiqueta: "Cambiar a la fase", tipo: "select", opciones: ESTADOS_PROYECTO },
+        {
+          nombre: "nueva_fase",
+          etiqueta: "Cambiar a la fase",
+          tipo: "select",
+          opciones: opcionesSegunPermiso(ESTADOS_PROYECTO, proyecto.estado, (destino) =>
+            destino !== "cancelado" || puede("cancelar_proyecto")
+          ),
+        },
         proyecto.estado
       ),
       construirCampo({ nombre: "observacion_fase", etiqueta: "Observación (opcional)" }, "")
@@ -1490,10 +2167,13 @@ async function vistaProyectoForm(id) {
     tarjeta.append(bloqueFase);
 
     tarjeta.append(renderSeccionPresupuestoProyecto(proyecto));
-    tarjeta.append(await renderSeccionActividadesProyecto(id, opcionesUsuarios));
-    tarjeta.append(await renderSeccionEquipoProyecto(id, opcionesUsuarios));
-    tarjeta.append(renderSeccionEvidencias("proyectos", id, "Evidencias del proyecto"));
-    tarjeta.append(await renderSeccionLineaTiempoProyecto(id));
+    tarjeta.append(await renderSeccionDocumentosProyecto(id));
+    tarjeta.append(
+      await renderSeccionActividadesProyecto(id, opcionesUsuarios, {
+        actividadId: opciones.actividadId,
+      })
+    );
+    if (opciones.actividadId) enfocarActividad(opciones.actividadId);
   }
 }
 
@@ -1537,34 +2217,21 @@ function formatearMoneda(valor) {
 
 async function vistaCotizaciones() {
   marcarMenu("cotizaciones");
-  mostrarCargando();
-  const [{ status, cuerpo }, clientes, usuarios] = await Promise.all([
-    api("GET", "/cotizaciones"),
-    obtenerClientes(),
-    obtenerUsuarios(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Cotizaciones"), alerta("error", "No se pudieron cargar las cotizaciones."));
-    return;
-  }
-
-  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
-  const nombreUsuario = (id) => usuarios.find((u) => u.id === id)?.nombre || "—";
-
   const nuevo = boton("Nueva cotización", () => (window.location.hash = "#/cotizaciones/nuevo"));
-  contenido.append(encabezado("Cotizaciones", [nuevo]));
+  contenido.replaceChildren(encabezado("Cotizaciones", [nuevo]));
+  await montarListado({
+    clave: "cotizaciones",
+    api: "/cotizaciones",
+    campo: "cotizaciones",
+    titulo: "cotizaciones",
+    buscar: "Buscar por número o cliente",
+    estados: ESTADOS_COTIZACION,
+    vacio: "Aún no hay cotizaciones registradas.",
+    pintar: tablaCotizaciones,
+  });
+}
 
-  const cotizaciones = cuerpo.cotizaciones;
-  if (cotizaciones.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay cotizaciones registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaCotizaciones(cotizaciones) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -1583,8 +2250,8 @@ async function vistaCotizaciones() {
     const fila = document.createElement("tr");
     [
       c.numero_cotizacion,
-      nombreCliente(c.cliente_id),
-      nombreUsuario(c.asesor_comercial_id),
+      c.cliente_nombre || "—",
+      c.asesor_nombre || "—",
       estadoPill(textoEstadoCotizacion(c.estado), tipoPillCotizacion(c.estado)),
       c.fecha_validez ? c.fecha_validez.substring(0, 10) : "—",
     ].forEach((valor) => {
@@ -1604,7 +2271,7 @@ async function vistaCotizaciones() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 const ETIQUETAS_ITEM_COTIZACION = {
@@ -1669,7 +2336,9 @@ function construirFilaItem(item, editable, onCambio, onEliminar) {
   return fila;
 }
 
-async function vistaCotizacionForm(id) {
+// opciones.modoVersion: corrige la cotización como nueva versión, en cualquier estado.
+async function vistaCotizacionForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("cotizaciones");
   mostrarCargando();
 
@@ -1690,14 +2359,21 @@ async function vistaCotizacionForm(id) {
     return;
   }
 
-  const editable = !id || cotizacion.estado === "borrador";
+  const editable = modoVersion || !id || cotizacion.estado === "borrador";
   const opcionesClientes = clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social }));
   const opcionesUsuarios = usuarios.map((u) => ({ valor: String(u.id), texto: u.nombre }));
 
   contenido.replaceChildren();
-  const volver = boton("Volver a cotizaciones", () => (window.location.hash = "#/cotizaciones"), true);
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/cotizaciones/${id}`), true)
+    : boton("Volver a cotizaciones", () => (window.location.hash = "#/cotizaciones"), true);
   contenido.append(
-    encabezado(id ? `Cotización ${cotizacion.numero_cotizacion}` : "Nueva cotización", [volver])
+    encabezado(
+      id
+        ? `${modoVersion ? "Nueva versión de la cotización" : "Cotización"} ${cotizacion.numero_cotizacion}${cotizacion.version > 1 ? ` · v${cotizacion.version}` : ""}`
+        : "Nueva cotización",
+      [volver]
+    )
   );
 
   const tarjeta = document.createElement("div");
@@ -1760,7 +2436,8 @@ async function vistaCotizacionForm(id) {
   if (!editable) {
     const avisoSoloLectura = document.createElement("p");
     avisoSoloLectura.className = "subtitulo";
-    avisoSoloLectura.textContent = "Solo se puede editar una cotización en estado borrador.";
+    avisoSoloLectura.textContent =
+      "Solo se puede editar una cotización en estado borrador. Para corregirla, crea una nueva versión (abajo).";
     grid.append(avisoSoloLectura);
   }
 
@@ -1849,8 +2526,13 @@ async function vistaCotizacionForm(id) {
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
   guardar.style.marginTop = "16px";
-  guardar.textContent = id ? "Guardar cambios" : "Crear cotización";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(cotizacion.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear cotización";
 
+  if (modoVersion) form.append(bloqueModoVersion(cotizacion.version || 1));
   form.append(grid, subtituloItems, bloqueItems, totalGeneral);
   if (editable) form.append(guardar);
   if (!id) form.append(botonCancelar("#/cotizaciones"));
@@ -1896,10 +2578,13 @@ async function vistaCotizacionForm(id) {
 
       guardar.disabled = true;
       try {
-        const r = id
-          ? await api("PUT", `/cotizaciones/${id}`, datos)
-          : await api("POST", "/cotizaciones", datos);
+        const r = await guardarDocumento("cotizaciones", { id, modoVersion, datos, form, mensaje });
+        if (!r) return;
         if (r.status === 200 || r.status === 201) {
+          if (modoVersion) {
+            window.location.hash = `#/cotizaciones/${id}`;
+            return;
+          }
           window.location.hash = id ? `#/cotizaciones/${id}` : "#/cotizaciones";
           if (id) vistaCotizacionForm(id);
           return;
@@ -1920,6 +2605,7 @@ async function vistaCotizacionForm(id) {
     });
   }
 
+  if (modoVersion) return;
   if (id) {
     const bloqueEstado = document.createElement("div");
     bloqueEstado.style.marginTop = "24px";
@@ -1931,28 +2617,39 @@ async function vistaCotizacionForm(id) {
     subtituloEstado.textContent = `Estado actual: ${textoEstadoCotizacion(cotizacion.estado)}`;
     bloqueEstado.append(subtituloEstado);
 
-    const mensajeEstado = document.createElement("div");
-    const filaEstado = document.createElement("div");
-    filaEstado.className = "formulario-grid";
-    filaEstado.append(
-      construirCampo(
-        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_COTIZACION },
-        cotizacion.estado
-      )
+    // En "aprobación", solo quien aprueba cotizaciones decide (enviar o devolver).
+    const opcionesEstado = opcionesSegunPermiso(
+      ESTADOS_COTIZACION,
+      cotizacion.estado,
+      () => cotizacion.estado !== "aprobacion" || puede("aprobar_cotizacion")
     );
-    const botonEstado = boton("Actualizar estado", async () => {
-      mensajeEstado.replaceChildren();
-      const nuevoEstado = document.getElementById("nuevo_estado").value;
-      const r = await api("PATCH", `/cotizaciones/${id}/estado`, { estado: nuevoEstado });
-      if (r.status === 200) {
-        vistaCotizacionForm(id);
-        return;
-      }
-      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
-    });
+    if (opcionesEstado.length > 1) {
+      const mensajeEstado = document.createElement("div");
+      const filaEstado = document.createElement("div");
+      filaEstado.className = "formulario-grid";
+      filaEstado.append(
+        construirCampo(
+          { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: opcionesEstado },
+          cotizacion.estado
+        )
+      );
+      const botonEstado = boton("Actualizar estado", async () => {
+        mensajeEstado.replaceChildren();
+        const nuevoEstado = document.getElementById("nuevo_estado").value;
+        const r = await api("PATCH", `/cotizaciones/${id}/estado`, { estado: nuevoEstado });
+        if (r.status === 200) {
+          vistaCotizacionForm(id);
+          return;
+        }
+        mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+      });
+      bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    } else {
+      bloqueEstado.append(notaSinPermisoEstado("La decisión sobre esta cotización la toma el Gerente Comercial o el Gerente General."));
+    }
 
-    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
+    tarjeta.append(await renderPanelVersiones("cotizaciones", id));
   }
 }
 
@@ -1998,27 +2695,20 @@ function tipoPillClasificacionProveedor(valor) {
 
 async function vistaProveedores() {
   marcarMenu("proveedores");
-  mostrarCargando();
-  const { status, cuerpo } = await api("GET", "/proveedores");
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Proveedores"), alerta("error", "No se pudieron cargar los proveedores."));
-    return;
-  }
-
   const nuevo = boton("Nuevo proveedor", () => (window.location.hash = "#/proveedores/nuevo"));
-  contenido.append(encabezado("Proveedores", [nuevo]));
+  contenido.replaceChildren(encabezado("Proveedores", [nuevo]));
+  await montarListado({
+    clave: "proveedores",
+    api: "/proveedores",
+    campo: "proveedores",
+    titulo: "proveedores",
+    buscar: "Buscar por razón social o NIT",
+    vacio: "Aún no hay proveedores registrados.",
+    pintar: tablaProveedores,
+  });
+}
 
-  const proveedores = cuerpo.proveedores;
-  if (proveedores.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay proveedores registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaProveedores(proveedores) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -2055,7 +2745,7 @@ async function vistaProveedores() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 async function vistaProveedorForm(id) {
@@ -2169,32 +2859,21 @@ function textoProcedencia(valor) {
 
 async function vistaRequisiciones() {
   marcarMenu("requisiciones");
-  mostrarCargando();
-  const [{ status, cuerpo }, proyectos] = await Promise.all([
-    api("GET", "/requisiciones"),
-    obtenerProyectos(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Requisiciones"), alerta("error", "No se pudieron cargar las requisiciones."));
-    return;
-  }
-
-  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
-
   const nuevo = boton("Nueva requisición", () => (window.location.hash = "#/requisiciones/nuevo"));
-  contenido.append(encabezado("Requisiciones", [nuevo]));
+  contenido.replaceChildren(encabezado("Requisiciones", [nuevo]));
+  await montarListado({
+    clave: "requisiciones",
+    api: "/requisiciones",
+    campo: "requisiciones",
+    titulo: "requisiciones",
+    buscar: "Buscar por número o proyecto",
+    estados: ESTADOS_REQUISICION,
+    vacio: "Aún no hay requisiciones registradas.",
+    pintar: tablaRequisiciones,
+  });
+}
 
-  const requisiciones = cuerpo.requisiciones;
-  if (requisiciones.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay requisiciones registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaRequisiciones(requisiciones) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -2213,7 +2892,7 @@ async function vistaRequisiciones() {
     const fila = document.createElement("tr");
     [
       r.numero_requisicion,
-      nombreProyecto(r.proyecto_id),
+      r.proyecto_nombre || "—",
       textoProcedencia(r.procedencia),
       estadoPill(textoEstadoRequisicion(r.estado), tipoPillRequisicion(r.estado)),
     ].forEach((valor) => {
@@ -2233,7 +2912,7 @@ async function vistaRequisiciones() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 function construirFilaItemSimple(item, campos, editable, onEliminar) {
@@ -2536,38 +3215,27 @@ function calcularTotalItemOC(item) {
 
 async function vistaOrdenesCompra() {
   marcarMenu("ordenes-compra");
-  mostrarCargando();
-  const [{ status, cuerpo }, proveedores] = await Promise.all([
-    api("GET", "/ordenes-compra"),
-    obtenerProveedores(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Órdenes de compra"), alerta("error", "No se pudieron cargar las órdenes de compra."));
-    return;
-  }
-
-  const nombreProveedor = (id) => proveedores.find((p) => p.id === id)?.razon_social || "—";
-
   const nuevo = boton("Nueva orden de compra", () => (window.location.hash = "#/ordenes-compra/nuevo"));
-  contenido.append(encabezado("Órdenes de compra", [nuevo]));
+  contenido.replaceChildren(encabezado("Órdenes de compra", [nuevo]));
+  await montarListado({
+    clave: "ordenes-compra",
+    api: "/ordenes-compra",
+    campo: "ordenes",
+    titulo: "órdenes de compra",
+    buscar: "Buscar por número, proveedor, requisición o proyecto",
+    estados: ESTADOS_ORDEN_COMPRA,
+    vacio: "Aún no hay órdenes de compra registradas.",
+    pintar: tablaOrdenesCompra,
+  });
+}
 
-  const ordenes = cuerpo.ordenes;
-  if (ordenes.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay órdenes de compra registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaOrdenesCompra(ordenes) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
   const thead = document.createElement("thead");
   const filaCabecera = document.createElement("tr");
-  ["Número", "Proveedor", "Estado", ""].forEach((texto) => {
+  ["Número", "Proveedor", "Proyecto", "Estado", ""].forEach((texto) => {
     const th = document.createElement("th");
     th.scope = "col";
     th.textContent = texto;
@@ -2580,7 +3248,8 @@ async function vistaOrdenesCompra() {
     const fila = document.createElement("tr");
     [
       o.numero_oc,
-      nombreProveedor(o.proveedor_id),
+      o.proveedor_nombre || "—",
+      o.proyecto_codigo || "—",
       estadoPill(textoEstadoOrdenCompra(o.estado), tipoPillOrdenCompra(o.estado)),
     ].forEach((valor) => {
       fila.append(celda(valor));
@@ -2599,10 +3268,12 @@ async function vistaOrdenesCompra() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
-async function vistaOrdenCompraForm(id) {
+// opciones.modoVersion: corrige la OC como nueva versión, en cualquier estado.
+async function vistaOrdenCompraForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("ordenes-compra");
   mostrarCargando();
 
@@ -2623,14 +3294,21 @@ async function vistaOrdenCompraForm(id) {
     return;
   }
 
-  const editable = !id || orden.estado === "pte_aprobar";
+  const editable = modoVersion || !id || orden.estado === "pte_aprobar";
   const opcionesProveedores = proveedores.map((p) => ({ valor: String(p.id), texto: p.razon_social }));
   const opcionesRequisiciones = requisiciones.map((r) => ({ valor: String(r.id), texto: r.numero_requisicion }));
 
   contenido.replaceChildren();
-  const volver = boton("Volver a órdenes de compra", () => (window.location.hash = "#/ordenes-compra"), true);
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/ordenes-compra/${id}`), true)
+    : boton("Volver a órdenes de compra", () => (window.location.hash = "#/ordenes-compra"), true);
   contenido.append(
-    encabezado(id ? `Orden de compra ${orden.numero_oc}` : "Nueva orden de compra", [volver])
+    encabezado(
+      id
+        ? `${modoVersion ? "Nueva versión de la orden de compra" : "Orden de compra"} ${orden.numero_oc}${orden.version > 1 ? ` · v${orden.version}` : ""}`
+        : "Nueva orden de compra",
+      [volver]
+    )
   );
 
   const tarjeta = document.createElement("div");
@@ -2796,8 +3474,20 @@ async function vistaOrdenCompraForm(id) {
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
   guardar.style.marginTop = "16px";
-  guardar.textContent = id ? "Guardar cambios" : "Crear orden de compra";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(orden.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear orden de compra";
 
+  if (modoVersion) {
+    form.append(bloqueModoVersion(orden.version || 1));
+    if (orden.estado === "aprobada_pte_pago") {
+      form.append(
+        alerta("aviso", "Esta OC ya está aprobada: si cambias ítems o proveedor, volverá a quedar pendiente de aprobar.")
+      );
+    }
+  }
   form.append(grid, subtituloItems, bloqueItems, totalGeneral);
   if (editable) form.append(guardar);
   if (!id) form.append(botonCancelar("#/ordenes-compra"));
@@ -2841,10 +3531,13 @@ async function vistaOrdenCompraForm(id) {
 
       guardar.disabled = true;
       try {
-        const r = id
-          ? await api("PUT", `/ordenes-compra/${id}`, datos)
-          : await api("POST", "/ordenes-compra", datos);
+        const r = await guardarDocumento("ordenes-compra", { id, modoVersion, datos, form, mensaje });
+        if (!r) return;
         if (r.status === 200 || r.status === 201) {
+          if (modoVersion) {
+            window.location.hash = `#/ordenes-compra/${id}`;
+            return;
+          }
           window.location.hash = id ? `#/ordenes-compra/${id}` : "#/ordenes-compra";
           if (id) vistaOrdenCompraForm(id);
           return;
@@ -2865,6 +3558,7 @@ async function vistaOrdenCompraForm(id) {
     });
   }
 
+  if (modoVersion) return;
   if (id) {
     const bloqueEstado = document.createElement("div");
     bloqueEstado.style.marginTop = "24px";
@@ -2876,29 +3570,46 @@ async function vistaOrdenCompraForm(id) {
     subtituloEstado.textContent = `Estado actual: ${textoEstadoOrdenCompra(orden.estado)}`;
     bloqueEstado.append(subtituloEstado);
 
-    const mensajeEstado = document.createElement("div");
-    const filaEstado = document.createElement("div");
-    filaEstado.className = "formulario-grid";
-    filaEstado.append(
-      construirCampo(
-        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_ORDEN_COMPRA },
-        orden.estado
-      )
+    // Aprobar exige el permiso y no haber creado la OC; pagar/contabilizar, el suyo.
+    const opcionesEstado = opcionesSegunPermiso(ESTADOS_ORDEN_COMPRA, orden.estado, (destino) =>
+      destino === "aprobada_pte_pago"
+        ? puedeAprobarDocumento("aprobar_oc", orden.created_by)
+        : puede("pagar_oc")
     );
-    const botonEstado = boton("Actualizar estado", async () => {
-      mensajeEstado.replaceChildren();
-      const nuevoEstado = document.getElementById("nuevo_estado").value;
-      const r = await api("PATCH", `/ordenes-compra/${id}/estado`, { estado: nuevoEstado });
-      if (r.status === 200) {
-        vistaOrdenCompraForm(id);
-        return;
-      }
-      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
-    });
+    if (opcionesEstado.length > 1) {
+      const mensajeEstado = document.createElement("div");
+      const filaEstado = document.createElement("div");
+      filaEstado.className = "formulario-grid";
+      filaEstado.append(
+        construirCampo(
+          { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: opcionesEstado },
+          orden.estado
+        )
+      );
+      const botonEstado = boton("Actualizar estado", async () => {
+        mensajeEstado.replaceChildren();
+        const nuevoEstado = document.getElementById("nuevo_estado").value;
+        const r = await api("PATCH", `/ordenes-compra/${id}/estado`, { estado: nuevoEstado });
+        if (r.status === 200) {
+          vistaOrdenCompraForm(id);
+          return;
+        }
+        mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+      });
+      bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    } else if (orden.estado !== "contabilizada") {
+      bloqueEstado.append(
+        notaSinPermisoEstado(
+          orden.estado === "pte_aprobar"
+            ? "La aprueba el Director Administrativo y Financiero o el Gerente General, y no puede ser quien la creó."
+            : "El pago y la contabilización los registran Contabilidad o el Director Administrativo y Financiero."
+        )
+      );
+    }
 
-    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
     tarjeta.append(renderSeccionEvidencias("ordenes_compra", id, "Evidencias / soportes"));
+    tarjeta.append(await renderPanelVersiones("ordenes-compra", id));
   }
 }
 
@@ -2923,34 +3634,21 @@ function tipoPillExpediente(valor) {
 
 async function vistaExpedientes() {
   marcarMenu("expedientes-diseno");
-  mostrarCargando();
-  const [{ status, cuerpo }, proyectos, usuarios] = await Promise.all([
-    api("GET", "/expedientes-diseno"),
-    obtenerProyectos(),
-    obtenerUsuarios(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Expedientes de diseño"), alerta("error", "No se pudieron cargar los expedientes."));
-    return;
-  }
-
-  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
-  const nombreUsuario = (id) => usuarios.find((u) => u.id === id)?.nombre || "—";
-
   const nuevo = boton("Nuevo expediente", () => (window.location.hash = "#/expedientes-diseno/nuevo"));
-  contenido.append(encabezado("Expedientes de diseño", [nuevo]));
+  contenido.replaceChildren(encabezado("Expedientes de diseño", [nuevo]));
+  await montarListado({
+    clave: "expedientes-diseno",
+    api: "/expedientes-diseno",
+    campo: "expedientes",
+    titulo: "expedientes de diseño",
+    buscar: "Buscar por código, producto, serial o proyecto",
+    estados: ESTADOS_EXPEDIENTE,
+    vacio: "Aún no hay expedientes de diseño registrados.",
+    pintar: tablaExpedientes,
+  });
+}
 
-  const expedientes = cuerpo.expedientes;
-  if (expedientes.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay expedientes de diseño registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaExpedientes(expedientes) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -2970,8 +3668,8 @@ async function vistaExpedientes() {
     [
       e.codigo_expediente,
       e.producto_nombre,
-      nombreProyecto(e.proyecto_id),
-      nombreUsuario(e.responsable_diseno_id),
+      e.proyecto_codigo || "—",
+      e.responsable_nombre || "—",
       estadoPill(textoEstadoExpediente(e.estado_liberacion), tipoPillExpediente(e.estado_liberacion)),
     ].forEach((valor) => {
       fila.append(celda(valor));
@@ -2990,7 +3688,7 @@ async function vistaExpedientes() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
 async function vistaExpedienteForm(id) {
@@ -3143,27 +3841,37 @@ async function vistaExpedienteForm(id) {
     subtituloEstado.textContent = `Estado actual: ${textoEstadoExpediente(expediente.estado_liberacion)}`;
     bloqueEstado.append(subtituloEstado);
 
-    const mensajeEstado = document.createElement("div");
-    const filaEstado = document.createElement("div");
-    filaEstado.className = "formulario-grid";
-    filaEstado.append(
-      construirCampo(
-        { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: ESTADOS_EXPEDIENTE },
-        expediente.estado_liberacion
-      )
+    // Liberar o rechazar el expediente es una decisión de diseño.
+    const opcionesEstado = opcionesSegunPermiso(ESTADOS_EXPEDIENTE, expediente.estado_liberacion, () =>
+      puede("aprobar_diseno")
     );
-    const botonEstado = boton("Actualizar estado", async () => {
-      mensajeEstado.replaceChildren();
-      const nuevoEstado = document.getElementById("nuevo_estado").value;
-      const r = await api("PATCH", `/expedientes-diseno/${id}/estado`, { estado: nuevoEstado });
-      if (r.status === 200) {
-        vistaExpedienteForm(id);
-        return;
-      }
-      mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
-    });
+    if (opcionesEstado.length > 1) {
+      const mensajeEstado = document.createElement("div");
+      const filaEstado = document.createElement("div");
+      filaEstado.className = "formulario-grid";
+      filaEstado.append(
+        construirCampo(
+          { nombre: "nuevo_estado", etiqueta: "Cambiar a", tipo: "select", opciones: opcionesEstado },
+          expediente.estado_liberacion
+        )
+      );
+      const botonEstado = boton("Actualizar estado", async () => {
+        mensajeEstado.replaceChildren();
+        const nuevoEstado = document.getElementById("nuevo_estado").value;
+        const r = await api("PATCH", `/expedientes-diseno/${id}/estado`, { estado: nuevoEstado });
+        if (r.status === 200) {
+          vistaExpedienteForm(id);
+          return;
+        }
+        mensajeEstado.append(alerta("error", r.cuerpo?.error || "No se pudo cambiar el estado."));
+      });
+      bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
+    } else if (expediente.estado_liberacion === "pendiente") {
+      bloqueEstado.append(
+        notaSinPermisoEstado("Lo liberan el Jefe de I+D+i, el Director de Operaciones o el Gerente General.")
+      );
+    }
 
-    bloqueEstado.append(filaEstado, botonEstado, mensajeEstado);
     tarjeta.append(bloqueEstado);
 
     for (const config of subrecursosExpediente(opcionesUsuarios)) {
@@ -3293,7 +4001,16 @@ function subrecursosExpediente(opcionesUsuarios) {
         { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
         { nombre: "descripcion", etiqueta: "Descripción" },
         { nombre: "motivo", etiqueta: "Motivo" },
-        { nombre: "estado", etiqueta: "Estado", tipo: "select", opciones: OPCIONES_ESTADO_CAMBIO_DISENO },
+        // Aprobar o rechazar un cambio es una decisión de diseño (el servidor
+        // además exige que no la tome quien creó el cambio).
+        {
+          nombre: "estado",
+          etiqueta: "Estado",
+          tipo: "select",
+          opciones: OPCIONES_ESTADO_CAMBIO_DISENO.filter(
+            (o) => o.valor === "pendiente" || puede("aprobar_diseno")
+          ),
+        },
       ],
     },
     {
@@ -3582,12 +4299,15 @@ function tipoPillTipoServicio(valor) {
   return "info";
 }
 
+// El equipo va primero: al escribir su serial se completan solos el cliente y
+// el proyecto (el del equipo, que puede cambiarse por otro del mismo cliente,
+// p. ej. un contrato de mantenimiento). Todo reporte queda en un proyecto.
 const CAMPOS_REPORTE = (clientes, proyectos) => [
+  { nombre: "equipo_numero_serie", etiqueta: "Número de serie del equipo", requerido: true },
   { nombre: "cliente_id", etiqueta: "Cliente", tipo: "select", requerido: true,
     opciones: clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social })) },
-  { nombre: "proyecto_id", etiqueta: "Proyecto (opcional)", tipo: "select",
-    opciones: [{ valor: "", texto: "— Sin proyecto —" }, ...proyectos.map((p) => ({ valor: String(p.id), texto: p.nombre_proyecto }))] },
-  { nombre: "equipo_numero_serie", etiqueta: "Número de serie del equipo", requerido: true },
+  { nombre: "proyecto_id", etiqueta: "Proyecto", tipo: "select", requerido: true,
+    opciones: opcionesProyectosDeCliente(proyectos, null) },
   { nombre: "tipo_servicio", etiqueta: "Tipo de servicio", tipo: "select", requerido: true, opciones: TIPOS_SERVICIO },
   { nombre: "en_garantia", etiqueta: "¿En garantía?", tipo: "select",
     opciones: [{ valor: "no", texto: "No" }, { valor: "si", texto: "Sí" }] },
@@ -3601,38 +4321,26 @@ const CAMPOS_REPORTE = (clientes, proyectos) => [
 
 async function vistaReportesServicio() {
   marcarMenu("reportes-servicio");
-  mostrarCargando();
-  const [{ status, cuerpo }, clientes] = await Promise.all([
-    api("GET", "/reportes-servicio-tecnico"),
-    obtenerClientes(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Reportes de servicio"), alerta("error", "No se pudieron cargar los reportes."));
-    return;
-  }
-
-  const nombreCliente = (idCliente) => clientes.find((c) => c.id === idCliente)?.nombre_razon_social || "—";
-
   const nuevo = boton("Nuevo reporte", () => (window.location.hash = "#/reportes-servicio/nuevo"));
-  contenido.append(encabezado("Reportes de servicio técnico", [nuevo]));
+  contenido.replaceChildren(encabezado("Reportes de servicio técnico", [nuevo]));
+  await montarListado({
+    clave: "reportes-servicio",
+    api: "/reportes-servicio-tecnico",
+    campo: "reportes",
+    titulo: "reportes de servicio",
+    buscar: "Buscar por número, serial, cliente o proyecto",
+    vacio: "Aún no hay reportes de servicio registrados.",
+    pintar: tablaReportesServicio,
+  });
+}
 
-  const reportes = cuerpo.reportes;
-  if (reportes.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay reportes de servicio registrados.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaReportesServicio(reportes) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
   const thead = document.createElement("thead");
   const filaCabecera = document.createElement("tr");
-  ["Equipo (N° serie)", "Cliente", "Tipo de servicio", "Fecha", ""].forEach((texto) => {
+  ["Número", "Equipo (N° serie)", "Cliente", "Proyecto", "Tipo de servicio", "Fecha", ""].forEach((texto) => {
     const th = document.createElement("th");
     th.scope = "col";
     th.textContent = texto;
@@ -3643,8 +4351,10 @@ async function vistaReportesServicio() {
   const tbody = document.createElement("tbody");
   reportes.forEach((r) => {
     const fila = document.createElement("tr");
+    fila.append(celda(r.numero_reporte));
     fila.append(celda(r.equipo_numero_serie));
-    fila.append(celda(nombreCliente(r.cliente_id)));
+    fila.append(celda(r.cliente_nombre || "—"));
+    fila.append(celda(r.proyecto_codigo || "—"));
     fila.append(celda(estadoPill(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio))));
     fila.append(celda(r.fecha_servicio ? r.fecha_servicio.substring(0, 10) : "—"));
     const accion = document.createElement("td");
@@ -3657,10 +4367,12 @@ async function vistaReportesServicio() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
-async function vistaReporteServicioForm(id) {
+// opciones.modoVersion: corrige el reporte como nueva versión (no se elimina).
+async function vistaReporteServicioForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("reportes-servicio");
   mostrarCargando();
 
@@ -3684,8 +4396,13 @@ async function vistaReporteServicioForm(id) {
   const campos = CAMPOS_REPORTE(clientes, proyectos);
 
   contenido.replaceChildren();
-  const volver = boton("Volver a reportes", () => (window.location.hash = "#/reportes-servicio"), true);
-  contenido.append(encabezado(id ? "Editar reporte de servicio" : "Nuevo reporte de servicio", [volver]));
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/reportes-servicio/${id}`), true)
+    : boton("Volver a reportes", () => (window.location.hash = "#/reportes-servicio"), true);
+  const tituloReporte = !id
+    ? "Nuevo reporte de servicio"
+    : `${modoVersion ? "Nueva versión del reporte" : "Reporte de servicio"} ${reporte.numero_reporte}${reporte.version > 1 ? ` · v${reporte.version}` : ""}`;
+  contenido.append(encabezado(tituloReporte, [volver]));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -3709,12 +4426,73 @@ async function vistaReporteServicioForm(id) {
   const guardar = document.createElement("button");
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
-  guardar.textContent = id ? "Guardar cambios" : "Crear reporte";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(reporte.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear reporte";
 
-  form.append(grid, guardar);
+  const infoEquipo = document.createElement("p");
+  infoEquipo.className = "subtitulo info-equipo";
+  if (modoVersion) form.append(bloqueModoVersion(reporte.version || 1));
+  form.append(grid, infoEquipo, guardar);
   if (!id) form.append(botonCancelar("#/reportes-servicio"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
+
+  enlazarClienteConProyectos(form, proyectos);
+  const inputSerie = form.elements.equipo_numero_serie;
+  // Busca el equipo por su serial y completa cliente y proyecto.
+  async function completarDesdeEquipo({ conservarProyecto = false } = {}) {
+    const serie = inputSerie.value.trim();
+    infoEquipo.replaceChildren();
+    if (!serie) return;
+    const r = await api("GET", `/equipos?numero_serie=${encodeURIComponent(serie)}`);
+    const equipo = r.status === 200 ? r.cuerpo.equipos[0] : null;
+    if (!equipo) {
+      infoEquipo.append(
+        "No hay un equipo registrado con ese número de serie. Si es anterior al ERP, ",
+        Object.assign(document.createElement("a"), {
+          href: "#/equipos/nuevo",
+          textContent: "regístralo en Equipos",
+          className: "enlace-documento",
+        }),
+        "."
+      );
+      return;
+    }
+    const selectCliente = form.elements.cliente_id;
+    const selectProyecto = form.elements.proyecto_id;
+    const proyectoActual = selectProyecto.value;
+    selectCliente.value = String(equipo.cliente_id);
+    const opciones = opcionesProyectosDeCliente(proyectos, equipo.cliente_id);
+    // si el proyecto del equipo no vino en la lista (más de 100), se agrega
+    if (!opciones.some((o) => o.valor === String(equipo.proyecto_id))) {
+      opciones.push({
+        valor: String(equipo.proyecto_id),
+        texto: `${equipo.proyecto_codigo} · ${equipo.proyecto_nombre}`,
+      });
+    }
+    const mismoCliente = opciones.some((o) => o.valor && o.valor === proyectoActual);
+    recargarSelect(
+      selectProyecto,
+      opciones,
+      conservarProyecto && mismoCliente ? proyectoActual : String(equipo.proyecto_id)
+    );
+    infoEquipo.textContent =
+      `${equipo.descripcion} · ${equipo.cliente} · equipo del proyecto ${equipo.proyecto_codigo}` +
+      (equipo.origen === "historico" ? " (equipo histórico)" : "") +
+      ". Puedes elegir otro proyecto del mismo cliente, p. ej. un contrato de mantenimiento.";
+  }
+  inputSerie.addEventListener("change", () => completarDesdeEquipo());
+  const seriePrevia = sessionStorage.getItem("reporte_equipo_serie");
+  if (!id && seriePrevia) {
+    sessionStorage.removeItem("reporte_equipo_serie");
+    inputSerie.value = seriePrevia;
+    completarDesdeEquipo();
+  } else if (id) {
+    completarDesdeEquipo({ conservarProyecto: true });
+  }
 
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
@@ -3735,11 +4513,10 @@ async function vistaReporteServicioForm(id) {
 
     guardar.disabled = true;
     try {
-      const r = id
-        ? await api("PUT", `/reportes-servicio-tecnico/${id}`, datos)
-        : await api("POST", "/reportes-servicio-tecnico", datos);
+      const r = await guardarDocumento("reportes-servicio", { id, modoVersion, datos, form, mensaje });
+      if (!r) return;
       if (r.status === 200 || r.status === 201) {
-        window.location.hash = "#/reportes-servicio";
+        window.location.hash = modoVersion ? `#/reportes-servicio/${id}` : "#/reportes-servicio";
         return;
       }
       if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
@@ -3747,6 +4524,271 @@ async function vistaReporteServicioForm(id) {
         mensaje.append(alerta("error", mensajes.join(" · ")));
       } else {
         mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el reporte."));
+      }
+    } catch (error) {
+      if (error.message !== "sesion-expirada") {
+        mensaje.append(alerta("error", "No hay conexión con el servidor."));
+      }
+    } finally {
+      guardar.disabled = false;
+    }
+  });
+
+  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("reportes-servicio", id));
+}
+
+/* ------------------------------------------------------------------
+   Equipos instalados (Soporte técnico): trazabilidad de cada equipo,
+   tenga o no expediente de diseño.
+   ------------------------------------------------------------------ */
+function pillOrigenEquipo(equipo) {
+  return equipo.origen === "historico"
+    ? estadoPill("Histórico", "mute")
+    : estadoPill(`Expediente ${equipo.codigo_expediente || ""}`.trim(), "info");
+}
+
+async function vistaEquipos() {
+  marcarMenu("equipos");
+  const nuevo = boton("Registrar equipo histórico", () => (window.location.hash = "#/equipos/nuevo"));
+  const nota = document.createElement("p");
+  nota.className = "subtitulo";
+  nota.textContent =
+    "Los equipos con expediente de diseño se registran solos. Aquí se agregan los equipos anteriores al ERP, para poder hacerles reportes de servicio y seguir su historia.";
+  contenido.replaceChildren(encabezado("Equipos instalados", [nuevo]), nota);
+  await montarListado({
+    clave: "equipos",
+    api: "/equipos",
+    campo: "equipos",
+    titulo: "equipos",
+    buscar: "Buscar por serial, equipo, marca, cliente o proyecto",
+    vacio: "Aún no hay equipos registrados.",
+    pintar: tablaEquipos,
+  });
+}
+
+function tablaEquipos(equipos) {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Número de serie", "Equipo", "Cliente", "Proyecto", "Origen", "Reportes", "Último servicio", ""].forEach(
+    (texto) => {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.textContent = texto;
+      filaCabecera.append(th);
+    }
+  );
+  thead.append(filaCabecera);
+  const tbody = document.createElement("tbody");
+  equipos.forEach((q) => {
+    const fila = document.createElement("tr");
+    [
+      q.numero_serie,
+      q.descripcion,
+      q.cliente,
+      q.proyecto_codigo,
+      pillOrigenEquipo(q),
+      String(q.reportes),
+      q.ultimo_servicio ? fechaCortaTexto(q.ultimo_servicio) : "—",
+    ].forEach((valor) => fila.append(celda(valor)));
+    const accion = document.createElement("td");
+    const ver = boton("Ver", () => (window.location.hash = `#/equipos/${q.id}`), true);
+    ver.setAttribute("aria-label", `Ver equipo ${q.numero_serie}`);
+    accion.append(ver);
+    fila.append(accion);
+    tbody.append(fila);
+  });
+  tabla.append(thead, tbody);
+  tarjeta.append(tabla);
+  return tarjeta;
+}
+
+function renderHistorialServicioEquipo(equipo) {
+  const bloque = document.createElement("div");
+  bloque.className = "docs-proyecto";
+  const cabecera = document.createElement("div");
+  cabecera.className = "docs-cabecera";
+  const titulo = document.createElement("h3");
+  titulo.textContent = "Historial de servicio";
+  const nuevo = boton("Nuevo reporte para este equipo", () => {
+    sessionStorage.setItem("reporte_equipo_serie", equipo.numero_serie);
+    window.location.hash = "#/reportes-servicio/nuevo";
+  });
+  cabecera.append(titulo, nuevo);
+  bloque.append(cabecera);
+
+  if (equipo.historial_reportes.length === 0) {
+    const p = document.createElement("p");
+    p.className = "subtitulo";
+    p.textContent = "Este equipo aún no tiene reportes de servicio.";
+    bloque.append(p);
+    return bloque;
+  }
+  const tabla = document.createElement("table");
+  const thead = document.createElement("thead");
+  const filaCabecera = document.createElement("tr");
+  ["Reporte", "Tipo", "Fecha", "Proyecto", "Técnico", "Garantía"].forEach((texto) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = texto;
+    filaCabecera.append(th);
+  });
+  thead.append(filaCabecera);
+  const tbody = document.createElement("tbody");
+  equipo.historial_reportes.forEach((r) => {
+    const fila = document.createElement("tr");
+    const tdReporte = document.createElement("td");
+    tdReporte.append(
+      Object.assign(document.createElement("a"), {
+        href: `#/reportes-servicio/${r.id}`,
+        textContent: r.numero_reporte,
+        className: "enlace-documento",
+      })
+    );
+    fila.append(
+      tdReporte,
+      celda(estadoPill(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio))),
+      celda(fechaCortaTexto(r.fecha_servicio || r.creado)),
+      celda(r.proyecto_codigo),
+      celda(r.tecnico || "—"),
+      celda(r.en_garantia ? "Sí" : "No")
+    );
+    tbody.append(fila);
+  });
+  tabla.append(thead, tbody);
+  bloque.append(tabla);
+  return bloque;
+}
+
+async function vistaEquipoForm(id) {
+  marcarMenu("equipos");
+  mostrarCargando();
+  const [clientes, proyectos] = await Promise.all([obtenerClientes(), obtenerProyectos()]);
+  let equipo = null;
+  if (id) {
+    const r = await api("GET", `/equipos/${id}`);
+    if (r.status !== 200) {
+      contenido.replaceChildren(encabezado("Equipo"), alerta("error", "No se encontró el equipo."));
+      return;
+    }
+    equipo = r.cuerpo.equipo;
+  }
+
+  contenido.replaceChildren();
+  const volver = boton("Volver a equipos", () => (window.location.hash = "#/equipos"), true);
+  contenido.append(
+    encabezado(equipo ? `Equipo ${equipo.numero_serie}` : "Registrar equipo histórico", [volver])
+  );
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "tarjeta-ancha";
+  contenido.append(tarjeta);
+
+  // Los equipos de expediente se ven aquí, pero se corrigen desde su expediente.
+  if (equipo && equipo.origen === "expediente") {
+    const ficha = document.createElement("div");
+    ficha.className = "formulario-grid";
+    [
+      { nombre: "e_serie", etiqueta: "Número de serie", valor: equipo.numero_serie },
+      { nombre: "e_desc", etiqueta: "Equipo", valor: equipo.descripcion },
+      { nombre: "e_modelo", etiqueta: "Modelo", valor: equipo.modelo },
+      { nombre: "e_cliente", etiqueta: "Cliente", valor: equipo.cliente },
+      { nombre: "e_proyecto", etiqueta: "Proyecto", valor: `${equipo.proyecto_codigo} · ${equipo.proyecto_nombre}` },
+    ].forEach((c) => ficha.append(construirCampo({ ...c, tipo: "estatico" }, c.valor)));
+    const nota = document.createElement("p");
+    nota.className = "subtitulo";
+    nota.append(
+      "Este equipo sale del expediente ",
+      Object.assign(document.createElement("a"), {
+        href: `#/expedientes-diseno/${equipo.expediente_id}`,
+        textContent: equipo.codigo_expediente,
+        className: "enlace-documento",
+      }),
+      ": sus datos se corrigen desde allí."
+    );
+    tarjeta.append(ficha, nota, renderHistorialServicioEquipo(equipo));
+    return;
+  }
+
+  const campos = [
+    { nombre: "numero_serie", etiqueta: "Número de serie", requerido: true },
+    { nombre: "descripcion", etiqueta: "Equipo (descripción)", requerido: true },
+    {
+      nombre: "cliente_id",
+      etiqueta: "Cliente",
+      tipo: "select",
+      requerido: true,
+      opciones: [
+        { valor: "", texto: "— Elige el cliente —" },
+        ...clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social })),
+      ],
+    },
+    {
+      nombre: "proyecto_id",
+      etiqueta: "Proyecto",
+      tipo: "select",
+      requerido: true,
+      opciones: opcionesProyectosDeCliente(proyectos, null),
+    },
+    { nombre: "marca", etiqueta: "Marca" },
+    { nombre: "modelo", etiqueta: "Modelo" },
+    { nombre: "fecha_instalacion", etiqueta: "Fecha de instalación", tipo: "date" },
+  ];
+
+  const mensaje = document.createElement("div");
+  const form = document.createElement("form");
+  form.noValidate = true;
+  const grid = document.createElement("div");
+  grid.className = "formulario-grid";
+  campos.forEach((config) => {
+    let valor = "";
+    if (equipo) {
+      valor = equipo[config.nombre] === null || equipo[config.nombre] === undefined ? "" : String(equipo[config.nombre]);
+    }
+    grid.append(construirCampo(config, valor));
+  });
+  const ayuda = document.createElement("p");
+  ayuda.className = "subtitulo";
+  ayuda.textContent =
+    "El proyecto es aquel en el que se vendió o instaló el equipo. Si es anterior al ERP, usa el proyecto con el que se le da soporte a ese cliente.";
+  const guardar = document.createElement("button");
+  guardar.type = "submit";
+  guardar.className = "boton boton-pequeno";
+  guardar.textContent = equipo ? "Guardar cambios" : "Registrar equipo";
+  form.append(grid, ayuda, guardar);
+  if (!equipo) form.append(botonCancelar("#/equipos"));
+  tarjeta.append(mensaje, form);
+  enlazarClienteConProyectos(form, proyectos);
+  if (equipo) tarjeta.append(renderHistorialServicioEquipo(equipo));
+
+  form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    mensaje.replaceChildren();
+    const datos = {};
+    campos.forEach((config) => {
+      const valor = form.elements[config.nombre].value.trim();
+      if (valor !== "") datos[config.nombre] = valor;
+    });
+    if (campos.some((c) => c.requerido && !datos[c.nombre])) {
+      mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
+      return;
+    }
+    if (!equipo && !confirmarCreacion("este equipo")) return;
+    guardar.disabled = true;
+    try {
+      const r = equipo
+        ? await api("PUT", `/equipos/${equipo.id}`, datos)
+        : await api("POST", "/equipos", datos);
+      if (r.status === 200 || r.status === 201) {
+        window.location.hash = `#/equipos/${r.cuerpo.equipo.id}`;
+        if (equipo) vistaEquipoForm(equipo.id);
+        return;
+      }
+      if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
+        mensaje.append(alerta("error", mostrarErroresValidacion(form, campos, r.cuerpo.detalles).join(" · ")));
+      } else {
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el equipo."));
       }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
@@ -3785,34 +4827,20 @@ function tipoPillTipoEntrega(valor) {
 
 async function vistaActasCierre() {
   marcarMenu("actas-cierre");
-  mostrarCargando();
-  const [{ status, cuerpo }, proyectos, clientes] = await Promise.all([
-    api("GET", "/actas-cierre-satisfaccion"),
-    obtenerProyectos(),
-    obtenerClientes(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Actas de cierre"), alerta("error", "No se pudieron cargar las actas."));
-    return;
-  }
-
-  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
-  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
-
   const nuevo = boton("Nueva acta", () => (window.location.hash = "#/actas-cierre/nuevo"));
-  contenido.append(encabezado("Actas de cierre a satisfacción", [nuevo]));
+  contenido.replaceChildren(encabezado("Actas de cierre a satisfacción", [nuevo]));
+  await montarListado({
+    clave: "actas-cierre",
+    api: "/actas-cierre-satisfaccion",
+    campo: "actas",
+    titulo: "actas de cierre",
+    buscar: "Buscar por número, proyecto o cliente",
+    vacio: "Aún no hay actas de cierre registradas.",
+    pintar: tablaActasCierre,
+  });
+}
 
-  const actas = cuerpo.actas;
-  if (actas.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay actas de cierre registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaActasCierre(actas) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -3829,7 +4857,7 @@ async function vistaActasCierre() {
   const tbody = document.createElement("tbody");
   actas.forEach((a) => {
     const fila = document.createElement("tr");
-    [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id)].forEach((valor) => {
+    [a.numero_acta, a.proyecto_codigo || "—", a.cliente_nombre || "—"].forEach((valor) => {
       fila.append(celda(valor));
     });
     fila.append(celda(estadoPill(textoTipoEntrega(a.tipo_entrega), tipoPillTipoEntrega(a.tipo_entrega))));
@@ -3843,10 +4871,12 @@ async function vistaActasCierre() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
-async function vistaActaCierreForm(id) {
+// opciones.modoVersion: corrige el acta firmada como nueva versión (no se elimina).
+async function vistaActaCierreForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("actas-cierre");
   mostrarCargando();
 
@@ -3900,8 +4930,17 @@ async function vistaActaCierreForm(id) {
   ];
 
   contenido.replaceChildren();
-  const volver = boton("Volver a actas de cierre", () => (window.location.hash = "#/actas-cierre"), true);
-  contenido.append(encabezado(id ? `Acta ${acta.numero_acta}` : "Nueva acta de cierre", [volver]));
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/actas-cierre/${id}`), true)
+    : boton("Volver a actas de cierre", () => (window.location.hash = "#/actas-cierre"), true);
+  contenido.append(
+    encabezado(
+      id
+        ? `${modoVersion ? "Nueva versión del acta" : "Acta"} ${acta.numero_acta}${acta.version > 1 ? ` · v${acta.version}` : ""}`
+        : "Nueva acta de cierre",
+      [volver]
+    )
+  );
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -4024,8 +5063,13 @@ async function vistaActaCierreForm(id) {
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
   guardar.style.marginTop = "16px";
-  guardar.textContent = id ? "Guardar cambios" : "Crear acta";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(acta.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear acta";
 
+  if (modoVersion) form.append(bloqueModoVersion(acta.version || 1));
   form.append(grid, subtituloItems, bloqueItems, guardar);
   if (!id) form.append(botonCancelar("#/actas-cierre"));
   tarjeta.append(mensaje, form);
@@ -4061,11 +5105,10 @@ async function vistaActaCierreForm(id) {
 
     guardar.disabled = true;
     try {
-      const r = id
-        ? await api("PUT", `/actas-cierre-satisfaccion/${id}`, datos)
-        : await api("POST", "/actas-cierre-satisfaccion", datos);
+      const r = await guardarDocumento("actas-cierre", { id, modoVersion, datos, form, mensaje });
+      if (!r) return;
       if (r.status === 200 || r.status === 201) {
-        window.location.hash = "#/actas-cierre";
+        window.location.hash = modoVersion ? `#/actas-cierre/${id}` : "#/actas-cierre";
         return;
       }
       if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
@@ -4082,43 +5125,31 @@ async function vistaActaCierreForm(id) {
       guardar.disabled = false;
     }
   });
+
+  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("actas-cierre", id));
 }
 
 async function obtenerActasEntrega() {
-  const r = await api("GET", "/actas-entrega-equipos");
+  const r = await api("GET", `/actas-entrega-equipos${PAGINA_SELECTORES}`);
   return r.status === 200 ? r.cuerpo.actas : [];
 }
 
 async function vistaActasEntrega() {
   marcarMenu("actas-entrega");
-  mostrarCargando();
-  const [{ status, cuerpo }, proyectos, clientes] = await Promise.all([
-    api("GET", "/actas-entrega-equipos"),
-    obtenerProyectos(),
-    obtenerClientes(),
-  ]);
-  contenido.replaceChildren();
-
-  if (status !== 200) {
-    contenido.append(encabezado("Actas de entrega de equipos"), alerta("error", "No se pudieron cargar las actas."));
-    return;
-  }
-
-  const nombreProyecto = (id) => proyectos.find((p) => p.id === id)?.nombre_proyecto || "—";
-  const nombreCliente = (id) => clientes.find((c) => c.id === id)?.nombre_razon_social || "—";
-
   const nuevo = boton("Nueva acta", () => (window.location.hash = "#/actas-entrega/nuevo"));
-  contenido.append(encabezado("Actas de entrega de equipos", [nuevo]));
+  contenido.replaceChildren(encabezado("Actas de entrega de equipos", [nuevo]));
+  await montarListado({
+    clave: "actas-entrega",
+    api: "/actas-entrega-equipos",
+    campo: "actas",
+    titulo: "actas de entrega",
+    buscar: "Buscar por número, proyecto o cliente",
+    vacio: "Aún no hay actas de entrega registradas.",
+    pintar: tablaActasEntrega,
+  });
+}
 
-  const actas = cuerpo.actas;
-  if (actas.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay actas de entrega registradas.";
-    contenido.append(p);
-    return;
-  }
-
+function tablaActasEntrega(actas) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
@@ -4135,7 +5166,7 @@ async function vistaActasEntrega() {
   const tbody = document.createElement("tbody");
   actas.forEach((a) => {
     const fila = document.createElement("tr");
-    [a.numero_acta, nombreProyecto(a.proyecto_id), nombreCliente(a.cliente_id), a.lugar_entrega || "—"].forEach(
+    [a.numero_acta, a.proyecto_codigo || "—", a.cliente_nombre || "—", a.lugar_entrega || "—"].forEach(
       (valor) => {
         fila.append(celda(valor));
       }
@@ -4150,10 +5181,12 @@ async function vistaActasEntrega() {
 
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  return tarjeta;
 }
 
-async function vistaActaEntregaForm(id) {
+// opciones.modoVersion: corrige el acta firmada como nueva versión (no se elimina).
+async function vistaActaEntregaForm(id, opciones = {}) {
+  const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("actas-entrega");
   mostrarCargando();
 
@@ -4191,8 +5224,17 @@ async function vistaActaEntregaForm(id) {
   ];
 
   contenido.replaceChildren();
-  const volver = boton("Volver a actas de entrega", () => (window.location.hash = "#/actas-entrega"), true);
-  contenido.append(encabezado(id ? `Acta ${acta.numero_acta}` : "Nueva acta de entrega", [volver]));
+  const volver = modoVersion
+    ? boton("Cancelar nueva versión", () => (window.location.hash = `#/actas-entrega/${id}`), true)
+    : boton("Volver a actas de entrega", () => (window.location.hash = "#/actas-entrega"), true);
+  contenido.append(
+    encabezado(
+      id
+        ? `${modoVersion ? "Nueva versión del acta" : "Acta"} ${acta.numero_acta}${acta.version > 1 ? ` · v${acta.version}` : ""}`
+        : "Nueva acta de entrega",
+      [volver]
+    )
+  );
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -4321,8 +5363,13 @@ async function vistaActaEntregaForm(id) {
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
   guardar.style.marginTop = "16px";
-  guardar.textContent = id ? "Guardar cambios" : "Crear acta";
+  guardar.textContent = modoVersion
+    ? `Guardar como versión ${(acta.version || 1) + 1}`
+    : id
+      ? "Guardar cambios"
+      : "Crear acta";
 
+  if (modoVersion) form.append(bloqueModoVersion(acta.version || 1));
   form.append(grid, subtituloItems, bloqueItems, guardar);
   if (!id) form.append(botonCancelar("#/actas-entrega"));
   tarjeta.append(mensaje, form);
@@ -4361,11 +5408,10 @@ async function vistaActaEntregaForm(id) {
 
     guardar.disabled = true;
     try {
-      const r = id
-        ? await api("PUT", `/actas-entrega-equipos/${id}`, datos)
-        : await api("POST", "/actas-entrega-equipos", datos);
+      const r = await guardarDocumento("actas-entrega", { id, modoVersion, datos, form, mensaje });
+      if (!r) return;
       if (r.status === 200 || r.status === 201) {
-        window.location.hash = "#/actas-entrega";
+        window.location.hash = modoVersion ? `#/actas-entrega/${id}` : "#/actas-entrega";
         return;
       }
       if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
@@ -4382,45 +5428,47 @@ async function vistaActaEntregaForm(id) {
       guardar.disabled = false;
     }
   });
+
+  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("actas-entrega", id));
 }
 
 const CARGOS = [
-  "Gerente General",
-  "Asistente Gerencial General",
-  "Jefe Sistema Integrado De Gestion",
-  "Director Administrativo y Financiero",
+  "Asistente Administrativa y contable",
   "Asistente Gerencia Administrativa y Financiera",
-  "Contador General",
+  "Asistente Gerencial General",
+  "Auxiliar Administrativo y de Facturacion",
   "Auxiliar contable",
-  "Coordinador de Talento Humano",
-  "Coordinador de Compras",
   "Auxiliar de compras y almacen",
-  "Coordinador de Inventarios de gases",
+  "Auxiliar de ventas y logistica",
+  "Contador General",
+  "Coordinador Comercial",
+  "Coordinador comercial de gases",
   "Coordinador de Almacén / Almacenista",
+  "Coordinador de Compras",
+  "Coordinador de Inventarios de gases",
+  "Coordinador de Marketing y Publicidad",
+  "Coordinador de Talento Humano",
+  "Director Administrativo y Financiero",
   "Director de Operaciones y Producción",
-  "Jefe de Produccion e Instalaciones",
-  "Jefe de Soporte Tecnico y mantenimiento",
-  "Jefe de I+D+i",
-  "Ingeniero de diseño y producción",
-  "TECNICO MANTENIMIENTO Y ENSAMBLE",
   "Director Tecnico Comercial– Chile",
   "Director Tecnico de Gases QF",
-  "Jefe de Control de Calidad",
-  "Jefe Produccion de Gases e instalaciones",
-  "Coordinador comercial de gases",
-  "Gestor Comercial - Gases",
-  "Operario de Planta",
-  "Auxiliar Administrativo y de Facturacion",
   "Gerente Comercial",
-  "Coordinador Comercial",
-  "Coordinador de Marketing y Publicidad",
-  "Jefe de Proyectos",
-  "Jefe Produccion de Equipos",
+  "Gerente General",
   "Gestor Comercial",
+  "Gestor Comercial - Gases",
   "Gestora Comercial de Licitaciones y Contratos",
-  "Auxiliar de ventas y logistica",
-  "Asistente Administrativa y contable",
+  "Ingeniero de diseño y producción",
+  "Jefe de Control de Calidad",
+  "Jefe de I+D+i",
+  "Jefe de Produccion e Instalaciones",
+  "Jefe de Proyectos",
+  "Jefe de Soporte Tecnico y mantenimiento",
+  "Jefe Produccion de Equipos",
+  "Jefe Produccion de Gases e instalaciones",
+  "Jefe Sistema Integrado De Gestion",
   "Líder de Marketing 360° y Creador de Contenido",
+  "Operario de Planta",
+  "Técnico Mantenimiento y Ensamble",
 ];
 
 const CAMPOS_USUARIO = [
@@ -4443,8 +5491,10 @@ async function vistaUsuarios() {
     return;
   }
 
+  // Crear y editar usuarios es del rol admin (el servidor responde 403 a los demás).
+  const esAdmin = PERFIL.rol === "admin";
   const nuevo = boton("Nuevo usuario", () => (window.location.hash = "#/usuarios/nuevo"));
-  contenido.append(encabezado("Usuarios", [nuevo]));
+  contenido.append(encabezado("Usuarios", esAdmin ? [nuevo] : []));
 
   const usuarios = cuerpo.usuarios;
   if (usuarios.length === 0) {
@@ -4455,39 +5505,149 @@ async function vistaUsuarios() {
     return;
   }
 
+  // Lista corta: se filtra en el navegador (nombre, correo, cédula o cargo).
+  const barra = document.createElement("div");
+  barra.className = "controles-listado";
+  const buscador = document.createElement("input");
+  buscador.type = "search";
+  buscador.placeholder = "Buscar por nombre, correo, cédula o cargo";
+  buscador.setAttribute("aria-label", "Buscar usuarios");
+  const resumen = document.createElement("span");
+  resumen.className = "resumen-listado";
+  resumen.setAttribute("aria-live", "polite");
+  barra.append(buscador, resumen);
+  buscador.addEventListener("input", () => renderTabla());
+
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   const tabla = document.createElement("table");
   const thead = document.createElement("thead");
-  const filaCabecera = document.createElement("tr");
-  ["Nombre", "Correo", "Cédula", "Cargo", "Rol"].forEach((texto) => {
-    const th = document.createElement("th");
-    th.scope = "col";
-    th.textContent = texto;
-    filaCabecera.append(th);
-  });
-  thead.append(filaCabecera);
-
   const tbody = document.createElement("tbody");
-  usuarios.forEach((u) => {
-    const fila = document.createElement("tr");
-    [u.nombre, u.correo, u.cedula || "—", u.cargo || "—", u.rol].forEach((valor) => {
-      fila.append(celda(valor));
-    });
-    tbody.append(fila);
-  });
-
   tabla.append(thead, tbody);
   tarjeta.append(tabla);
-  contenido.append(tarjeta);
+  contenido.append(barra, tarjeta);
+
+  const sinTildes = (texto) =>
+    String(texto || "")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase();
+
+  const COLUMNAS_ORDENABLES = [
+    { texto: "Nombre", campo: "nombre" },
+    { texto: "Correo", campo: "correo" },
+    { texto: "Cédula", campo: "cedula" },
+    { texto: "Cargo", campo: "cargo" },
+    { texto: "Rol", campo: "rol" },
+  ];
+
+  let campoOrden = "nombre";
+  let ascendente = true;
+
+  function renderTabla() {
+    const texto = sinTildes(buscador.value.trim());
+    const visibles = texto
+      ? usuarios.filter((u) =>
+          [u.nombre, u.correo, u.cedula, u.cargo].some((v) => sinTildes(v).includes(texto))
+        )
+      : usuarios;
+    resumen.textContent = `${visibles.length} ${visibles.length === 1 ? "usuario" : "usuarios"}`;
+    const ordenados = [...visibles].sort((a, b) => {
+      const valorA = (a[campoOrden] || "").toString();
+      const valorB = (b[campoOrden] || "").toString();
+      return ascendente
+        ? valorA.localeCompare(valorB, "es")
+        : valorB.localeCompare(valorA, "es");
+    });
+
+    filaCabecera.replaceChildren();
+    COLUMNAS_ORDENABLES.forEach((columna) => {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.style.cursor = "pointer";
+      th.setAttribute("role", "button");
+      th.setAttribute("tabindex", "0");
+      const indicador = columna.campo === campoOrden ? (ascendente ? " ▲" : " ▼") : "";
+      th.textContent = columna.texto + indicador;
+      const activar = () => {
+        if (campoOrden === columna.campo) {
+          ascendente = !ascendente;
+        } else {
+          campoOrden = columna.campo;
+          ascendente = true;
+        }
+        renderTabla();
+      };
+      th.addEventListener("click", activar);
+      th.addEventListener("keydown", (evento) => {
+        if (evento.key === "Enter" || evento.key === " ") {
+          evento.preventDefault();
+          activar();
+        }
+      });
+      filaCabecera.append(th);
+    });
+    const thAcciones = document.createElement("th");
+    thAcciones.scope = "col";
+    filaCabecera.append(thAcciones);
+
+    tbody.replaceChildren();
+    ordenados.forEach((u) => {
+      const fila = document.createElement("tr");
+      [u.nombre, u.correo, u.cedula || "—"].forEach((valor) => fila.append(celda(valor)));
+      // Los permisos dependen del cargo: uno fuera del catálogo (usuarios
+      // antiguos) se marca para corregirlo editando el usuario.
+      const tdCargo = celda(u.cargo || "—");
+      if (!u.cargo || !CARGOS.includes(u.cargo)) {
+        const aviso = pill("Fuera del catálogo", "warn");
+        aviso.title = "Asigna un cargo del catálogo: de él dependen sus permisos";
+        tdCargo.append(" ", aviso);
+      }
+      fila.append(tdCargo, celda(u.rol));
+      const accion = document.createElement("td");
+      const editar = boton(
+        "Editar",
+        () => (window.location.hash = `#/usuarios/${u.id}/editar`),
+        true
+      );
+      editar.setAttribute("aria-label", `Editar usuario ${u.nombre}`);
+      if (esAdmin) accion.append(editar);
+      fila.append(accion);
+      tbody.append(fila);
+    });
+  }
+
+  const filaCabecera = document.createElement("tr");
+  thead.append(filaCabecera);
+  renderTabla();
 }
 
-async function vistaUsuarioForm() {
+async function vistaUsuarioForm(id) {
   marcarMenu("usuarios");
   mostrarCargando();
   contenido.replaceChildren();
+
+  let usuario = null;
+  if (id) {
+    const r = await api("GET", "/usuarios");
+    if (r.status !== 200) {
+      contenido.append(
+        encabezado("Usuario"),
+        alerta("error", "No se pudieron cargar los usuarios.")
+      );
+      return;
+    }
+    usuario = r.cuerpo.usuarios.find((u) => String(u.id) === String(id));
+    if (!usuario) {
+      contenido.append(encabezado("Usuario"), alerta("error", "Usuario no encontrado."));
+      return;
+    }
+  }
+
+  const campos = id ? CAMPOS_USUARIO.filter((c) => c.nombre !== "password") : CAMPOS_USUARIO;
+
   const volver = boton("Volver a usuarios", () => (window.location.hash = "#/usuarios"), true);
-  contenido.append(encabezado("Nuevo usuario", [volver]));
+  contenido.append(encabezado(id ? `Editar ${usuario.nombre}` : "Nuevo usuario", [volver]));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -4497,17 +5657,17 @@ async function vistaUsuarioForm() {
   const grid = document.createElement("div");
   grid.className = "formulario-grid";
 
-  CAMPOS_USUARIO.forEach((config) => {
-    grid.append(construirCampo(config, ""));
+  campos.forEach((config) => {
+    grid.append(construirCampo(config, usuario ? usuario[config.nombre] ?? "" : ""));
   });
 
   const guardar = document.createElement("button");
   guardar.type = "submit";
   guardar.className = "boton boton-pequeno";
-  guardar.textContent = "Crear usuario";
+  guardar.textContent = id ? "Guardar cambios" : "Crear usuario";
 
   form.append(grid, guardar);
-  form.append(botonCancelar("#/usuarios"));
+  if (!id) form.append(botonCancelar("#/usuarios"));
   tarjeta.append(mensaje, form);
   contenido.append(tarjeta);
 
@@ -4515,33 +5675,35 @@ async function vistaUsuarioForm() {
     evento.preventDefault();
     mensaje.replaceChildren();
     const datos = {};
-    CAMPOS_USUARIO.forEach((config) => {
+    campos.forEach((config) => {
       const valor = form.elements[config.nombre].value.trim();
       if (valor !== "") datos[config.nombre] = valor;
     });
-    const faltantes = CAMPOS_USUARIO.filter((c) => c.requerido && !datos[c.nombre]);
+    const faltantes = campos.filter((c) => c.requerido && !datos[c.nombre]);
     if (faltantes.length > 0) {
       mensaje.append(alerta("error", "Completa los campos obligatorios marcados con *."));
       return;
     }
-    if (!confirmarCreacion("este usuario")) return;
+    if (!id && !confirmarCreacion("este usuario")) return;
 
     guardar.disabled = true;
     try {
-      const r = await api("POST", "/usuarios", datos);
-      if (r.status === 201) {
+      const r = id
+        ? await api("PUT", `/usuarios/${id}`, datos)
+        : await api("POST", "/usuarios", datos);
+      if (r.status === 200 || r.status === 201) {
         window.location.hash = "#/usuarios";
         return;
       }
       if (r.status === 409) {
         mensaje.append(alerta("error", r.cuerpo?.error || "Ese correo o cédula ya está registrado."));
       } else if (r.status === 403) {
-        mensaje.append(alerta("error", "No tienes permisos para crear usuarios."));
+        mensaje.append(alerta("error", "No tienes permisos para esta acción."));
       } else if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
-        const mensajes = mostrarErroresValidacion(form, CAMPOS_USUARIO, r.cuerpo.detalles);
+        const mensajes = mostrarErroresValidacion(form, campos, r.cuerpo.detalles);
         mensaje.append(alerta("error", mensajes.join(" · ")));
       } else {
-        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo crear el usuario."));
+        mensaje.append(alerta("error", r.cuerpo?.error || "No se pudo guardar el usuario."));
       }
     } catch (error) {
       if (error.message !== "sesion-expirada") {
@@ -4554,7 +5716,28 @@ async function vistaUsuarioForm() {
 }
 
 function enrutar() {
-  const ruta = window.location.hash || "#/clientes";
+  const ruta = window.location.hash || "#/tablero";
+
+  // Definidas en tableros.js (se carga antes que este archivo).
+  if (/^#\/tablero$/.test(ruta)) return window.vistaTableroGerencial();
+  if (/^#\/comercial$/.test(ruta)) return window.vistaTableroComercial();
+  if (/^#\/compras$/.test(ruta)) return window.vistaTableroCompras();
+
+  // Nueva versión de un documento: #/<recurso>/<id>/nueva-version
+  const nuevaVersion = ruta.match(
+    /^#\/(proyectos|cotizaciones|ordenes-compra|actas-entrega|actas-cierre|reportes-servicio)\/(\d+)\/nueva-version$/
+  );
+  if (nuevaVersion) {
+    const formularios = {
+      proyectos: vistaProyectoForm,
+      cotizaciones: vistaCotizacionForm,
+      "ordenes-compra": vistaOrdenCompraForm,
+      "actas-entrega": vistaActaEntregaForm,
+      "actas-cierre": vistaActaCierreForm,
+      "reportes-servicio": vistaReporteServicioForm,
+    };
+    return formularios[nuevaVersion[1]](nuevaVersion[2], { modoVersion: true });
+  }
 
   if (/^#\/clientes\/nuevo$/.test(ruta)) return vistaClienteForm(null);
   const editarCliente = ruta.match(/^#\/clientes\/(\d+)$/);
@@ -4562,6 +5745,11 @@ function enrutar() {
   if (/^#\/clientes$/.test(ruta)) return vistaClientes();
 
   if (/^#\/proyectos\/nuevo$/.test(ruta)) return vistaProyectoForm(null);
+  // Enlace directo a una actividad (avisos y ventana "Actividades pendientes")
+  const actividadProyecto = ruta.match(/^#\/proyectos\/(\d+)\/actividades\/(\d+)$/);
+  if (actividadProyecto) {
+    return vistaProyectoForm(actividadProyecto[1], { actividadId: actividadProyecto[2] });
+  }
   const editarProyecto = ruta.match(/^#\/proyectos\/(\d+)$/);
   if (editarProyecto) return vistaProyectoForm(editarProyecto[1]);
   if (/^#\/proyectos$/.test(ruta)) return vistaProyectos();
@@ -4596,6 +5784,11 @@ function enrutar() {
   if (editarReporte) return vistaReporteServicioForm(editarReporte[1]);
   if (/^#\/reportes-servicio$/.test(ruta)) return vistaReportesServicio();
 
+  if (/^#\/equipos\/nuevo$/.test(ruta)) return vistaEquipoForm(null);
+  const verEquipo = ruta.match(/^#\/equipos\/(\d+)$/);
+  if (verEquipo) return vistaEquipoForm(verEquipo[1]);
+  if (/^#\/equipos$/.test(ruta)) return vistaEquipos();
+
   if (/^#\/actas-cierre\/nuevo$/.test(ruta)) return vistaActaCierreForm(null);
   const editarActa = ruta.match(/^#\/actas-cierre\/(\d+)$/);
   if (editarActa) return vistaActaCierreForm(editarActa[1]);
@@ -4607,11 +5800,90 @@ function enrutar() {
   if (/^#\/actas-entrega$/.test(ruta)) return vistaActasEntrega();
 
   if (/^#\/usuarios\/nuevo$/.test(ruta)) return vistaUsuarioForm();
+  const editarUsuario = ruta.match(/^#\/usuarios\/(\d+)\/editar$/);
+  if (editarUsuario) return vistaUsuarioForm(editarUsuario[1]);
   if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
 
-  return vistaClientes();
+  return window.vistaTableroGerencial();
 }
 
 document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion);
-window.addEventListener("hashchange", enrutar);
-enrutar();
+
+(function inicializarMenuColapsable() {
+  const app = document.querySelector(".app");
+  const btn = document.getElementById("btn-colapsar-menu");
+  let colapsado = false;
+  try {
+    colapsado = window.localStorage.getItem("menu-colapsado") === "1";
+  } catch {
+    colapsado = false;
+  }
+  const aplicar = () => {
+    app.classList.toggle("menu-colapsado", colapsado);
+    btn.setAttribute("aria-expanded", String(!colapsado));
+    btn.setAttribute("aria-label", colapsado ? "Expandir menú" : "Contraer menú");
+  };
+  aplicar();
+  btn.addEventListener("click", () => {
+    colapsado = !colapsado;
+    aplicar();
+    try {
+      window.localStorage.setItem("menu-colapsado", colapsado ? "1" : "0");
+    } catch {
+      // almacenamiento no disponible; la preferencia solo dura esta sesión
+    }
+  });
+})();
+
+let formularioSucio = false;
+let rutaActual = window.location.hash || "#/";
+let revirtiendoHash = false;
+
+const observadorFormularios = new MutationObserver(() => {
+  contenido.querySelectorAll("form").forEach((form) => {
+    if (form.dataset.sucioVigilado) return;
+    form.dataset.sucioVigilado = "1";
+    form.addEventListener("input", () => {
+      formularioSucio = true;
+    });
+    form.addEventListener("change", () => {
+      formularioSucio = true;
+    });
+    form.addEventListener("submit", () => {
+      formularioSucio = false;
+    });
+  });
+});
+observadorFormularios.observe(contenido, { childList: true, subtree: true });
+
+window.addEventListener("beforeunload", (evento) => {
+  if (formularioSucio) {
+    evento.preventDefault();
+    evento.returnValue = "";
+  }
+});
+
+function manejarCambioHash() {
+  if (revirtiendoHash) {
+    revirtiendoHash = false;
+    return;
+  }
+  const nuevaRuta = window.location.hash;
+  if (formularioSucio && nuevaRuta !== rutaActual) {
+    const continuar = window.confirm(
+      "Tienes cambios sin guardar en este formulario. Si continúas, se perderán. ¿Deseas continuar?"
+    );
+    if (!continuar) {
+      revirtiendoHash = true;
+      window.location.hash = rutaActual;
+      return;
+    }
+  }
+  formularioSucio = false;
+  rutaActual = nuevaRuta;
+  enrutar();
+}
+
+window.addEventListener("hashchange", manejarCambioHash);
+// El perfil se carga antes de la primera vista: decide qué acciones se muestran.
+cargarPerfil().finally(enrutar);

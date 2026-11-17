@@ -1,9 +1,9 @@
 const { test, expect } = require("@playwright/test");
-const { PASSWORD, USUARIO_PRINCIPAL, USUARIO_COLEGA } = require("./fixtures");
+const { PASSWORD, USUARIO_PRINCIPAL } = require("./fixtures");
 const { iniciarSesionComo } = require("./helpers");
 
-test.describe("Flujo crítico: proyecto, fase, actividades y equipo", () => {
-  test("crea un proyecto, avanza de fase, completa una actividad y agrega equipo", async ({
+test.describe("Flujo crítico: proyecto, fase, actividades y línea de tiempo", () => {
+  test("crea un proyecto, avanza de fase, completa una actividad y ve su evolución", async ({
     page,
   }) => {
     const sufijo = Date.now().toString().slice(-8);
@@ -45,31 +45,45 @@ test.describe("Flujo crítico: proyecto, fase, actividades y equipo", () => {
       .locator(".tarjeta-ancha", { hasText: "Actividades por fase" })
       .last();
     await expect(seccionActividades).toBeVisible();
-    const filasActividad = seccionActividades.locator("tbody tr");
-    await expect(filasActividad.first()).toBeVisible();
-    const totalActividades = await filasActividad.count();
+    const barras = seccionActividades.locator("details[open] .gantt-barra");
+    await expect(barras.first()).toBeVisible();
+    const totalActividades = await barras.count();
     expect(totalActividades).toBeGreaterThan(0);
 
-    // Completar la primera actividad
-    const primeraFila = filasActividad.first();
-    await primeraFila.locator('input[type="checkbox"]').check();
-    await expect(primeraFila.locator("td").nth(2)).toHaveCSS("text-decoration-line", "line-through");
+    // Completar la primera actividad desde el engranaje de su barra
+    const idPrimera = await barras.first().getAttribute("data-actividad-id");
+    await barras.first().click();
+    await page.getByRole("button", { name: "Gestionar actividad" }).click();
+    const dialogo = page.locator("dialog[open]");
+    await dialogo.getByLabel("Estado", { exact: true }).selectOption("completada");
+    await dialogo.getByRole("button", { name: "Guardar cambios" }).click();
+    await expect(dialogo).toHaveCount(0);
+    await expect(
+      seccionActividades.locator(`.gantt-barra[data-actividad-id="${idPrimera}"]`)
+    ).toHaveClass(/gantt-barra--completada/);
 
-    // Agregar un integrante al equipo
-    const seccionEquipo = page.locator(".tarjeta-ancha", { hasText: "Equipo del proyecto" }).last();
-    await seccionEquipo.locator("#equipo_usuario_id").selectOption({ label: USUARIO_COLEGA.nombre });
-    await seccionEquipo.locator("#equipo_rol").fill("técnico");
-    await seccionEquipo.getByRole("button", { name: "Agregar al equipo" }).click();
+    // El equipo del proyecto ya no se muestra en la ficha.
+    await expect(page.getByText("Equipo del proyecto")).toHaveCount(0);
 
-    const filaEquipo = seccionEquipo.locator("tr", { hasText: USUARIO_COLEGA.nombre });
-    await expect(filaEquipo).toBeVisible();
-    await expect(filaEquipo).toContainText("técnico");
+    // Las evidencias no se cargan en la ficha: se abren con un botón.
+    await expect(page.getByText("Evidencias del proyecto")).toHaveCount(0);
+    await page.getByRole("button", { name: "Agregar evidencias" }).click();
+    const ventana = page.getByRole("dialog", { name: "Evidencias del proyecto" });
+    await expect(ventana).toBeVisible();
+    await expect(ventana).toContainText("Aún no hay evidencias cargadas.");
+    await expect(ventana.getByRole("button", { name: "Subir evidencia" })).toBeVisible();
+    await ventana.getByRole("button", { name: "Cerrar" }).click();
+    await expect(ventana).toHaveCount(0);
 
-    // La línea de tiempo se recarga junto con el resto de la página; refrescamos
-    // para ver el evento de alta de equipo que la sección de equipo no empuja sola.
-    await page.reload();
-    const lineaTiempo = page.locator(".tarjeta-ancha", { hasText: "Línea de tiempo" }).last();
+    // La línea de tiempo vive en su propia pestaña y se carga al abrirla.
+    await expect(page.getByRole("tab", { name: "Proyecto" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await page.getByRole("tab", { name: "Línea de tiempo" }).click();
+    const lineaTiempo = page.getByRole("tabpanel", { name: "Línea de tiempo" });
     await expect(lineaTiempo).toContainText("Cambio de fase");
-    await expect(lineaTiempo).toContainText(`${USUARIO_COLEGA.nombre} se unió al equipo`);
+    await expect(lineaTiempo).toContainText("Actividad completada");
+    await expect(seccionActividades).toBeHidden();
   });
 });

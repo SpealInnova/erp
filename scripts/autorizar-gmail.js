@@ -1,7 +1,8 @@
 require("dotenv").config();
 const http = require("http");
 const { URL } = require("url");
-const { google } = require("googleapis");
+// OAuth2 de google-auth-library, el mismo que traen @googleapis/gmail y /drive.
+const { auth } = require("@googleapis/gmail");
 
 const PUERTO = 53682;
 const REDIRECT_URI = `http://localhost:${PUERTO}/callback`;
@@ -16,12 +17,17 @@ async function autorizar() {
     return;
   }
 
-  const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, REDIRECT_URI);
+  const oAuth2Client = new auth.OAuth2(clientId, clientSecret, REDIRECT_URI);
 
   const urlAutorizacion = oAuth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: ["https://www.googleapis.com/auth/gmail.send"],
+    // Mínimos necesarios: enviar correos y manejar solo los archivos que
+    // crea el ERP en Drive (drive.file no da acceso al resto del Drive).
+    scope: [
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/drive.file",
+    ],
   });
 
   console.log("\n1. Abre esta URL en el navegador, con la cuenta de Workspace que va a enviar los correos:\n");
@@ -35,6 +41,9 @@ async function autorizar() {
 
   console.log("\nListo. Agrega esto como GMAIL_REFRESH_TOKEN en las variables de entorno del sitio:\n");
   console.log(tokens.refresh_token);
+  console.log(
+    "\nPégalo directo en hPanel (staging y producción). No lo guardes en archivos, documentos ni chats: da acceso a enviar correos y a los archivos del ERP en Drive.\n"
+  );
 }
 
 function esperarCodigo() {

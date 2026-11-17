@@ -131,16 +131,16 @@ describirSiHayBD("Acta de Cierre a Satisfacción (integración contra BD real)",
     expect(respuesta.body.acta.items).toHaveLength(2);
   });
 
-  test("elimina (soft-delete) el acta", async () => {
+  test("no elimina el acta firmada: se corrige con una nueva versión", async () => {
     const respuesta = await request(app)
       .delete(`/actas-cierre-satisfaccion/${actaId}`)
       .set(autorizacion());
-    expect(respuesta.status).toBe(204);
+    expect(respuesta.status).toBe(409);
 
     const obtener = await request(app)
       .get(`/actas-cierre-satisfaccion/${actaId}`)
       .set(autorizacion());
-    expect(obtener.status).toBe(404);
+    expect(obtener.status).toBe(200);
   });
 
   describe("enganche con acta de entrega de equipos", () => {

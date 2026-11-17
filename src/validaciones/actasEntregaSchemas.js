@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { esquemaListado } = require("./listados");
 
 const itemSchema = z.object({
   descripcion_equipo: z.string().min(1),
@@ -37,10 +38,7 @@ const actualizarActaEntregaSchema = z.object({
   items: z.array(itemSchema).optional(),
 });
 
-const listarActasEntregaQuerySchema = z.object({
-  pagina: z.coerce.number().int().min(1).optional().default(1),
-  tamanoPagina: z.coerce.number().int().min(1).max(100).optional().default(20),
-});
+const listarActasEntregaQuerySchema = esquemaListado();
 
 module.exports = {
   crearActaEntregaSchema,

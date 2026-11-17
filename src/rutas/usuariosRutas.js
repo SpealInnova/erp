@@ -9,6 +9,7 @@ function crearUsuariosRutas(pool) {
 
   router.get("/", envolverAsync(controlador.listar));
   router.post("/", requireRol("admin"), envolverAsync(controlador.crear));
+  router.put("/:id", requireRol("admin"), envolverAsync(controlador.actualizar));
 
   return router;
 }

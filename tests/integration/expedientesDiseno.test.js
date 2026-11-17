@@ -24,7 +24,7 @@ describirSiHayBD("CRUD de Expedientes de Diseño (integración contra BD real)",
 
     const passwordHash = await bcrypt.hash("ClaveSegura123", 10);
     const [usuario] = await pool.query(
-      "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, ?, 'tester', 1)",
+      "INSERT INTO usuarios (nombre, correo, password_hash, rol, cargo, activo) VALUES (?, ?, ?, 'tester', 'Gerente General', 1)",
       ["Usuario de prueba", correoUsuario, passwordHash]
     );
     usuarioId = usuario.insertId;
@@ -53,6 +53,8 @@ describirSiHayBD("CRUD de Expedientes de Diseño (integración contra BD real)",
 
   afterAll(async () => {
     await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [usuarioId]);
+    // los expedientes con número de serie registran su equipo
+    await pool.query("DELETE FROM equipos WHERE proyecto_id = ?", [proyectoId]);
     await pool.query("DELETE FROM expedientes_diseno WHERE created_by = ?", [usuarioId]);
     await pool.query("DELETE FROM proyectos WHERE id = ?", [proyectoId]);
     await pool.query("DELETE FROM clientes WHERE id = ?", [clienteId]);

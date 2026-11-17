@@ -5,6 +5,7 @@ const {
   cambiarEstadoSchema,
   listarCotizacionesQuerySchema,
 } = require("../validaciones/cotizacionesSchemas");
+const { conMotivo } = require("../validaciones/versionesSchemas");
 
 function crearCotizacionesControlador(pool) {
   async function crear(req, res) {
@@ -15,8 +16,13 @@ function crearCotizacionesControlador(pool) {
 
   async function listar(req, res) {
     const query = listarCotizacionesQuerySchema.parse(req.query);
-    const cotizaciones = await cotizacionesServicio.listarCotizaciones(pool, query);
-    res.status(200).json({ cotizaciones });
+    const { filas, total } = await cotizacionesServicio.listarCotizaciones(pool, query);
+    res.status(200).json({
+      cotizaciones: filas,
+      total,
+      pagina: query.pagina,
+      tamanoPagina: query.tamanoPagina,
+    });
   }
 
   async function obtener(req, res) {
@@ -55,7 +61,19 @@ function crearCotizacionesControlador(pool) {
     res.status(204).send();
   }
 
-  return { crear, listar, obtener, actualizar, cambiarEstado, eliminar };
+  async function crearVersion(req, res) {
+    const id = Number(req.params.id);
+    const datos = conMotivo(actualizarCotizacionSchema).parse(req.body);
+    const cotizacion = await cotizacionesServicio.crearVersionCotizacion(
+      pool,
+      id,
+      datos,
+      req.usuario.id
+    );
+    res.status(200).json({ cotizacion });
+  }
+
+  return { crear, listar, obtener, actualizar, cambiarEstado, eliminar, crearVersion };
 }
 
 module.exports = { crearCotizacionesControlador };

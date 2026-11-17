@@ -1,5 +1,6 @@
 const proveedoresRepositorio = require("../repositorios/proveedoresRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
 const { ErrorProveedorNoEncontrado, ErrorNitDuplicado } = require("../dominio/erroresProveedores");
 
 const TABLA = "proveedores";
@@ -33,10 +34,9 @@ async function obtenerProveedor(pool, id) {
   return proveedor;
 }
 
-async function listarProveedores(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return proveedoresRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarProveedores(pool, { pagina, tamanoPagina, q, estado }) {
+  return proveedoresRepositorio.listar(pool, { ...aLimites({ pagina, tamanoPagina }), q, estado });
 }
 
 async function actualizarProveedor(pool, id, datos, usuarioId) {

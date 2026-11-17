@@ -28,10 +28,17 @@ class ErrorCodigoPryDuplicado extends Error {
   }
 }
 
+class ErrorPasswordInvalida extends Error {
+  constructor() {
+    super("Contraseña incorrecta");
+  }
+}
+
 module.exports = {
   ErrorProyectoNoEncontrado,
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
   ErrorCotizacionInvalida,
   ErrorCodigoPryDuplicado,
+  ErrorPasswordInvalida,
 };

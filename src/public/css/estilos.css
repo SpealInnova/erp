@@ -339,6 +339,12 @@ body:not(.app-body)::before {
   border-left-color: var(--good);
 }
 
+.alerta.aviso {
+  background: var(--warn-tint);
+  color: #9a520f;
+  border-left-color: var(--warn);
+}
+
 .oculto {
   display: none;
 }
@@ -423,6 +429,11 @@ body.app-body::before {
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 0.18s ease;
+}
+
+.app.menu-colapsado {
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 .menu {
@@ -435,9 +446,55 @@ body.app-body::before {
   gap: 3px;
 }
 
+.menu-colapsar-boton {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-md);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.menu-colapsar-boton:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.menu-colapsar-boton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .menu .marca {
   margin: 6px 10px 20px;
   font-size: 1.1rem;
+}
+
+.app.menu-colapsado .menu {
+  padding: 20px 10px;
+}
+
+.app.menu-colapsado .marca {
+  font-size: 0;
+  gap: 0;
+  justify-content: center;
+}
+
+.app.menu-colapsado .menu a {
+  justify-content: center;
+}
+
+.app.menu-colapsado .menu a .lbl,
+.app.menu-colapsado .menu .nav-section-label,
+.app.menu-colapsado #btn-accesibilidad,
+.app.menu-colapsado #cerrar-sesion {
+  display: none;
 }
 
 .menu .marca::before {
@@ -523,7 +580,6 @@ body.app-body::before {
 .ic-usuarios { background: linear-gradient(145deg, #aeb9d6, #626f91); }
 
 .main {
-  margin-left: var(--sidebar-w);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -633,6 +689,12 @@ body.app-body::before {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* display:flex anula el atributo hidden del navegador: sin esto el contador
+   mostraba "0" aunque no hubiera notificaciones sin leer */
+.campana-contador[hidden] {
+  display: none;
 }
 
 .panel-notificaciones {
@@ -749,6 +811,68 @@ body.app-body::before {
 
 .tarjeta-ancha tbody tr:hover {
   background: var(--surface-2);
+}
+
+/* Listas: buscador + filtro de estado + total, y paginador (listados.js) */
+.controles-listado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 14px;
+  /* al cambiar de página se desplaza hasta aquí: que no quede bajo la barra superior fija */
+  scroll-margin-top: 88px;
+}
+
+.controles-listado input[type="search"],
+.controles-listado select {
+  padding: 10px 14px;
+  font: inherit;
+  color: var(--ink);
+  border: 1.5px solid var(--borde);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.controles-listado input[type="search"] {
+  flex: 1 1 280px;
+  max-width: 460px;
+}
+
+.controles-listado select {
+  flex: 0 1 220px;
+}
+
+.controles-listado input[type="search"]:focus,
+.controles-listado select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-tint);
+}
+
+.resumen-listado {
+  margin-left: auto;
+  color: var(--ink-mute);
+  font-size: 0.85rem;
+}
+
+.resultados-listado[aria-busy="true"] {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.paginador {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.paginador:empty {
+  display: none;
 }
 
 .formulario-grid {
@@ -928,10 +1052,6 @@ html[data-contraste="alto"] .stage.actual .stage-punto {
 
   .menu {
     display: none;
-  }
-
-  .main {
-    margin-left: 0;
   }
 
   .topbar {

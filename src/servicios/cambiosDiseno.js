@@ -1,6 +1,7 @@
 const cambiosDisenoRepositorio = require("../repositorios/cambiosDisenoRepositorio");
 const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoRepositorio");
 const auditoria = require("./auditoria");
+const { exigirPermiso, exigirOtroAprobador } = require("./autorizacion");
 const { ESTADOS } = require("../dominio/estadoExpedienteDiseno");
 const {
   ErrorExpedienteNoEncontrado,
@@ -24,16 +25,41 @@ function asegurarEditable(expediente) {
   }
 }
 
-function conAprobacionAutomatica(datos, usuarioId) {
+const DECISIONES = ["aprobado", "rechazado"];
+
+// Decidir un cambio (aprobarlo o rechazarlo) exige el permiso aprobar_diseno y
+// que lo decida alguien distinto de quien lo creó. Modificar uno ya decidido
+// también exige el permiso. "anterior" es null en un alta (el creador es el
+// propio usuario).
+async function exigirPermisoDeDecision(pool, datos, anterior, usuarioId) {
+  const estadoAnterior = anterior ? anterior.estado : "pendiente";
+  const decide = DECISIONES.includes(datos.estado) && datos.estado !== estadoAnterior;
+  const tocaDecidido = DECISIONES.includes(estadoAnterior);
+  if (!decide && !tocaDecidido) {
+    return;
+  }
+  const usuario = await exigirPermiso(pool, usuarioId, "aprobar_diseno");
+  if (decide) {
+    exigirOtroAprobador(usuario, anterior ? anterior.created_by : usuarioId);
+  }
+}
+
+// Quién aprobó y cuándo se registra solo al pasar a "aprobado" (reenviar el
+// mismo estado no lo cambia); al salir de "aprobado" se limpia.
+function conAprobacionAutomatica(datos, usuarioId, estadoAnterior = null) {
+  if (!datos.estado || datos.estado === estadoAnterior) {
+    return datos;
+  }
   if (datos.estado === "aprobado") {
     return { ...datos, aprobado_por: usuarioId, aprobado_en: new Date() };
   }
-  return datos;
+  return { ...datos, aprobado_por: null, aprobado_en: null };
 }
 
 async function crearCambio(pool, expedienteId, datos, usuarioId) {
   const expediente = await obtenerExpediente(pool, expedienteId);
   asegurarEditable(expediente);
+  await exigirPermisoDeDecision(pool, datos, null, usuarioId);
 
   const cantidadActual = await cambiosDisenoRepositorio.contarPorExpediente(pool, expedienteId);
   const numero = cantidadActual + 1;
@@ -78,8 +104,9 @@ async function actualizarCambio(pool, id, datos, usuarioId) {
   const anterior = await obtenerCambio(pool, id);
   const expediente = await obtenerExpediente(pool, anterior.expediente_id);
   asegurarEditable(expediente);
+  await exigirPermisoDeDecision(pool, datos, anterior, usuarioId);
 
-  const datosCompletos = conAprobacionAutomatica(datos, usuarioId);
+  const datosCompletos = conAprobacionAutomatica(datos, usuarioId, anterior.estado);
 
   await cambiosDisenoRepositorio.actualizar(pool, id, datosCompletos);
   const actualizado = await cambiosDisenoRepositorio.obtenerPorId(pool, id);

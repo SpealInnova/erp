@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { esquemaListado, filtroEstado } = require("./listados");
 const { ESTADOS } = require("../dominio/estadoProyecto");
 
 const crearProyectoSchema = z.object({
@@ -22,19 +23,22 @@ const actualizarProyectoSchema = z.object({
   presupuesto_estimado: z.coerce.number().nonnegative().optional(),
 });
 
+const eliminarProyectoSchema = z.object({
+  password: z.string().min(1),
+  justificacion: z.string().min(1),
+});
+
 const cambiarEstadoSchema = z.object({
   estado: z.nativeEnum(ESTADOS),
   observacion: z.string().min(1).optional(),
 });
 
-const listarProyectosQuerySchema = z.object({
-  pagina: z.coerce.number().int().min(1).optional().default(1),
-  tamanoPagina: z.coerce.number().int().min(1).max(100).optional().default(20),
-});
+const listarProyectosQuerySchema = esquemaListado(filtroEstado(ESTADOS));
 
 module.exports = {
   crearProyectoSchema,
   actualizarProyectoSchema,
+  eliminarProyectoSchema,
   cambiarEstadoSchema,
   listarProyectosQuerySchema,
 };

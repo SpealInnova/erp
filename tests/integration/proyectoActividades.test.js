@@ -119,6 +119,40 @@ describirSiHayBD("Actividades de proyecto por fase (integración contra BD real)
     expect(respuesta.body.actividad.completada_en).not.toBeNull();
   });
 
+  test("quita el responsable con null sin tocar lo demás", async () => {
+    const respuesta = await request(app)
+      .put(`/proyectos/${proyectoId}/actividades/${actividadId}`)
+      .set(autorizacion())
+      .send({ responsable_id: null });
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.actividad.responsable_id).toBeNull();
+    expect(respuesta.body.actividad.estado).toBe("completada");
+
+    const vuelta = await request(app)
+      .put(`/proyectos/${proyectoId}/actividades/${actividadId}`)
+      .set(autorizacion())
+      .send({ responsable_id: usuarioId });
+    expect(vuelta.body.actividad.responsable_id).toBe(usuarioId);
+  });
+
+  test("asigna fecha de inicio y fin a una actividad", async () => {
+    const respuesta = await request(app)
+      .put(`/proyectos/${proyectoId}/actividades/${actividadId}`)
+      .set(autorizacion())
+      .send({ fecha_inicio: "2026-11-10", fecha_fin: "2026-11-14" });
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.actividad.fecha_inicio).toMatch(/^2026-11-10/);
+    expect(respuesta.body.actividad.fecha_fin).toMatch(/^2026-11-14/);
+  });
+
+  test("rechaza una fecha final anterior a la de inicio", async () => {
+    const respuesta = await request(app)
+      .put(`/proyectos/${proyectoId}/actividades/${actividadId}`)
+      .set(autorizacion())
+      .send({ fecha_inicio: "2026-11-10", fecha_fin: "2026-11-01" });
+    expect(respuesta.status).toBe(400);
+  });
+
   test("agrega una actividad manual (fuera del catálogo) en la fase actual", async () => {
     const respuesta = await request(app)
       .post(`/proyectos/${proyectoId}/actividades`)
@@ -127,6 +161,15 @@ describirSiHayBD("Actividades de proyecto por fase (integración contra BD real)
     expect(respuesta.status).toBe(201);
     expect(respuesta.body.actividad.fase).toBe("diseno");
     expect(respuesta.body.actividad.estado).toBe("pendiente");
+  });
+
+  test("agrega una subactividad en una fase explícita distinta a la actual del proyecto", async () => {
+    const respuesta = await request(app)
+      .post(`/proyectos/${proyectoId}/actividades`)
+      .set(autorizacion())
+      .send({ categoria: "General", descripcion: "Planeación anticipada", fase: "planeacion" });
+    expect(respuesta.status).toBe(201);
+    expect(respuesta.body.actividad.fase).toBe("planeacion");
   });
 
   test("rechaza agregar actividades a un proyecto inexistente", async () => {

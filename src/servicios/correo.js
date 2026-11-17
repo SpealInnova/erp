@@ -1,12 +1,13 @@
-const { google } = require("googleapis");
+// Solo el cliente de Gmail (no todo "googleapis", que pesa ~210 MB).
+const { gmail: crearGmail, auth } = require("@googleapis/gmail");
 
 function crearClienteGmail() {
-  const oAuth2Client = new google.auth.OAuth2(
+  const oAuth2Client = new auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
     process.env.GMAIL_CLIENT_SECRET
   );
   oAuth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
-  return google.gmail({ version: "v1", auth: oAuth2Client });
+  return crearGmail({ version: "v1", auth: oAuth2Client });
 }
 
 function codificarAsunto(asunto) {

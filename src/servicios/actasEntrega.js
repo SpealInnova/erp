@@ -4,6 +4,12 @@ const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
+const { insertarConCodigoUnico } = require("./codigoUnico");
+const coherencia = require("./coherenciaProyecto");
+const versiones = require("./versiones");
+const { exigirPermiso } = require("./autorizacion");
+const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const { formatearCodigoAEE } = require("../dominio/codigoActaEntrega");
 const {
   ErrorActaEntregaNoEncontrada,
@@ -29,7 +35,10 @@ async function generarNumeroActa(pool) {
   throw new Error("No se pudo generar un número de acta único");
 }
 
-async function enlazarExpedientes(pool, items) {
+// Enlaza cada ítem con el expediente de su número de serie. Un serial que no
+// existe se acepta sin enlazar (accesorios, equipos sin expediente); uno que
+// existe pero es de otro proyecto se rechaza.
+async function enlazarExpedientes(pool, items, proyecto) {
   const resultado = [];
   for (const item of items) {
     let expedienteId = null;
@@ -39,6 +48,7 @@ async function enlazarExpedientes(pool, items) {
         item.numero_serie
       );
       if (expediente) {
+        await coherencia.exigirEquipoDelProyecto(pool, expediente, item.numero_serie, proyecto);
         expedienteId = expediente.id;
       }
     }
@@ -68,16 +78,22 @@ async function crearActaEntrega(pool, datos, usuarioId) {
   if (!cliente) {
     throw new ErrorClienteNoExiste();
   }
+  await coherencia.exigirClienteDelProyecto(pool, proyecto, datos.cliente_id);
+  // se valida todo antes de escribir para no dejar un acta a medias
+  const itemsEnlazados = await enlazarExpedientes(pool, datos.items, proyecto);
 
-  const numero = await generarNumeroActa(pool);
-  const id = await actasEntregaRepositorio.crear(pool, {
-    ...datos,
-    numero_acta: numero,
-    entregante_id: usuarioId,
-    fecha_elaboracion: datos.fecha_elaboracion || new Date().toISOString().slice(0, 10),
-    created_by: usuarioId,
-  });
-  const itemsEnlazados = await enlazarExpedientes(pool, datos.items);
+  const id = await insertarConCodigoUnico(
+    "uq_actas_entrega_equipos_numero",
+    () => generarNumeroActa(pool),
+    (numero) =>
+      actasEntregaRepositorio.crear(pool, {
+        ...datos,
+        numero_acta: numero,
+        entregante_id: usuarioId,
+        fecha_elaboracion: datos.fecha_elaboracion || new Date().toISOString().slice(0, 10),
+        created_by: usuarioId,
+      })
+  );
   await actaEntregaItemsRepositorio.insertarMuchos(pool, id, itemsEnlazados);
 
   const acta = await obtenerConItems(pool, id);
@@ -94,21 +110,18 @@ async function crearActaEntrega(pool, datos, usuarioId) {
   return acta;
 }
 
-async function listarActasEntrega(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return actasEntregaRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarActasEntrega(pool, { pagina, tamanoPagina, q, estado }) {
+  return actasEntregaRepositorio.listar(pool, { ...aLimites({ pagina, tamanoPagina }), q, estado });
 }
 
 async function actualizarActaEntrega(pool, id, datos, usuarioId) {
   const anterior = await obtenerConItems(pool, id);
-
-  if (datos.proyecto_id) {
-    const proyecto = await proyectosRepositorio.obtenerPorId(pool, datos.proyecto_id);
-    if (!proyecto) {
-      throw new ErrorProyectoNoExiste();
-    }
+  const { items, ...cabecera } = datos;
+  if (items && items.length === 0) {
+    throw new ErrorItemsVacios();
   }
+
   if (datos.cliente_id) {
     const cliente = await clientesRepositorio.obtenerPorId(pool, datos.cliente_id);
     if (!cliente) {
@@ -116,15 +129,34 @@ async function actualizarActaEntrega(pool, id, datos, usuarioId) {
     }
   }
 
-  const { items, ...cabecera } = datos;
+  // Los enlaces se revisan solo si cambia el proyecto, el cliente o los
+  // equipos; así editar otros campos de un acta antigua no queda bloqueado.
+  let itemsEnlazados = null;
+  if (datos.proyecto_id || datos.cliente_id || items) {
+    const proyecto = await proyectosRepositorio.obtenerPorId(
+      pool,
+      datos.proyecto_id || anterior.proyecto_id
+    );
+    if (!proyecto) {
+      throw new ErrorProyectoNoExiste();
+    }
+    await coherencia.exigirClienteDelProyecto(
+      pool,
+      proyecto,
+      datos.cliente_id || anterior.cliente_id
+    );
+    const cambiaProyecto =
+      Boolean(datos.proyecto_id) && Number(datos.proyecto_id) !== Number(anterior.proyecto_id);
+    // si cambia el proyecto, los equipos ya registrados también deben ser suyos
+    if (items || cambiaProyecto) {
+      itemsEnlazados = await enlazarExpedientes(pool, items || anterior.items, proyecto);
+    }
+  }
+
   if (Object.keys(cabecera).length > 0) {
     await actasEntregaRepositorio.actualizar(pool, id, cabecera);
   }
-  if (items) {
-    if (items.length === 0) {
-      throw new ErrorItemsVacios();
-    }
-    const itemsEnlazados = await enlazarExpedientes(pool, items);
+  if (itemsEnlazados) {
     await actaEntregaItemsRepositorio.eliminarPorActa(pool, id);
     await actaEntregaItemsRepositorio.insertarMuchos(pool, id, itemsEnlazados);
   }
@@ -143,22 +175,31 @@ async function actualizarActaEntrega(pool, id, datos, usuarioId) {
   return actualizada;
 }
 
-async function eliminarActaEntrega(pool, id, usuarioId) {
-  const anterior = await obtenerConItems(pool, id);
-  await actasEntregaRepositorio.softDelete(pool, id);
+// Un acta elaborada es un documento firmado: no se elimina, se corrige con una
+// nueva versión (la anterior queda en el historial).
+async function eliminarActaEntrega(pool, id) {
+  const acta = await obtenerConItems(pool, id);
+  throw new ErrorEliminacionBloqueada(
+    `El acta de entrega ${acta.numero_acta} no se puede eliminar. Para corregirla, crea una nueva versión.`
+  );
+}
 
-  await auditoria.registrar(pool, {
+async function crearVersionActaEntrega(pool, id, { motivo, ...datos }, usuarioId) {
+  await exigirPermiso(pool, usuarioId, "versionar_acta");
+  await versiones.crearNuevaVersion(pool, {
     tabla: TABLA,
     registroId: id,
-    accion: "eliminar",
+    motivo,
     usuarioId,
-    datosAnteriores: anterior,
-    datosNuevos: null,
+    obtener: (conexion) => obtenerConItems(conexion, id),
+    actualizar: (conexion) => actualizarActaEntrega(conexion, id, datos, usuarioId),
   });
+  return obtenerConItems(pool, id);
 }
 
 module.exports = {
   crearActaEntrega,
+  crearVersionActaEntrega,
   obtenerConItems,
   listarActasEntrega,
   actualizarActaEntrega,

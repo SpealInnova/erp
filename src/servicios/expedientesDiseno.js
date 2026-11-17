@@ -2,6 +2,10 @@ const expedientesDisenoRepositorio = require("../repositorios/expedientesDisenoR
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
+const { aLimites } = require("../repositorios/consultaListado");
+const { insertarConCodigoUnico } = require("./codigoUnico");
+const equiposServicio = require("./equipos");
+const { exigirPermiso } = require("./autorizacion");
 const { formatearCodigoExp } = require("../dominio/codigoExpedienteDiseno");
 const { transicionar, ESTADOS } = require("../dominio/estadoExpedienteDiseno");
 const {
@@ -46,16 +50,23 @@ async function crearExpediente(pool, datos, usuarioId) {
     if (existente) {
       throw new ErrorNumeroSerieDuplicado();
     }
+    // tampoco puede ser el serial de un equipo histórico ya registrado
+    await equiposServicio.validarSerialDeExpediente(pool, null, datos.numero_serie);
   }
 
-  const codigo = await generarCodigoExpediente(pool);
-  const id = await expedientesDisenoRepositorio.crear(pool, {
-    ...datos,
-    codigo_expediente: codigo,
-    estado_liberacion: ESTADOS.PENDIENTE,
-    created_by: usuarioId,
-  });
+  const id = await insertarConCodigoUnico(
+    "uq_expedientes_codigo",
+    () => generarCodigoExpediente(pool),
+    (codigo) =>
+      expedientesDisenoRepositorio.crear(pool, {
+        ...datos,
+        codigo_expediente: codigo,
+        estado_liberacion: ESTADOS.PENDIENTE,
+        created_by: usuarioId,
+      })
+  );
   const expediente = await expedientesDisenoRepositorio.obtenerPorId(pool, id);
+  await equiposServicio.sincronizarDesdeExpediente(pool, expediente, usuarioId);
 
   await auditoria.registrar(pool, {
     tabla: TABLA,
@@ -77,10 +88,13 @@ async function obtenerExpediente(pool, id) {
   return expediente;
 }
 
-async function listarExpedientes(pool, { pagina, tamanoPagina }) {
-  const limite = tamanoPagina;
-  const offset = (pagina - 1) * tamanoPagina;
-  return expedientesDisenoRepositorio.listar(pool, { limite, offset });
+// Página de la lista con búsqueda y filtro; devuelve { filas, total }.
+async function listarExpedientes(pool, { pagina, tamanoPagina, q, estado }) {
+  return expedientesDisenoRepositorio.listar(pool, {
+    ...aLimites({ pagina, tamanoPagina }),
+    q,
+    estado,
+  });
 }
 
 async function actualizarExpediente(pool, id, datos, usuarioId) {
@@ -105,9 +119,13 @@ async function actualizarExpediente(pool, id, datos, usuarioId) {
       throw new ErrorNumeroSerieDuplicado();
     }
   }
+  if (datos.numero_serie !== undefined && datos.numero_serie !== anterior.numero_serie) {
+    await equiposServicio.validarSerialDeExpediente(pool, id, datos.numero_serie);
+  }
 
   await expedientesDisenoRepositorio.actualizar(pool, id, datos);
   const actualizado = await expedientesDisenoRepositorio.obtenerPorId(pool, id);
+  await equiposServicio.sincronizarDesdeExpediente(pool, actualizado, usuarioId);
 
   await auditoria.registrar(pool, {
     tabla: TABLA,
@@ -124,6 +142,8 @@ async function actualizarExpediente(pool, id, datos, usuarioId) {
 async function cambiarEstadoExpediente(pool, id, estadoDestino, usuarioId) {
   const anterior = await obtenerExpediente(pool, id);
   transicionar(anterior.estado_liberacion, estadoDestino);
+  // Toda transición sale de "pendiente" hacia una decisión final (liberar o rechazar).
+  await exigirPermiso(pool, usuarioId, "aprobar_diseno");
 
   await expedientesDisenoRepositorio.actualizarEstado(pool, id, estadoDestino);
   const actualizado = await expedientesDisenoRepositorio.obtenerPorId(pool, id);
@@ -143,6 +163,11 @@ async function cambiarEstadoExpediente(pool, id, estadoDestino, usuarioId) {
 async function eliminarExpediente(pool, id, usuarioId) {
   const anterior = await obtenerExpediente(pool, id);
   await expedientesDisenoRepositorio.softDelete(pool, id);
+  await equiposServicio.sincronizarDesdeExpediente(
+    pool,
+    { ...anterior, deleted_at: new Date() },
+    usuarioId
+  );
 
   await auditoria.registrar(pool, {
     tabla: TABLA,

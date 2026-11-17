@@ -6,13 +6,17 @@ const {
   ErrorUsuarioBloqueado,
   ErrorTokenInvalido,
 } = require("../dominio/erroresAuth");
-const { ErrorClienteNoEncontrado, ErrorIdentificacionDuplicada } = require("../dominio/erroresClientes");
+const {
+  ErrorClienteNoEncontrado,
+  ErrorIdentificacionDuplicada,
+} = require("../dominio/erroresClientes");
 const {
   ErrorProyectoNoEncontrado,
   ErrorClienteInvalido,
   ErrorResponsableInvalido,
   ErrorCotizacionInvalida,
   ErrorCodigoPryDuplicado,
+  ErrorPasswordInvalida,
 } = require("../dominio/erroresProyectos");
 const { ErrorTransicionInvalida } = require("../dominio/erroresEstado");
 const { ErrorActividadNoEncontrada } = require("../dominio/erroresProyectoActividades");
@@ -67,7 +71,11 @@ const {
   ErrorItemsVacios: ErrorItemsVaciosActa,
   ErrorActaEntregaNoExiste,
 } = require("../dominio/erroresActasCierre");
-const { ErrorCorreoDuplicado, ErrorCedulaDuplicada } = require("../dominio/erroresUsuarios");
+const {
+  ErrorCorreoDuplicado,
+  ErrorCedulaDuplicada,
+  ErrorUsuarioNoEncontrado,
+} = require("../dominio/erroresUsuarios");
 const { ErrorNotificacionNoEncontrada } = require("../dominio/erroresNotificaciones");
 const {
   ErrorMiembroYaEnEquipo,
@@ -80,6 +88,17 @@ const {
   ErrorClienteNoExiste: ErrorClienteNoExisteActaEntrega,
   ErrorItemsVacios: ErrorItemsVaciosActaEntrega,
 } = require("../dominio/erroresActasEntrega");
+const { ErrorEnlaceInconsistente } = require("../dominio/erroresEnlaces");
+const {
+  ErrorEliminacionBloqueada,
+  ErrorTablaSinVersiones,
+} = require("../dominio/erroresVersiones");
+const {
+  ErrorEquipoNoEncontrado,
+  ErrorNumeroSerieEnUso,
+  ErrorEquipoDeExpediente,
+  ErrorEquipoConReportes,
+} = require("../dominio/erroresEquipos");
 const {
   ErrorTablaNoPermitida,
   ErrorRegistroNoExiste,
@@ -87,6 +106,7 @@ const {
   ErrorArchivoRequerido,
   ErrorTipoArchivoNoPermitido,
 } = require("../dominio/erroresArchivosAdjuntos");
+const { ErrorSinPermiso, ErrorAutoAprobacion } = require("../dominio/erroresPermisos");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -123,6 +143,15 @@ function manejadorErrores(error, req, res, next) {
   }
   if (error instanceof ErrorCodigoPryDuplicado) {
     return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorPasswordInvalida) {
+    // 403, no 401: el 401 en el frontend fuerza cierre de sesión global y aquí
+    // el usuario sigue autenticado, solo falló la confirmación de contraseña.
+    return res.status(403).json({ error: error.message });
+  }
+  if (error instanceof ErrorSinPermiso || error instanceof ErrorAutoAprobacion) {
+    // 403 por la misma razón: el usuario sigue autenticado.
+    return res.status(403).json({ error: error.message });
   }
   if (error instanceof ErrorActividadNoEncontrada) {
     return res.status(404).json({ error: error.message });
@@ -237,6 +266,9 @@ function manejadorErrores(error, req, res, next) {
   if (error instanceof ErrorCorreoDuplicado || error instanceof ErrorCedulaDuplicada) {
     return res.status(409).json({ error: error.message });
   }
+  if (error instanceof ErrorUsuarioNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
   if (error instanceof ErrorActaEntregaNoEncontrada) {
     return res.status(404).json({ error: error.message });
   }
@@ -246,6 +278,26 @@ function manejadorErrores(error, req, res, next) {
     error instanceof ErrorItemsVaciosActaEntrega
   ) {
     return res.status(400).json({ error: error.message });
+  }
+
+  if (error instanceof ErrorEnlaceInconsistente) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorEliminacionBloqueada) {
+    return res.status(409).json({ error: error.message, detalle: error.detalle });
+  }
+  if (error instanceof ErrorTablaSinVersiones) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorEquipoNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (
+    error instanceof ErrorNumeroSerieEnUso ||
+    error instanceof ErrorEquipoDeExpediente ||
+    error instanceof ErrorEquipoConReportes
+  ) {
+    return res.status(409).json({ error: error.message });
   }
 
   if (error instanceof ErrorNotificacionNoEncontrada) {

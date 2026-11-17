@@ -30,6 +30,16 @@ async function buscarPorCedula(pool, cedula) {
   return filas[0] || null;
 }
 
+async function actualizar(pool, id, datos) {
+  const campos = Object.keys(datos);
+  if (campos.length === 0) {
+    return;
+  }
+  const asignaciones = campos.map((campo) => `${campo} = ?`).join(", ");
+  const valores = campos.map((campo) => datos[campo]);
+  await pool.query(`UPDATE usuarios SET ${asignaciones} WHERE id = ?`, [...valores, id]);
+}
+
 async function crear(pool, datos) {
   const [resultado] = await pool.query(
     `INSERT INTO usuarios (nombre, correo, cedula, password_hash, rol, cargo, activo)
@@ -84,6 +94,7 @@ module.exports = {
   buscarPorCorreo,
   buscarPorCedula,
   crear,
+  actualizar,
   buscarPorTokenRecuperacion,
   registrarIntentoFallido,
   restablecerIntentosFallidos,
