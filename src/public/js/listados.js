@@ -40,6 +40,8 @@
     const barra = crear("div", { className: "controles-listado" });
     const buscador = crear("input", {
       type: "search",
+      name: `buscar-${opciones.clave}`,
+      autocomplete: "off",
       value: estado.q,
       placeholder: opciones.buscar || "Buscar",
     });
