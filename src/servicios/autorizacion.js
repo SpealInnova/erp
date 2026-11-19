@@ -13,6 +13,7 @@ const ACCIONES = {
   versionar_oc: "Crear versiones de órdenes de compra",
   versionar_acta: "Crear versiones de actas",
   versionar_reporte: "Crear versiones de reportes de servicio",
+  ver_tablero_gerencial: "Ver el tablero gerencial y los tiempos de los procesos",
 };
 
 function mensajeSinPermiso(clave) {

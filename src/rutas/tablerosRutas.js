@@ -8,6 +8,7 @@ function crearTablerosRutas(pool) {
   const router = express.Router();
   const controlador = crearTablerosControlador(pool);
 
+  router.get("/general", envolverAsync(controlador.general));
   router.get("/gerencial", envolverAsync(controlador.gerencial));
   router.get("/comercial", envolverAsync(controlador.comercial));
   router.get("/compras", envolverAsync(controlador.compras));

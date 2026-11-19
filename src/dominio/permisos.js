@@ -29,6 +29,9 @@ const PERMISOS = {
   versionar_oc: [DIR_ADMINISTRATIVO, "Coordinador de Compras"],
   versionar_acta: [DIR_OPERACIONES, JEFE_PROYECTOS, "Jefe de Produccion e Instalaciones", JEFE_SIG],
   versionar_reporte: [DIR_OPERACIONES, "Jefe de Soporte Tecnico y mantenimiento", JEFE_SIG],
+  // Tablero gerencial y tiempos de los procesos: solo cargos directivos
+  // (decisión del usuario, 2026-11-19). Los demás ven el tablero general.
+  ver_tablero_gerencial: [DIR_OPERACIONES, DIR_ADMINISTRATIVO, "Gerente Comercial"],
 };
 
 // Un error de digitación en un cargo dejaría el permiso sin nadie: se detecta
