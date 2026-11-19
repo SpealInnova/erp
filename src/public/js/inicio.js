@@ -1,4 +1,5 @@
 /* global montarListado */ // listados.js
+/* exported describirEventoLineaTiempo */ // la usa fichaProyecto.js
 const token = sessionStorage.getItem("erp_token");
 const contenido = document.getElementById("contenido");
 
@@ -1208,6 +1209,10 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, op
     contenedorGrupos.replaceChildren(...grupos);
     // Una actividad guardada, movida o quitada cambia la ventana de pendientes.
     if (!eraPrimeraCarga && window.actualizarMisActividades) window.actualizarMisActividades();
+    // La ficha recalcula "Siguiente paso" con el nuevo estado de las actividades.
+    if (!eraPrimeraCarga) {
+      document.dispatchEvent(new CustomEvent("actividades-cambiaron", { detail: { proyectoId } }));
+    }
   }
 
   await cargar();
@@ -1659,83 +1664,33 @@ function describirEventoLineaTiempo(evento) {
     if (evento.accion === "crear") return `Actividad creada: ${descripcion}`;
     if (evento.accion === "eliminar") return `Actividad eliminada: ${descripcion}`;
     if (evento.actividad_cambio_estado) {
-      return evento.actividad_cambio_estado.a === "completada"
-        ? `Actividad completada: ${descripcion}`
-        : `Actividad marcada como pendiente: ${descripcion}`;
+      const { de, a } = evento.actividad_cambio_estado;
+      if (a === "completada") return `Actividad finalizada: ${descripcion}`;
+      if (a === "en_curso") return `Actividad iniciada: ${descripcion}`;
+      return de === "en_curso"
+        ? `Actividad pausada: ${descripcion}`
+        : `Actividad reabierta: ${descripcion}`;
+    }
+    if (evento.actividad_cambio_prioridad) {
+      const nombres = { normal: "Normal", alta: "Alta", urgente: "Urgente" };
+      return `Prioridad ${nombres[evento.actividad_cambio_prioridad.a] || ""}: ${descripcion}`;
+    }
+    if (evento.actividad_cambio_fechas) {
+      const { inicio, fin } = evento.actividad_cambio_fechas;
+      const corta = (v) => (v ? fechaCortaTexto(String(v).slice(0, 10)) : "—");
+      return `Fechas de "${descripcion}": ${corta(inicio)} → ${corta(fin)}`;
     }
     return `Actividad actualizada: ${descripcion}`;
+  }
+  if (evento.tabla === "archivos_adjuntos") {
+    const nombre = evento.evidencia_nombre || "archivo";
+    return evento.accion === "eliminar" ? `Evidencia quitada: ${nombre}` : `Evidencia subida: ${nombre}`;
   }
   return "Evento registrado";
 }
 
 function formatoFechaHora(valor) {
   return new Date(valor).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
-}
-
-async function renderSeccionLineaTiempoProyecto(proyectoId) {
-  const tarjeta = document.createElement("div");
-  tarjeta.className = "tarjeta-ancha";
-
-  const h3 = document.createElement("h3");
-  h3.style.margin = "0 0 16px";
-  h3.style.fontSize = "1.125rem";
-  h3.textContent = "Línea de tiempo";
-  tarjeta.append(h3);
-
-  const mensaje = document.createElement("div");
-  const lista = document.createElement("ul");
-  lista.style.listStyle = "none";
-  lista.style.margin = "0";
-  lista.style.padding = "0";
-  tarjeta.append(mensaje, lista);
-
-  const r = await api("GET", `/proyectos/${proyectoId}/linea-tiempo`);
-  if (r.status !== 200) {
-    mensaje.append(alerta("error", "No se pudo cargar la línea de tiempo."));
-    return tarjeta;
-  }
-
-  const eventos = r.cuerpo.eventos;
-  if (eventos.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay eventos registrados para este proyecto.";
-    lista.append(p);
-    return tarjeta;
-  }
-
-  eventos.forEach((evento) => {
-    const item = document.createElement("li");
-    item.style.padding = "10px 0";
-    item.style.borderBottom = "1px solid var(--borde)";
-
-    const fila = document.createElement("div");
-    fila.style.display = "flex";
-    fila.style.justifyContent = "space-between";
-    fila.style.gap = "12px";
-
-    // los eventos de otros módulos abren su documento (salvo si se eliminó)
-    const documento = DOCUMENTOS_LINEA_TIEMPO[evento.tabla];
-    const texto = document.createElement(
-      documento && evento.accion !== "eliminar" && evento.documento_id ? "a" : "span"
-    );
-    if (texto.tagName === "A") {
-      texto.href = `${documento.ruta}${evento.documento_id}`;
-      texto.className = "enlace-documento";
-    }
-    texto.textContent = describirEventoLineaTiempo(evento);
-
-    const meta = document.createElement("span");
-    meta.className = "subtitulo";
-    meta.style.whiteSpace = "nowrap";
-    meta.textContent = `${evento.usuario_nombre || "—"} · ${formatoFechaHora(evento.creado_en)}`;
-
-    fila.append(texto, meta);
-    item.append(fila);
-    lista.append(item);
-  });
-
-  return tarjeta;
 }
 
 // Si el proyecto tiene documentos de otros módulos, devuelve el aviso de
@@ -1776,10 +1731,50 @@ async function bloqueoEliminacionProyecto(proyecto, alCerrar) {
   return bloque;
 }
 
+// Vista de una lista: tarjetas (por defecto) o tabla compacta. Es una
+// preferencia de este navegador.
+function preferenciaVista(clave) {
+  try {
+    return localStorage.getItem(`vista-${clave}`) === "tabla" ? "tabla" : "tarjetas";
+  } catch {
+    return "tarjetas";
+  }
+}
+
+function selectorVista(clave, alCambiar) {
+  const grupo = document.createElement("div");
+  grupo.className = "selector-vista";
+  grupo.setAttribute("role", "group");
+  grupo.setAttribute("aria-label", "Forma de ver la lista");
+  [
+    ["tarjetas", "Tarjetas"],
+    ["tabla", "Tabla"],
+  ].forEach(([valor, texto]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = texto;
+    b.setAttribute("aria-pressed", String(preferenciaVista(clave) === valor));
+    b.addEventListener("click", () => {
+      try {
+        localStorage.setItem(`vista-${clave}`, valor);
+      } catch {
+        // sin almacenamiento: la elección dura hasta recargar
+      }
+      alCambiar();
+    });
+    grupo.append(b);
+  });
+  return grupo;
+}
+
 async function vistaProyectos() {
   marcarMenu("proyectos");
   const nuevo = boton("Nuevo proyecto", () => (window.location.hash = "#/proyectos/nuevo"));
-  contenido.replaceChildren(encabezado("Proyectos", [nuevo]));
+  const acciones = document.createElement("div");
+  acciones.className = "encabezado-acciones";
+  acciones.append(selectorVista("proyectos", vistaProyectos), nuevo);
+  contenido.replaceChildren(encabezado("Proyectos", [acciones]));
+  const comoTabla = preferenciaVista("proyectos") === "tabla";
   await montarListado({
     clave: "proyectos",
     api: "/proyectos",
@@ -1788,8 +1783,115 @@ async function vistaProyectos() {
     buscar: "Buscar por código, nombre o cliente",
     estados: ESTADOS_PROYECTO,
     vacio: "Aún no hay proyectos registrados.",
-    pintar: tablaProyectos,
+    // tarjetas con línea de tiempo y avance; la tabla queda como vista compacta
+    pintar: comoTabla ? tablaProyectos : window.tarjetasProyectos,
   });
+}
+
+// Eliminar un proyecto: botón y panel con lo que lo bloquea (documentos
+// enlazados) o con la confirmación (contraseña y justificación). Lo usan la
+// tabla y las tarjetas de la lista. alCambiarVisible(visible) avisa cuándo
+// se abre o se cierra el panel.
+function controlEliminarProyecto(p, recargar, alCambiarVisible = () => {}) {
+  const panel = document.createElement("div");
+  panel.className = "panel-eliminar-proyecto";
+  panel.hidden = true;
+
+  function mostrar(visible) {
+    panel.hidden = !visible;
+    if (!visible) panel.replaceChildren();
+    alCambiarVisible(visible);
+  }
+
+  // El formulario (con su campo de contraseña) se crea solo al pulsar
+  // "Eliminar" y va en su propio <form>: si existiera desde el inicio, el
+  // navegador lo toma por un inicio de sesión y llena el correo guardado
+  // en el buscador de la lista, que entonces no muestra ningún proyecto.
+  function crearFormEliminar() {
+    const formEliminar = document.createElement("form");
+    formEliminar.noValidate = true;
+    formEliminar.dataset.sucioVigilado = "1"; // confirmación, no edición
+    formEliminar.style.display = "flex";
+    formEliminar.style.flexDirection = "column";
+    formEliminar.style.gap = "8px";
+    formEliminar.style.padding = "12px 0";
+    formEliminar.style.maxWidth = "420px";
+
+    const nota = document.createElement("p");
+    nota.className = "subtitulo";
+    nota.textContent =
+      "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
+      "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
+    formEliminar.append(nota);
+
+    const inputPassword = document.createElement("input");
+    inputPassword.type = "password";
+    inputPassword.autocomplete = "current-password";
+    inputPassword.placeholder = "Tu contraseña";
+    inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
+
+    const textareaJustificacion = document.createElement("textarea");
+    textareaJustificacion.rows = 2;
+    textareaJustificacion.placeholder = "Justificación de la eliminación";
+    textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
+
+    const mensajeEliminar = document.createElement("div");
+
+    const confirmarEliminar = boton(
+      "Confirmar eliminación",
+      async () => {
+        const password = inputPassword.value;
+        const justificacion = textareaJustificacion.value.trim();
+        mensajeEliminar.replaceChildren();
+        if (!password || !justificacion) {
+          mensajeEliminar.append(
+            alerta("error", "La contraseña y la justificación son obligatorias.")
+          );
+          return;
+        }
+        const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
+        if (r.status === 204) {
+          // recarga la misma página de la lista, con la búsqueda vigente
+          recargar();
+          return;
+        }
+        mensajeEliminar.replaceChildren(
+          alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
+        );
+      },
+      true
+    );
+
+    const cancelarEliminar = boton(
+      "Cancelar",
+      () => mostrar(false),
+      true
+    );
+
+    formEliminar.addEventListener("submit", (evento) => {
+      evento.preventDefault();
+      confirmarEliminar.click();
+    });
+    formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
+    return formEliminar;
+  }
+
+  const eliminar = boton(
+    "Eliminar",
+    async () => {
+      if (!panel.hidden) {
+        mostrar(false);
+        return;
+      }
+      mostrar(true);
+      // con documentos enlazados no se elimina: se muestra qué lo bloquea
+      const bloqueo = await bloqueoEliminacionProyecto(p, () => mostrar(false));
+      panel.replaceChildren(bloqueo || crearFormEliminar());
+    },
+    true
+  );
+  eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
+  return { boton: eliminar, panel };
 }
 
 // Nombres de cliente y responsable llegan resueltos del API (JOIN).
@@ -1830,103 +1932,13 @@ function tablaProyectos(proyectos, recargar) {
     filaConfirmacion.style.display = "none";
     const tdConfirmacion = document.createElement("td");
     tdConfirmacion.colSpan = 6;
-
-    // El formulario (con su campo de contraseña) se crea solo al pulsar
-    // "Eliminar" y va en su propio <form>: si existiera desde el inicio, el
-    // navegador lo toma por un inicio de sesión y llena el correo guardado
-    // en el buscador de la lista, que entonces no muestra ningún proyecto.
-    function crearFormEliminar() {
-      const formEliminar = document.createElement("form");
-      formEliminar.noValidate = true;
-      formEliminar.dataset.sucioVigilado = "1"; // confirmación, no edición
-      formEliminar.style.display = "flex";
-      formEliminar.style.flexDirection = "column";
-      formEliminar.style.gap = "8px";
-      formEliminar.style.padding = "12px 0";
-      formEliminar.style.maxWidth = "420px";
-
-      const nota = document.createElement("p");
-      nota.className = "subtitulo";
-      nota.textContent =
-        "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
-        "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
-      formEliminar.append(nota);
-
-      const inputPassword = document.createElement("input");
-      inputPassword.type = "password";
-      inputPassword.autocomplete = "current-password";
-      inputPassword.placeholder = "Tu contraseña";
-      inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
-
-      const textareaJustificacion = document.createElement("textarea");
-      textareaJustificacion.rows = 2;
-      textareaJustificacion.placeholder = "Justificación de la eliminación";
-      textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
-
-      const mensajeEliminar = document.createElement("div");
-
-      const confirmarEliminar = boton(
-        "Confirmar eliminación",
-        async () => {
-          const password = inputPassword.value;
-          const justificacion = textareaJustificacion.value.trim();
-          mensajeEliminar.replaceChildren();
-          if (!password || !justificacion) {
-            mensajeEliminar.append(
-              alerta("error", "La contraseña y la justificación son obligatorias.")
-            );
-            return;
-          }
-          const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
-          if (r.status === 204) {
-            // recarga la misma página de la lista, con la búsqueda vigente
-            recargar();
-            return;
-          }
-          mensajeEliminar.replaceChildren(
-            alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
-          );
-        },
-        true
-      );
-
-      const cancelarEliminar = boton(
-        "Cancelar",
-        () => {
-          filaConfirmacion.style.display = "none";
-          tdConfirmacion.replaceChildren();
-        },
-        true
-      );
-
-      formEliminar.addEventListener("submit", (evento) => {
-        evento.preventDefault();
-        confirmarEliminar.click();
-      });
-      formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
-      return formEliminar;
-    }
+    const control = controlEliminarProyecto(p, recargar, (visible) => {
+      filaConfirmacion.style.display = visible ? "" : "none";
+    });
+    tdConfirmacion.append(control.panel);
     filaConfirmacion.append(tdConfirmacion);
-
-    const eliminar = boton(
-      "Eliminar",
-      async () => {
-        if (filaConfirmacion.style.display !== "none") {
-          filaConfirmacion.style.display = "none";
-          return;
-        }
-        filaConfirmacion.style.display = "";
-        // con documentos enlazados no se elimina: se muestra qué lo bloquea
-        const bloqueo = await bloqueoEliminacionProyecto(p, () => {
-          filaConfirmacion.style.display = "none";
-        });
-        tdConfirmacion.replaceChildren(bloqueo || crearFormEliminar());
-      },
-      true
-    );
-    eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
     accion.append(editar);
-    if (puede("cancelar_proyecto")) accion.append(eliminar);
+    if (puede("cancelar_proyecto")) accion.append(control.boton);
     fila.append(accion);
     tbody.append(fila, filaConfirmacion);
   });
@@ -1992,23 +2004,24 @@ async function vistaProyectoForm(id, opciones = {}) {
   if (conFicha) acciones.append(botonEvidenciasProyecto(id));
   acciones.append(volver);
   contenido.append(encabezado(tituloProyecto, [acciones]));
+  // Se recargan cada vez que se abre la pestaña: siempre al día.
+  const pestanaQueCarga = (vista) => async (panel) => {
+    const cargando = document.createElement("p");
+    cargando.className = "subtitulo";
+    cargando.textContent = "Cargando…";
+    panel.replaceChildren(cargando);
+    panel.replaceChildren(await vista(id));
+  };
   const pestanas = conFicha
     ? pestanasVista([
         { clave: "ficha", texto: "Proyecto" },
-        {
-          clave: "linea",
-          texto: "Línea de tiempo",
-          alActivar: async (panel) => {
-            const cargando = document.createElement("p");
-            cargando.className = "subtitulo";
-            cargando.textContent = "Cargando…";
-            panel.replaceChildren(cargando);
-            panel.replaceChildren(await renderSeccionLineaTiempoProyecto(id));
-          },
-        },
+        { clave: "etapas", texto: "Resumen por etapa", alActivar: pestanaQueCarga(window.vistaResumenEtapas) },
+        { clave: "linea", texto: "Línea de tiempo", alActivar: pestanaQueCarga(window.vistaLineaTiempo) },
       ])
     : null;
-  if (pestanas) contenido.append(pestanas.lista, ...Object.values(pestanas.paneles));
+  // "Siguiente paso" va arriba de las pestañas: qué sigue, quién y qué implica.
+  const lugarSiguientePaso = document.createElement("div");
+  if (pestanas) contenido.append(lugarSiguientePaso, pestanas.lista, ...Object.values(pestanas.paneles));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -2184,6 +2197,16 @@ async function vistaProyectoForm(id, opciones = {}) {
         actividadId: opciones.actividadId,
       })
     );
+    lugarSiguientePaso.replaceChildren(await window.panelSiguientePaso(proyecto, opcionesUsuarios));
+    const refrescarPaso = async (evento) => {
+      if (!lugarSiguientePaso.isConnected) {
+        document.removeEventListener("actividades-cambiaron", refrescarPaso);
+        return;
+      }
+      if (String(evento.detail.proyectoId) !== String(id)) return;
+      lugarSiguientePaso.replaceChildren(await window.panelSiguientePaso(proyecto, opcionesUsuarios));
+    };
+    document.addEventListener("actividades-cambiaron", refrescarPaso);
     if (opciones.actividadId) enfocarActividad(opciones.actividadId);
   }
 }
@@ -5726,8 +5749,27 @@ async function vistaUsuarioForm(id) {
   });
 }
 
+// "#/<módulo>/nuevo?proyecto=ID" (desde "Siguiente paso"): el formulario
+// abre con ese proyecto ya elegido.
+function prefijarProyecto(consulta) {
+  const id = new URLSearchParams(consulta).get("proyecto");
+  const campo = document.getElementById("proyecto_id");
+  if (!id || !campo || ![...campo.options].some((o) => o.value === id)) return;
+  campo.value = id;
+  campo.dispatchEvent(new Event("change", { bubbles: true }));
+  formularioSucio = false; // venir prellenado no es un cambio del usuario
+}
+
 function enrutar() {
-  const ruta = window.location.hash || "#/tablero";
+  const [ruta, consulta = ""] = (window.location.hash || "#/tablero").split("?");
+  const resultado = enrutarRuta(ruta);
+  if (consulta && /\/nuevo$/.test(ruta)) {
+    return Promise.resolve(resultado).then(() => prefijarProyecto(consulta));
+  }
+  return resultado;
+}
+
+function enrutarRuta(ruta) {
 
   // Definidas en tableros.js (se carga antes que este archivo).
   if (/^#\/tablero$/.test(ruta)) return window.vistaTableroGerencial();

@@ -122,6 +122,10 @@
     );
     const etiquetas = crear("div", "item-actividad-etiquetas");
     etiquetas.append(pill(textoPlazo(dias), dias < 0 ? "crit" : "warn"));
+    if (actividad.estado === "en_curso") etiquetas.append(pill("En curso", "info"));
+    // La prioridad Normal no se muestra: Alta en amarillo, Urgente en rojo.
+    if (actividad.prioridad === "alta") etiquetas.append(pill("Alta", "alta"));
+    if (actividad.prioridad === "urgente") etiquetas.append(pill("Urgente", "crit"));
     if (!actividad.responsable_id) etiquetas.append(pill("Sin responsable", "mute"));
     textos.append(etiquetas);
 

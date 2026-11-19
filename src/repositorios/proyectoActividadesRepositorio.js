@@ -88,7 +88,7 @@ const CONDICION_PENDIENTE = `a.deleted_at IS NULL AND a.estado <> 'completada'
 
 async function listarPendientesDeUsuario(pool, usuarioId) {
   const [filas] = await pool.query(
-    `SELECT a.id, a.proyecto_id, a.fase, a.categoria, a.descripcion, a.fecha_inicio,
+    `SELECT a.id, a.proyecto_id, a.fase, a.categoria, a.descripcion, a.estado, a.prioridad, a.fecha_inicio,
             a.fecha_fin, a.responsable_id, p.codigo_pry, p.nombre_proyecto
        FROM proyecto_actividades a
        JOIN proyectos p ON p.id = a.proyecto_id

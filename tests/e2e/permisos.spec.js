@@ -77,7 +77,7 @@ test("un cargo sin permisos ve los documentos pero no sus acciones restringidas"
 
   // Proyectos: sin botón de eliminar
   await colega.goto("/inicio#/proyectos");
-  await expect(colega.getByRole("cell", { name: proyecto.codigo_pry, exact: true })).toBeVisible();
+  await expect(colega.locator(".pcard", { hasText: proyecto.codigo_pry })).toBeVisible();
   await expect(
     colega.getByRole("button", { name: `Eliminar proyecto ${proyecto.codigo_pry}` })
   ).toHaveCount(0);
