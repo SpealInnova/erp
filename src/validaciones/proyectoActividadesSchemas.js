@@ -16,7 +16,9 @@ const actualizarActividadSchema = z
     descripcion: z.string().min(1).optional(),
     // null quita el responsable ("— Sin asignar —").
     responsable_id: z.union([z.null(), z.coerce.number().int().positive()]).optional(),
-    estado: z.enum(["pendiente", "completada"]).optional(),
+    // "completada" se muestra como "Finalizado".
+    estado: z.enum(["pendiente", "en_curso", "completada"]).optional(),
+    prioridad: z.enum(["normal", "alta", "urgente"]).optional(),
     fecha_inicio: FECHA_ISO.optional(),
     fecha_fin: FECHA_ISO.optional(),
   })

@@ -27,7 +27,7 @@ async function proyectoEnPlaneacion(page, etiqueta) {
   await page.click('button:has-text("Crear proyecto")');
   await page.waitForURL("**/inicio#/proyectos");
 
-  const fila = page.locator("tr", { hasText: nombreProyecto });
+  const fila = page.locator(".pcard", { hasText: nombreProyecto });
   await fila.getByRole("button", { name: /Ver proyecto/ }).click();
 
   await page.selectOption("#nueva_fase", "planeacion");
@@ -218,7 +218,7 @@ test.describe("Gantt de actividades", () => {
 
     await barra.click();
     await expect(popup).toContainText(USUARIO_PRINCIPAL.nombre);
-    await expect(popup).toContainText("Completada");
+    await expect(popup).toContainText("Finalizado");
 
     // Quitar la actividad desde la ventana
     await popup.getByRole("button", { name: "Gestionar actividad" }).click();

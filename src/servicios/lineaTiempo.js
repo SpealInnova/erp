@@ -63,15 +63,36 @@ function normalizarEvento(fila, nombresPorUsuario) {
   }
 
   if (fila.tabla === "proyecto_actividades") {
-    const cambioEstado =
-      anterior && nuevo && anterior.estado !== nuevo.estado
-        ? { de: anterior.estado, a: nuevo.estado }
+    const cambio = (campo) =>
+      anterior && nuevo && anterior[campo] !== undefined && anterior[campo] !== nuevo[campo]
+        ? { de: anterior[campo], a: nuevo[campo] }
+        : null;
+    const cambioFechas =
+      anterior &&
+      nuevo &&
+      (String(anterior.fecha_inicio) !== String(nuevo.fecha_inicio) ||
+        String(anterior.fecha_fin) !== String(nuevo.fecha_fin))
+        ? { inicio: nuevo.fecha_inicio || null, fin: nuevo.fecha_fin || null }
         : null;
     return {
       ...base,
+      actividad_id: fila.registro_id,
       actividad_descripcion: nuevo?.descripcion || anterior?.descripcion || null,
       actividad_fase: nuevo?.fase || anterior?.fase || null,
-      actividad_cambio_estado: cambioEstado,
+      actividad_cambio_estado: cambio("estado"),
+      actividad_cambio_prioridad: cambio("prioridad"),
+      actividad_cambio_fechas: cambioFechas,
+    };
+  }
+
+  if (fila.tabla === "archivos_adjuntos") {
+    const datos = nuevo || anterior || {};
+    return {
+      ...base,
+      evidencia_nombre: datos.nombre_archivo || null,
+      evidencia_enlace: datos.drive_enlace || null,
+      evidencia_tabla: datos.tabla || null,
+      evidencia_registro_id: datos.registro_id || null,
     };
   }
 

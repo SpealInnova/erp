@@ -107,6 +107,8 @@ const {
   ErrorTipoArchivoNoPermitido,
 } = require("../dominio/erroresArchivosAdjuntos");
 const { ErrorSinPermiso, ErrorAutoAprobacion } = require("../dominio/erroresPermisos");
+const { ErrorTareaNoEncontrada } = require("../dominio/erroresTareas");
+const { ErrorCopiaEnCurso } = require("../dominio/erroresCopias");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -148,6 +150,12 @@ function manejadorErrores(error, req, res, next) {
     // 403, no 401: el 401 en el frontend fuerza cierre de sesión global y aquí
     // el usuario sigue autenticado, solo falló la confirmación de contraseña.
     return res.status(403).json({ error: error.message });
+  }
+  if (error instanceof ErrorTareaNoEncontrada) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorCopiaEnCurso) {
+    return res.status(409).json({ error: error.message });
   }
   if (error instanceof ErrorSinPermiso || error instanceof ErrorAutoAprobacion) {
     // 403 por la misma razón: el usuario sigue autenticado.

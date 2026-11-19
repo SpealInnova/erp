@@ -40,12 +40,14 @@ test.describe("Bloqueo de eliminación y versiones", () => {
     await page.goto("/inicio#/proyectos");
     // Sin campos de contraseña hasta pulsar "Eliminar": si los hubiera, el
     // navegador llena el correo guardado en el buscador y la lista sale vacía.
-    await expect(page.locator(".tarjeta-ancha", { hasText: "Código" }).first()).toBeVisible();
+    await expect(page.locator(".pcard").first()).toBeVisible();
     await expect(page.locator('input[type="password"]')).toHaveCount(0);
     await expect(page.getByRole("searchbox", { name: "Buscar proyectos" })).toHaveAttribute(
       "autocomplete",
       "off"
     );
+    // en las tarjetas, "Eliminar" está en el detalle desplegable
+    await page.getByRole("button", { name: `Ver detalle de ${proyecto.codigo_pry}` }).click();
     await page.getByRole("button", { name: `Eliminar proyecto ${proyecto.codigo_pry}` }).click();
     const bloqueo = page.locator(".bloqueo-eliminacion");
     await expect(bloqueo).toContainText("no se puede eliminar");

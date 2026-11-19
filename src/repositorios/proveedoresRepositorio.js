@@ -52,9 +52,21 @@ async function obtenerPorId(pool, id) {
 
 // Página de la lista (más recientes primero) con búsqueda por texto;
 // trae resueltos los nombres que la tabla muestra. Devuelve { filas, total }.
+// Para las tarjetas: cuántas OC tiene, cuánto se le ha comprado y su última OC.
+const DE_SUS_OC = "FROM ordenes_compra oc WHERE oc.proveedor_id = p.id AND oc.deleted_at IS NULL";
+const COLUMNAS_TARJETA = [
+  `(SELECT COUNT(*) ${DE_SUS_OC}) AS oc_total`,
+  `(SELECT COALESCE(SUM(i.cantidad * i.precio_unitario), 0)
+      FROM orden_compra_items i JOIN ordenes_compra oc ON oc.id = i.orden_compra_id
+     WHERE oc.proveedor_id = p.id AND oc.deleted_at IS NULL) AS oc_valor`,
+  `(SELECT oc.id ${DE_SUS_OC} ORDER BY oc.id DESC LIMIT 1) AS ultima_oc_id`,
+  `(SELECT oc.numero_oc ${DE_SUS_OC} ORDER BY oc.id DESC LIMIT 1) AS ultima_oc_numero`,
+  `(SELECT oc.estado ${DE_SUS_OC} ORDER BY oc.id DESC LIMIT 1) AS ultima_oc_estado`,
+].join(", ");
+
 async function listar(pool, { limite, offset, q }) {
   return listarPaginado(pool, {
-    columnas: "p.*",
+    columnas: `p.*, ${COLUMNAS_TARJETA}`,
     desde: "FROM proveedores p",
     condiciones: ["p.deleted_at IS NULL"],
     q,

@@ -1,4 +1,5 @@
 /* global montarListado */ // listados.js
+/* exported describirEventoLineaTiempo, subrecursosExpediente, renderSeccionSubrecurso */ // los usan fichaProyecto.js y expedienteGuiado.js
 const token = sessionStorage.getItem("erp_token");
 const contenido = document.getElementById("contenido");
 
@@ -47,6 +48,13 @@ async function cargarPerfil() {
 
 function puede(permiso) {
   return PERFIL.permisos.includes(permiso);
+}
+
+// Muestra los enlaces del menú marcados con data-permiso solo a quien lo tiene.
+function aplicarPermisosMenu() {
+  document.querySelectorAll(".menu [data-permiso]").forEach((el) => {
+    el.hidden = !puede(el.dataset.permiso);
+  });
 }
 
 // Aprobar exige el permiso y, salvo admin o Gerente General, no haber creado
@@ -1208,6 +1216,10 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, op
     contenedorGrupos.replaceChildren(...grupos);
     // Una actividad guardada, movida o quitada cambia la ventana de pendientes.
     if (!eraPrimeraCarga && window.actualizarMisActividades) window.actualizarMisActividades();
+    // La ficha recalcula "Siguiente paso" con el nuevo estado de las actividades.
+    if (!eraPrimeraCarga) {
+      document.dispatchEvent(new CustomEvent("actividades-cambiaron", { detail: { proyectoId } }));
+    }
   }
 
   await cargar();
@@ -1659,83 +1671,33 @@ function describirEventoLineaTiempo(evento) {
     if (evento.accion === "crear") return `Actividad creada: ${descripcion}`;
     if (evento.accion === "eliminar") return `Actividad eliminada: ${descripcion}`;
     if (evento.actividad_cambio_estado) {
-      return evento.actividad_cambio_estado.a === "completada"
-        ? `Actividad completada: ${descripcion}`
-        : `Actividad marcada como pendiente: ${descripcion}`;
+      const { de, a } = evento.actividad_cambio_estado;
+      if (a === "completada") return `Actividad finalizada: ${descripcion}`;
+      if (a === "en_curso") return `Actividad iniciada: ${descripcion}`;
+      return de === "en_curso"
+        ? `Actividad pausada: ${descripcion}`
+        : `Actividad reabierta: ${descripcion}`;
+    }
+    if (evento.actividad_cambio_prioridad) {
+      const nombres = { normal: "Normal", alta: "Alta", urgente: "Urgente" };
+      return `Prioridad ${nombres[evento.actividad_cambio_prioridad.a] || ""}: ${descripcion}`;
+    }
+    if (evento.actividad_cambio_fechas) {
+      const { inicio, fin } = evento.actividad_cambio_fechas;
+      const corta = (v) => (v ? fechaCortaTexto(String(v).slice(0, 10)) : "—");
+      return `Fechas de "${descripcion}": ${corta(inicio)} → ${corta(fin)}`;
     }
     return `Actividad actualizada: ${descripcion}`;
+  }
+  if (evento.tabla === "archivos_adjuntos") {
+    const nombre = evento.evidencia_nombre || "archivo";
+    return evento.accion === "eliminar" ? `Evidencia quitada: ${nombre}` : `Evidencia subida: ${nombre}`;
   }
   return "Evento registrado";
 }
 
 function formatoFechaHora(valor) {
   return new Date(valor).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
-}
-
-async function renderSeccionLineaTiempoProyecto(proyectoId) {
-  const tarjeta = document.createElement("div");
-  tarjeta.className = "tarjeta-ancha";
-
-  const h3 = document.createElement("h3");
-  h3.style.margin = "0 0 16px";
-  h3.style.fontSize = "1.125rem";
-  h3.textContent = "Línea de tiempo";
-  tarjeta.append(h3);
-
-  const mensaje = document.createElement("div");
-  const lista = document.createElement("ul");
-  lista.style.listStyle = "none";
-  lista.style.margin = "0";
-  lista.style.padding = "0";
-  tarjeta.append(mensaje, lista);
-
-  const r = await api("GET", `/proyectos/${proyectoId}/linea-tiempo`);
-  if (r.status !== 200) {
-    mensaje.append(alerta("error", "No se pudo cargar la línea de tiempo."));
-    return tarjeta;
-  }
-
-  const eventos = r.cuerpo.eventos;
-  if (eventos.length === 0) {
-    const p = document.createElement("p");
-    p.className = "subtitulo";
-    p.textContent = "Aún no hay eventos registrados para este proyecto.";
-    lista.append(p);
-    return tarjeta;
-  }
-
-  eventos.forEach((evento) => {
-    const item = document.createElement("li");
-    item.style.padding = "10px 0";
-    item.style.borderBottom = "1px solid var(--borde)";
-
-    const fila = document.createElement("div");
-    fila.style.display = "flex";
-    fila.style.justifyContent = "space-between";
-    fila.style.gap = "12px";
-
-    // los eventos de otros módulos abren su documento (salvo si se eliminó)
-    const documento = DOCUMENTOS_LINEA_TIEMPO[evento.tabla];
-    const texto = document.createElement(
-      documento && evento.accion !== "eliminar" && evento.documento_id ? "a" : "span"
-    );
-    if (texto.tagName === "A") {
-      texto.href = `${documento.ruta}${evento.documento_id}`;
-      texto.className = "enlace-documento";
-    }
-    texto.textContent = describirEventoLineaTiempo(evento);
-
-    const meta = document.createElement("span");
-    meta.className = "subtitulo";
-    meta.style.whiteSpace = "nowrap";
-    meta.textContent = `${evento.usuario_nombre || "—"} · ${formatoFechaHora(evento.creado_en)}`;
-
-    fila.append(texto, meta);
-    item.append(fila);
-    lista.append(item);
-  });
-
-  return tarjeta;
 }
 
 // Si el proyecto tiene documentos de otros módulos, devuelve el aviso de
@@ -1776,10 +1738,50 @@ async function bloqueoEliminacionProyecto(proyecto, alCerrar) {
   return bloque;
 }
 
+// Vista de una lista: tarjetas (por defecto) o tabla compacta. Es una
+// preferencia de este navegador.
+function preferenciaVista(clave) {
+  try {
+    return localStorage.getItem(`vista-${clave}`) === "tabla" ? "tabla" : "tarjetas";
+  } catch {
+    return "tarjetas";
+  }
+}
+
+function selectorVista(clave, alCambiar) {
+  const grupo = document.createElement("div");
+  grupo.className = "selector-vista";
+  grupo.setAttribute("role", "group");
+  grupo.setAttribute("aria-label", "Forma de ver la lista");
+  [
+    ["tarjetas", "Tarjetas"],
+    ["tabla", "Tabla"],
+  ].forEach(([valor, texto]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = texto;
+    b.setAttribute("aria-pressed", String(preferenciaVista(clave) === valor));
+    b.addEventListener("click", () => {
+      try {
+        localStorage.setItem(`vista-${clave}`, valor);
+      } catch {
+        // sin almacenamiento: la elección dura hasta recargar
+      }
+      alCambiar();
+    });
+    grupo.append(b);
+  });
+  return grupo;
+}
+
 async function vistaProyectos() {
   marcarMenu("proyectos");
   const nuevo = boton("Nuevo proyecto", () => (window.location.hash = "#/proyectos/nuevo"));
-  contenido.replaceChildren(encabezado("Proyectos", [nuevo]));
+  const acciones = document.createElement("div");
+  acciones.className = "encabezado-acciones";
+  acciones.append(selectorVista("proyectos", vistaProyectos), nuevo);
+  contenido.replaceChildren(encabezado("Proyectos", [acciones]));
+  const comoTabla = preferenciaVista("proyectos") === "tabla";
   await montarListado({
     clave: "proyectos",
     api: "/proyectos",
@@ -1788,8 +1790,115 @@ async function vistaProyectos() {
     buscar: "Buscar por código, nombre o cliente",
     estados: ESTADOS_PROYECTO,
     vacio: "Aún no hay proyectos registrados.",
-    pintar: tablaProyectos,
+    // tarjetas con línea de tiempo y avance; la tabla queda como vista compacta
+    pintar: comoTabla ? tablaProyectos : window.tarjetasProyectos,
   });
+}
+
+// Eliminar un proyecto: botón y panel con lo que lo bloquea (documentos
+// enlazados) o con la confirmación (contraseña y justificación). Lo usan la
+// tabla y las tarjetas de la lista. alCambiarVisible(visible) avisa cuándo
+// se abre o se cierra el panel.
+function controlEliminarProyecto(p, recargar, alCambiarVisible = () => {}) {
+  const panel = document.createElement("div");
+  panel.className = "panel-eliminar-proyecto";
+  panel.hidden = true;
+
+  function mostrar(visible) {
+    panel.hidden = !visible;
+    if (!visible) panel.replaceChildren();
+    alCambiarVisible(visible);
+  }
+
+  // El formulario (con su campo de contraseña) se crea solo al pulsar
+  // "Eliminar" y va en su propio <form>: si existiera desde el inicio, el
+  // navegador lo toma por un inicio de sesión y llena el correo guardado
+  // en el buscador de la lista, que entonces no muestra ningún proyecto.
+  function crearFormEliminar() {
+    const formEliminar = document.createElement("form");
+    formEliminar.noValidate = true;
+    formEliminar.dataset.sucioVigilado = "1"; // confirmación, no edición
+    formEliminar.style.display = "flex";
+    formEliminar.style.flexDirection = "column";
+    formEliminar.style.gap = "8px";
+    formEliminar.style.padding = "12px 0";
+    formEliminar.style.maxWidth = "420px";
+
+    const nota = document.createElement("p");
+    nota.className = "subtitulo";
+    nota.textContent =
+      "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
+      "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
+    formEliminar.append(nota);
+
+    const inputPassword = document.createElement("input");
+    inputPassword.type = "password";
+    inputPassword.autocomplete = "current-password";
+    inputPassword.placeholder = "Tu contraseña";
+    inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
+
+    const textareaJustificacion = document.createElement("textarea");
+    textareaJustificacion.rows = 2;
+    textareaJustificacion.placeholder = "Justificación de la eliminación";
+    textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
+
+    const mensajeEliminar = document.createElement("div");
+
+    const confirmarEliminar = boton(
+      "Confirmar eliminación",
+      async () => {
+        const password = inputPassword.value;
+        const justificacion = textareaJustificacion.value.trim();
+        mensajeEliminar.replaceChildren();
+        if (!password || !justificacion) {
+          mensajeEliminar.append(
+            alerta("error", "La contraseña y la justificación son obligatorias.")
+          );
+          return;
+        }
+        const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
+        if (r.status === 204) {
+          // recarga la misma página de la lista, con la búsqueda vigente
+          recargar();
+          return;
+        }
+        mensajeEliminar.replaceChildren(
+          alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
+        );
+      },
+      true
+    );
+
+    const cancelarEliminar = boton(
+      "Cancelar",
+      () => mostrar(false),
+      true
+    );
+
+    formEliminar.addEventListener("submit", (evento) => {
+      evento.preventDefault();
+      confirmarEliminar.click();
+    });
+    formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
+    return formEliminar;
+  }
+
+  const eliminar = boton(
+    "Eliminar",
+    async () => {
+      if (!panel.hidden) {
+        mostrar(false);
+        return;
+      }
+      mostrar(true);
+      // con documentos enlazados no se elimina: se muestra qué lo bloquea
+      const bloqueo = await bloqueoEliminacionProyecto(p, () => mostrar(false));
+      panel.replaceChildren(bloqueo || crearFormEliminar());
+    },
+    true
+  );
+  eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
+  return { boton: eliminar, panel };
 }
 
 // Nombres de cliente y responsable llegan resueltos del API (JOIN).
@@ -1830,103 +1939,13 @@ function tablaProyectos(proyectos, recargar) {
     filaConfirmacion.style.display = "none";
     const tdConfirmacion = document.createElement("td");
     tdConfirmacion.colSpan = 6;
-
-    // El formulario (con su campo de contraseña) se crea solo al pulsar
-    // "Eliminar" y va en su propio <form>: si existiera desde el inicio, el
-    // navegador lo toma por un inicio de sesión y llena el correo guardado
-    // en el buscador de la lista, que entonces no muestra ningún proyecto.
-    function crearFormEliminar() {
-      const formEliminar = document.createElement("form");
-      formEliminar.noValidate = true;
-      formEliminar.dataset.sucioVigilado = "1"; // confirmación, no edición
-      formEliminar.style.display = "flex";
-      formEliminar.style.flexDirection = "column";
-      formEliminar.style.gap = "8px";
-      formEliminar.style.padding = "12px 0";
-      formEliminar.style.maxWidth = "420px";
-
-      const nota = document.createElement("p");
-      nota.className = "subtitulo";
-      nota.textContent =
-        "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
-        "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
-      formEliminar.append(nota);
-
-      const inputPassword = document.createElement("input");
-      inputPassword.type = "password";
-      inputPassword.autocomplete = "current-password";
-      inputPassword.placeholder = "Tu contraseña";
-      inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
-
-      const textareaJustificacion = document.createElement("textarea");
-      textareaJustificacion.rows = 2;
-      textareaJustificacion.placeholder = "Justificación de la eliminación";
-      textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
-
-      const mensajeEliminar = document.createElement("div");
-
-      const confirmarEliminar = boton(
-        "Confirmar eliminación",
-        async () => {
-          const password = inputPassword.value;
-          const justificacion = textareaJustificacion.value.trim();
-          mensajeEliminar.replaceChildren();
-          if (!password || !justificacion) {
-            mensajeEliminar.append(
-              alerta("error", "La contraseña y la justificación son obligatorias.")
-            );
-            return;
-          }
-          const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
-          if (r.status === 204) {
-            // recarga la misma página de la lista, con la búsqueda vigente
-            recargar();
-            return;
-          }
-          mensajeEliminar.replaceChildren(
-            alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
-          );
-        },
-        true
-      );
-
-      const cancelarEliminar = boton(
-        "Cancelar",
-        () => {
-          filaConfirmacion.style.display = "none";
-          tdConfirmacion.replaceChildren();
-        },
-        true
-      );
-
-      formEliminar.addEventListener("submit", (evento) => {
-        evento.preventDefault();
-        confirmarEliminar.click();
-      });
-      formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
-      return formEliminar;
-    }
+    const control = controlEliminarProyecto(p, recargar, (visible) => {
+      filaConfirmacion.style.display = visible ? "" : "none";
+    });
+    tdConfirmacion.append(control.panel);
     filaConfirmacion.append(tdConfirmacion);
-
-    const eliminar = boton(
-      "Eliminar",
-      async () => {
-        if (filaConfirmacion.style.display !== "none") {
-          filaConfirmacion.style.display = "none";
-          return;
-        }
-        filaConfirmacion.style.display = "";
-        // con documentos enlazados no se elimina: se muestra qué lo bloquea
-        const bloqueo = await bloqueoEliminacionProyecto(p, () => {
-          filaConfirmacion.style.display = "none";
-        });
-        tdConfirmacion.replaceChildren(bloqueo || crearFormEliminar());
-      },
-      true
-    );
-    eliminar.setAttribute("aria-label", `Eliminar proyecto ${p.codigo_pry}`);
     accion.append(editar);
-    if (puede("cancelar_proyecto")) accion.append(eliminar);
+    if (puede("cancelar_proyecto")) accion.append(control.boton);
     fila.append(accion);
     tbody.append(fila, filaConfirmacion);
   });
@@ -1992,23 +2011,24 @@ async function vistaProyectoForm(id, opciones = {}) {
   if (conFicha) acciones.append(botonEvidenciasProyecto(id));
   acciones.append(volver);
   contenido.append(encabezado(tituloProyecto, [acciones]));
+  // Se recargan cada vez que se abre la pestaña: siempre al día.
+  const pestanaQueCarga = (vista) => async (panel) => {
+    const cargando = document.createElement("p");
+    cargando.className = "subtitulo";
+    cargando.textContent = "Cargando…";
+    panel.replaceChildren(cargando);
+    panel.replaceChildren(await vista(id));
+  };
   const pestanas = conFicha
     ? pestanasVista([
         { clave: "ficha", texto: "Proyecto" },
-        {
-          clave: "linea",
-          texto: "Línea de tiempo",
-          alActivar: async (panel) => {
-            const cargando = document.createElement("p");
-            cargando.className = "subtitulo";
-            cargando.textContent = "Cargando…";
-            panel.replaceChildren(cargando);
-            panel.replaceChildren(await renderSeccionLineaTiempoProyecto(id));
-          },
-        },
+        { clave: "etapas", texto: "Resumen por etapa", alActivar: pestanaQueCarga(window.vistaResumenEtapas) },
+        { clave: "linea", texto: "Línea de tiempo", alActivar: pestanaQueCarga(window.vistaLineaTiempo) },
       ])
     : null;
-  if (pestanas) contenido.append(pestanas.lista, ...Object.values(pestanas.paneles));
+  // "Siguiente paso" va arriba de las pestañas: qué sigue, quién y qué implica.
+  const lugarSiguientePaso = document.createElement("div");
+  if (pestanas) contenido.append(lugarSiguientePaso, pestanas.lista, ...Object.values(pestanas.paneles));
 
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
@@ -2184,6 +2204,16 @@ async function vistaProyectoForm(id, opciones = {}) {
         actividadId: opciones.actividadId,
       })
     );
+    lugarSiguientePaso.replaceChildren(await window.panelSiguientePaso(proyecto, opcionesUsuarios));
+    const refrescarPaso = async (evento) => {
+      if (!lugarSiguientePaso.isConnected) {
+        document.removeEventListener("actividades-cambiaron", refrescarPaso);
+        return;
+      }
+      if (String(evento.detail.proyectoId) !== String(id)) return;
+      lugarSiguientePaso.replaceChildren(await window.panelSiguientePaso(proyecto, opcionesUsuarios));
+    };
+    document.addEventListener("actividades-cambiaron", refrescarPaso);
     if (opciones.actividadId) enfocarActividad(opciones.actividadId);
   }
 }
@@ -2707,7 +2737,10 @@ function tipoPillClasificacionProveedor(valor) {
 async function vistaProveedores() {
   marcarMenu("proveedores");
   const nuevo = boton("Nuevo proveedor", () => (window.location.hash = "#/proveedores/nuevo"));
-  contenido.replaceChildren(encabezado("Proveedores", [nuevo]));
+  const acciones = document.createElement("div");
+  acciones.className = "encabezado-acciones";
+  acciones.append(selectorVista("proveedores", vistaProveedores), nuevo);
+  contenido.replaceChildren(encabezado("Proveedores", [acciones]));
   await montarListado({
     clave: "proveedores",
     api: "/proveedores",
@@ -2715,8 +2748,113 @@ async function vistaProveedores() {
     titulo: "proveedores",
     buscar: "Buscar por razón social o NIT",
     vacio: "Aún no hay proveedores registrados.",
-    pintar: tablaProveedores,
+    pintar: preferenciaVista("proveedores") === "tabla" ? tablaProveedores : tarjetasProveedores,
   });
+}
+
+// Calificación del proveedor (0–100): aprobado desde 80.
+const UMBRAL_CALIFICACION_PROVEEDOR = 80;
+
+// Proveedores como tarjetas: calificación frente al umbral, contacto
+// comercial y su historial de órdenes de compra.
+function tarjetasProveedores(proveedores) {
+  const rejilla = document.createElement("div");
+  rejilla.className = "prov-tarjetas";
+  proveedores.forEach((p) => {
+    const tarjeta = document.createElement("article");
+    tarjeta.className = "prov-tarjeta";
+
+    const cab = document.createElement("div");
+    cab.className = "prov-cab";
+    const calificacion = p.calificacion_actual === null ? null : Number(p.calificacion_actual);
+    const anillo = document.createElement("div");
+    let tonoAnillo = "mute";
+    if (calificacion !== null) {
+      tonoAnillo = calificacion >= UMBRAL_CALIFICACION_PROVEEDOR ? "good" : "crit";
+    }
+    anillo.className = `anillo anillo--${tonoAnillo}`;
+    anillo.style.setProperty("--p", String(calificacion ?? 0));
+    const valorAnillo = document.createElement("span");
+    valorAnillo.textContent = calificacion === null ? "—" : String(Math.round(calificacion));
+    anillo.append(valorAnillo);
+    anillo.title =
+      calificacion === null
+        ? "Sin calificación"
+        : `Calificación ${calificacion} de 100 (aprobado desde ${UMBRAL_CALIFICACION_PROVEEDOR})`;
+    anillo.setAttribute("role", "img");
+    anillo.setAttribute("aria-label", anillo.title);
+
+    const textos = document.createElement("div");
+    const nombre = document.createElement("h3");
+    nombre.className = "prov-nombre";
+    nombre.textContent = p.razon_social;
+    const nit = document.createElement("div");
+    nit.className = "muted";
+    nit.textContent = `NIT/CC ${p.nit_cc}`;
+    const etiquetas = document.createElement("div");
+    etiquetas.className = "prov-etiquetas";
+    etiquetas.append(
+      pill(p.origen === "nacional" ? "Nacional" : "Extranjera", tipoPillOrigenProveedor(p.origen)),
+      pill(textoClasificacionProveedor(p.clasificacion), tipoPillClasificacionProveedor(p.clasificacion))
+    );
+    if (calificacion === null) etiquetas.append(pill("Sin calificación", "mute"));
+    else if (calificacion < UMBRAL_CALIFICACION_PROVEEDOR) etiquetas.append(pill("Bajo el umbral", "crit"));
+    textos.append(nombre, nit, etiquetas);
+    cab.append(anillo, textos);
+
+    const datos = document.createElement("dl");
+    datos.className = "prov-datos";
+    const dato = (titulo, ...valores) => {
+      const dt = document.createElement("dt");
+      dt.textContent = titulo;
+      const dd = document.createElement("dd");
+      dd.append(...valores);
+      datos.append(dt, dd);
+    };
+    const contacto = [p.contacto_comercial_nombre, p.contacto_comercial_telefono]
+      .filter(Boolean)
+      .join(" · ");
+    dato("Contacto comercial", contacto || "Sin registrar");
+    if (p.contacto_comercial_email) {
+      const correo = document.createElement("a");
+      correo.href = `mailto:${p.contacto_comercial_email}`;
+      correo.textContent = p.contacto_comercial_email;
+      dato("Correo", correo);
+    }
+    const totalOc = Number(p.oc_total) || 0;
+    dato(
+      "Órdenes de compra",
+      totalOc ? `${totalOc} · ${formatearCop(p.oc_valor)}` : "Ninguna todavía"
+    );
+    if (p.ultima_oc_id) {
+      const enlace = document.createElement("a");
+      enlace.href = `#/ordenes-compra/${p.ultima_oc_id}`;
+      enlace.textContent = p.ultima_oc_numero || `OC ${p.ultima_oc_id}`;
+      const espacio = document.createTextNode(" ");
+      dato(
+        "Última OC",
+        enlace,
+        espacio,
+        pill(textoEstadoOrdenCompra(p.ultima_oc_estado), tipoPillOrdenCompra(p.ultima_oc_estado))
+      );
+    }
+
+    const pie = document.createElement("div");
+    pie.className = "prov-pie";
+    const editar = boton("Ver y editar", () => (window.location.hash = `#/proveedores/${p.id}`), true);
+    editar.setAttribute("aria-label", `Ver y editar ${p.razon_social}`);
+    const nuevaOc = boton(
+      "Nueva OC",
+      () => (window.location.hash = `#/ordenes-compra/nuevo?proveedor=${p.id}`),
+      true
+    );
+    nuevaOc.setAttribute("aria-label", `Nueva orden de compra para ${p.razon_social}`);
+    pie.append(editar, nuevaOc);
+
+    tarjeta.append(cab, datos, pie);
+    rejilla.append(tarjeta);
+  });
+  return rejilla;
 }
 
 function tablaProveedores(proveedores) {
@@ -3883,12 +4021,18 @@ async function vistaExpedienteForm(id) {
       );
     }
 
-    tarjeta.append(bloqueEstado);
-
-    for (const config of subrecursosExpediente(opcionesUsuarios)) {
-      const seccion = await renderSeccionSubrecurso(id, config, editable);
-      contenido.append(seccion);
-    }
+    // Secciones por pasos, con lo que falta para liberar y la liberación
+    // (bloqueEstado) como último paso.
+    contenido.append(
+      await window.montarExpedienteGuiado({
+        id,
+        expediente,
+        editable,
+        opcionesUsuarios,
+        proyecto: proyectos.find((p) => p.id === expediente.proyecto_id) || null,
+        bloqueEstado,
+      })
+    );
   }
 }
 
@@ -3903,17 +4047,98 @@ const OPCIONES_ESTADO_CAMBIO_DISENO = [
   { valor: "rechazado", texto: "Rechazado" },
 ];
 
-function subrecursosExpediente(opcionesUsuarios) {
+// Catálogos del expediente: listas desplegables donde antes había texto libre.
+// Las columnas siguen siendo texto: un valor anterior que no esté en la lista
+// se conserva y se muestra tal cual.
+const SIN_DATO = { valor: "", texto: "— Sin dato —" };
+const CATALOGO_EXPEDIENTE = {
+  fuente: [
+    SIN_DATO,
+    { valor: "cliente", texto: "Cliente" },
+    { valor: "norma", texto: "Norma técnica" },
+    { valor: "legal", texto: "Requisito legal" },
+    { valor: "interno", texto: "Requisito interno" },
+    { valor: "otro", texto: "Otro" },
+  ],
+  estadoSalida: [
+    { valor: "en_elaboracion", texto: "En elaboración" },
+    { valor: "en_revision", texto: "En revisión" },
+    { valor: "aprobada", texto: "Aprobada" },
+  ],
+  metodoVerificacion: [
+    SIN_DATO,
+    { valor: "ensayo", texto: "Ensayo" },
+    { valor: "inspeccion", texto: "Inspección" },
+    { valor: "analisis", texto: "Análisis o cálculo" },
+    { valor: "demostracion", texto: "Demostración" },
+  ],
+  metodoValidacion: [
+    SIN_DATO,
+    { valor: "fat", texto: "Prueba en fábrica (FAT)" },
+    { valor: "prueba_sitio", texto: "Prueba en sitio" },
+    { valor: "simulacion", texto: "Simulación" },
+    { valor: "revision_cliente", texto: "Revisión con el cliente" },
+  ],
+  resultado: [
+    { valor: "pendiente", texto: "Pendiente" },
+    { valor: "conforme", texto: "Conforme" },
+    { valor: "no_conforme", texto: "No conforme" },
+  ],
+  severidad: [
+    SIN_DATO,
+    { valor: "1", texto: "1 · Leve" },
+    { valor: "2", texto: "2 · Menor" },
+    { valor: "3", texto: "3 · Moderada" },
+    { valor: "4", texto: "4 · Grave" },
+    { valor: "5", texto: "5 · Catastrófica" },
+  ],
+  probabilidad: [
+    SIN_DATO,
+    { valor: "1", texto: "1 · Rara" },
+    { valor: "2", texto: "2 · Improbable" },
+    { valor: "3", texto: "3 · Posible" },
+    { valor: "4", texto: "4 · Probable" },
+    { valor: "5", texto: "5 · Casi segura" },
+  ],
+  area: [
+    SIN_DATO,
+    ...["Producción", "Compras", "Calidad", "Almacén", "Logística", "Instalación", "Soporte técnico", "Comercial"].map(
+      (a) => ({ valor: a, texto: a })
+    ),
+  ],
+};
+const TONOS_RESULTADO = { conforme: "good", no_conforme: "crit", pendiente: "warn" };
+
+// Severidad × probabilidad (1 a 5 cada una): bajo, medio o alto.
+function nivelRiesgo(registro) {
+  const s = parseInt(registro.severidad, 10);
+  const p = parseInt(registro.probabilidad, 10);
+  if (!s || !p) return null;
+  const n = s * p;
+  if (n <= 4) return { texto: `${n} · Bajo`, tipo: "good" };
+  if (n <= 9) return { texto: `${n} · Medio`, tipo: "warn" };
+  return { texto: `${n} · Alto`, tipo: "crit" };
+}
+
+// contexto.requisitos: requisitos de entrada ya registrados (la verificación
+// los ofrece en una lista y trae su criterio de aceptación).
+function subrecursosExpediente(opcionesUsuarios, contexto = {}) {
+  const requisitos = contexto.requisitos || [];
+  const opcionesRequisitos = requisitos.length
+    ? requisitos.map((r) => ({ valor: r.requisito, texto: r.requisito }))
+    : [{ valor: "", texto: "— Registra primero los requisitos de entrada —" }];
   return [
     {
       ruta: "requisitos-entrada",
       clave: "requisitos",
       titulo: "Requisitos de entrada",
       nombreSingular: "requisito",
+      ayuda:
+        "Qué debe cumplir el diseño: lo pide el cliente, una norma o la ley. Cada requisito tendrá después su verificación.",
       campos: [
         { nombre: "requisito", etiqueta: "Requisito", requerido: true },
         { nombre: "valor", etiqueta: "Valor" },
-        { nombre: "fuente", etiqueta: "Fuente" },
+        { nombre: "fuente", etiqueta: "Fuente", tipo: "select", opciones: CATALOGO_EXPEDIENTE.fuente },
         { nombre: "criterio_aceptacion", etiqueta: "Criterio de aceptación" },
         { nombre: "evidencia", etiqueta: "Evidencia" },
         { nombre: "cumple", etiqueta: "Cumple", tipo: "select", opciones: OPCIONES_SI_NO },
@@ -3924,6 +4149,8 @@ function subrecursosExpediente(opcionesUsuarios) {
       clave: "salidas",
       titulo: "Salidas de diseño",
       nombreSingular: "salida",
+      ayuda:
+        "Lo que produce el diseño: planos, listas de materiales, especificaciones. Deben quedar aprobadas antes de liberar.",
       campos: [
         { nombre: "salida", etiqueta: "Salida", requerido: true },
         { nombre: "codigo_version", etiqueta: "Código / versión" },
@@ -3935,7 +4162,13 @@ function subrecursosExpediente(opcionesUsuarios) {
           opciones: opcionesUsuarios,
         },
         { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
-        { nombre: "estado", etiqueta: "Estado" },
+        {
+          nombre: "estado",
+          etiqueta: "Estado",
+          tipo: "select",
+          opciones: CATALOGO_EXPEDIENTE.estadoSalida,
+          tonos: { aprobada: "good", en_revision: "info", en_elaboracion: "mute" },
+        },
       ],
     },
     {
@@ -3943,11 +4176,31 @@ function subrecursosExpediente(opcionesUsuarios) {
       clave: "verificaciones",
       titulo: "Verificaciones",
       nombreSingular: "verificación",
+      ayuda:
+        "Comprueba que cada salida cumple su requisito de entrada. Elige el requisito de la lista: su criterio de aceptación se trae solo.",
+      // el criterio viene del requisito elegido
+      autocompletar: {
+        desde: "requisito_verificado",
+        hacia: "criterio",
+        valores: Object.fromEntries(requisitos.map((r) => [r.requisito, r.criterio_aceptacion || ""])),
+      },
       campos: [
-        { nombre: "requisito_verificado", etiqueta: "Requisito verificado", requerido: true },
-        { nombre: "metodo", etiqueta: "Método" },
+        {
+          nombre: "requisito_verificado",
+          etiqueta: "Requisito verificado",
+          requerido: true,
+          tipo: "select",
+          opciones: opcionesRequisitos,
+        },
+        { nombre: "metodo", etiqueta: "Método", tipo: "select", opciones: CATALOGO_EXPEDIENTE.metodoVerificacion },
         { nombre: "criterio", etiqueta: "Criterio" },
-        { nombre: "resultado", etiqueta: "Resultado" },
+        {
+          nombre: "resultado",
+          etiqueta: "Resultado",
+          tipo: "select",
+          opciones: CATALOGO_EXPEDIENTE.resultado,
+          tonos: TONOS_RESULTADO,
+        },
         { nombre: "evidencia", etiqueta: "Evidencia" },
       ],
     },
@@ -3956,11 +4209,19 @@ function subrecursosExpediente(opcionesUsuarios) {
       clave: "validaciones",
       titulo: "Validaciones",
       nombreSingular: "validación",
+      ayuda:
+        "Comprueba que el equipo sirve para el uso que le dará el cliente: prueba en fábrica (FAT), en sitio o revisión con el cliente.",
       campos: [
         { nombre: "aspecto_validado", etiqueta: "Aspecto validado", requerido: true },
-        { nombre: "metodo", etiqueta: "Método" },
+        { nombre: "metodo", etiqueta: "Método", tipo: "select", opciones: CATALOGO_EXPEDIENTE.metodoValidacion },
         { nombre: "condicion_prueba", etiqueta: "Condición de prueba" },
-        { nombre: "resultado", etiqueta: "Resultado" },
+        {
+          nombre: "resultado",
+          etiqueta: "Resultado",
+          tipo: "select",
+          opciones: CATALOGO_EXPEDIENTE.resultado,
+          tonos: TONOS_RESULTADO,
+        },
       ],
     },
     {
@@ -3968,6 +4229,8 @@ function subrecursosExpediente(opcionesUsuarios) {
       clave: "revisiones",
       titulo: "Revisiones de diseño",
       nombreSingular: "revisión",
+      ayuda:
+        "Reuniones de revisión del diseño: hallazgos, acciones y responsable. Ciérrala cuando las acciones estén hechas.",
       campos: [
         { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
         { nombre: "hallazgos", etiqueta: "Hallazgos" },
@@ -3987,12 +4250,20 @@ function subrecursosExpediente(opcionesUsuarios) {
       clave: "riesgos",
       titulo: "Riesgos de diseño",
       nombreSingular: "riesgo",
+      ayuda:
+        "Peligros del equipo y cómo se controlan. Severidad × probabilidad (de 1 a 5) da el nivel de riesgo.",
+      calculadas: [{ etiqueta: "Nivel", valor: nivelRiesgo }],
       campos: [
         { nombre: "peligro", etiqueta: "Peligro", requerido: true },
         { nombre: "situacion_peligrosa", etiqueta: "Situación peligrosa" },
         { nombre: "dano_potencial", etiqueta: "Daño potencial" },
-        { nombre: "severidad", etiqueta: "Severidad" },
-        { nombre: "probabilidad", etiqueta: "Probabilidad" },
+        { nombre: "severidad", etiqueta: "Severidad", tipo: "select", opciones: CATALOGO_EXPEDIENTE.severidad },
+        {
+          nombre: "probabilidad",
+          etiqueta: "Probabilidad",
+          tipo: "select",
+          opciones: CATALOGO_EXPEDIENTE.probabilidad,
+        },
         { nombre: "control", etiqueta: "Control" },
         {
           nombre: "responsable_id",
@@ -4008,6 +4279,8 @@ function subrecursosExpediente(opcionesUsuarios) {
       clave: "cambios",
       titulo: "Cambios de diseño",
       nombreSingular: "cambio",
+      ayuda:
+        "Cambios al diseño ya aprobado. Los decide la Dirección de Operaciones o el Jefe de I+D+i; quien propone un cambio no lo aprueba.",
       campos: [
         { nombre: "fecha", etiqueta: "Fecha", tipo: "date" },
         { nombre: "descripcion", etiqueta: "Descripción" },
@@ -4029,9 +4302,11 @@ function subrecursosExpediente(opcionesUsuarios) {
       clave: "transferencias",
       titulo: "Transferencias",
       nombreSingular: "transferencia",
+      ayuda:
+        "Qué se entrega a otras áreas (producción, compras, calidad) para fabricar el equipo, y si se recibió conforme.",
       campos: [
         { nombre: "elemento_transferido", etiqueta: "Elemento transferido", requerido: true },
-        { nombre: "area_receptora", etiqueta: "Área receptora" },
+        { nombre: "area_receptora", etiqueta: "Área receptora", tipo: "select", opciones: CATALOGO_EXPEDIENTE.area },
         {
           nombre: "responsable_id",
           etiqueta: "Responsable",
@@ -4059,6 +4334,7 @@ function valorMostrableSubrecurso(config, valor) {
 }
 
 function tipoPillSubrecurso(config, valor) {
+  if (config.tonos) return config.tonos[valor] || null;
   if (config.opciones === OPCIONES_SI_NO) {
     if (valor === "si") return "good";
     if (valor === "no") return "crit";
@@ -4082,6 +4358,13 @@ function construirInputCeldaSubrecurso(config, valor) {
       o.textContent = op.texto;
       input.append(o);
     });
+    const enCatalogo = normalizarOpciones(config.opciones).some((op) => String(op.valor) === String(valor));
+    if (valor !== null && valor !== undefined && valor !== "" && !enCatalogo) {
+      const anterior = document.createElement("option");
+      anterior.value = String(valor);
+      anterior.textContent = `${valor} (valor anterior)`;
+      input.append(anterior);
+    }
     input.value = valor !== null && valor !== undefined ? String(valor) : normalizarOpciones(config.opciones)[0].valor;
   } else {
     input = document.createElement("input");
@@ -4094,7 +4377,9 @@ function construirInputCeldaSubrecurso(config, valor) {
   return input;
 }
 
-async function renderSeccionSubrecurso(expedienteId, config, editable) {
+// alCargar(lista): se llama cada vez que se recarga la sección (el
+// expediente guiado recalcula con eso lo que falta para liberar).
+async function renderSeccionSubrecurso(expedienteId, config, editable, alCargar) {
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   tarjeta.style.marginTop = "24px";
@@ -4105,12 +4390,16 @@ async function renderSeccionSubrecurso(expedienteId, config, editable) {
   h3.textContent = config.titulo;
 
   const mensaje = document.createElement("div");
+  const ayuda = document.createElement("p");
+  ayuda.className = "subtitulo ayuda-seccion";
+  ayuda.textContent = config.ayuda || "";
+  const calculadas = config.calculadas || [];
 
   const tabla = document.createElement("table");
   tabla.className = "tabla-items";
   const thead = document.createElement("thead");
   const filaCabecera = document.createElement("tr");
-  config.campos.forEach((c) => {
+  [...config.campos, ...calculadas].forEach((c) => {
     const th = document.createElement("th");
     th.scope = "col";
     th.textContent = c.etiqueta;
@@ -4139,6 +4428,27 @@ async function renderSeccionSubrecurso(expedienteId, config, editable) {
   agregarBtn.textContent = `Agregar ${config.nombreSingular}`;
   const mensajeAgregar = document.createElement("div");
   formAgregar.append(gridAgregar, agregarBtn, mensajeAgregar);
+  if (config.autocompletar) {
+    const { desde, hacia, valores } = config.autocompletar;
+    const origen = gridAgregar.querySelector(`#${config.ruta}__${desde}`);
+    const destino = gridAgregar.querySelector(`#${config.ruta}__${hacia}`);
+    let automatico = "";
+    const completar = () => {
+      // solo si el usuario no escribió otro criterio
+      if (destino.value && destino.value !== automatico) return;
+      automatico = valores[origen.value] || "";
+      destino.value = automatico;
+    };
+    origen.addEventListener("change", completar);
+    // al limpiar el formulario después de agregar, se vuelve a traer
+    formAgregar.addEventListener("reset", () =>
+      setTimeout(() => {
+        automatico = "";
+        completar();
+      }, 0)
+    );
+    completar();
+  }
 
   async function cargar() {
     mensaje.replaceChildren();
@@ -4149,10 +4459,11 @@ async function renderSeccionSubrecurso(expedienteId, config, editable) {
       return;
     }
     const lista = r.cuerpo[config.clave] || [];
+    if (alCargar) alCargar(lista);
     if (lista.length === 0) {
       const fila = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = config.campos.length + (editable ? 1 : 0);
+      td.colSpan = config.campos.length + calculadas.length + (editable ? 1 : 0);
       td.className = "subtitulo";
       td.textContent = "Sin registros.";
       fila.append(td);
@@ -4173,6 +4484,13 @@ async function renderSeccionSubrecurso(expedienteId, config, editable) {
         const tipo = tipoPillSubrecurso(c, registro[c.nombre]);
         if (tipo) td.append(pill(texto, tipo));
         else td.textContent = texto;
+        fila.append(td);
+      });
+      calculadas.forEach((c) => {
+        const td = document.createElement("td");
+        const valor = c.valor(registro);
+        if (valor) td.append(pill(valor.texto, valor.tipo));
+        else td.textContent = "—";
         fila.append(td);
       });
       if (!editable) return;
@@ -4283,7 +4601,9 @@ async function renderSeccionSubrecurso(expedienteId, config, editable) {
     });
   }
 
-  tarjeta.append(h3, mensaje, tabla);
+  tarjeta.append(h3);
+  if (config.ayuda) tarjeta.append(ayuda);
+  tarjeta.append(mensaje, tabla);
   if (editable) tarjeta.append(formAgregar);
   await cargar();
   return tarjeta;
@@ -5726,11 +6046,54 @@ async function vistaUsuarioForm(id) {
   });
 }
 
+// "#/<módulo>/nuevo?proyecto=ID" (desde "Siguiente paso") o "?proveedor=ID"
+// (desde la tarjeta del proveedor): el formulario abre con ese registro ya
+// elegido.
+const PREFIJOS_FORMULARIO = { proyecto: "proyecto_id", proveedor: "proveedor_id" };
+
+function prefijarProyecto(consulta) {
+  const parametros = new URLSearchParams(consulta);
+  Object.entries(PREFIJOS_FORMULARIO).forEach(([parametro, campoId]) => {
+    const id = parametros.get(parametro);
+    const campo = document.getElementById(campoId);
+    if (!id || !campo || ![...campo.options].some((o) => o.value === id)) return;
+    campo.value = id;
+    campo.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  formularioSucio = false; // venir prellenado no es un cambio del usuario
+}
+
+// Ruta que se está pintando. Evita pintar dos veces la misma a la vez (p. ej.
+// la carga inicial tras leer el perfil y un cambio de hash en el mismo
+// momento), que duplicaba vistas lentas como el expediente.
+let rutaEnCurso = null;
+
 function enrutar() {
-  const ruta = window.location.hash || "#/tablero";
+  const hash = window.location.hash || "#/inicio";
+  if (rutaEnCurso === hash) return undefined;
+  rutaEnCurso = hash;
+  const [ruta, consulta = ""] = hash.split("?");
+  let resultado = enrutarRuta(ruta);
+  if (consulta && /\/nuevo$/.test(ruta)) {
+    resultado = Promise.resolve(resultado).then(() => prefijarProyecto(consulta));
+  }
+  return Promise.resolve(resultado).finally(() => {
+    if (rutaEnCurso === hash) rutaEnCurso = null;
+  });
+}
+
+function enrutarRuta(ruta) {
+
+  // Tablero general (tableroGeneral.js) y gestor de tareas (tareas.js).
+  if (/^#\/inicio$/.test(ruta)) return window.vistaTableroGeneral();
+  if (/^#\/tareas\/nueva$/.test(ruta)) return window.vistaTareas({ nueva: true });
+  const verTarea = ruta.match(/^#\/tareas\/(\d+)$/);
+  if (verTarea) return window.vistaTareas({ tareaId: Number(verTarea[1]) });
+  if (/^#\/tareas$/.test(ruta)) return window.vistaTareas();
 
   // Definidas en tableros.js (se carga antes que este archivo).
   if (/^#\/tablero$/.test(ruta)) return window.vistaTableroGerencial();
+  if (/^#\/tiempos$/.test(ruta)) return window.vistaTiempos(); // tiemposKpi.js
   if (/^#\/comercial$/.test(ruta)) return window.vistaTableroComercial();
   if (/^#\/compras$/.test(ruta)) return window.vistaTableroCompras();
 
@@ -5814,8 +6177,9 @@ function enrutar() {
   const editarUsuario = ruta.match(/^#\/usuarios\/(\d+)\/editar$/);
   if (editarUsuario) return vistaUsuarioForm(editarUsuario[1]);
   if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
+  if (/^#\/copias$/.test(ruta)) return window.vistaCopias(); // copias.js
 
-  return window.vistaTableroGerencial();
+  return window.vistaTableroGeneral();
 }
 
 document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion);
@@ -5897,4 +6261,7 @@ function manejarCambioHash() {
 
 window.addEventListener("hashchange", manejarCambioHash);
 // El perfil se carga antes de la primera vista: decide qué acciones se muestran.
-cargarPerfil().finally(enrutar);
+cargarPerfil().finally(() => {
+  aplicarPermisosMenu();
+  enrutar();
+});

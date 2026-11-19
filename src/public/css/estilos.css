@@ -513,6 +513,11 @@ body.app-body::before {
   height: 36px;
 }
 
+/* Enlaces que dependen de un permiso (data-permiso): ocultos sin él */
+.menu [hidden] {
+  display: none;
+}
+
 .menu a {
   display: flex;
   align-items: center;

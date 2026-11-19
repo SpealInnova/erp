@@ -6,6 +6,8 @@ const notificacionesServicio = require("./notificaciones");
 const { obtenerActividadesPorFase } = require("../dominio/actividadesCatalogoProyecto");
 const { ErrorProyectoNoEncontrado, ErrorResponsableInvalido } = require("../dominio/erroresProyectos");
 const { ErrorActividadNoEncontrada } = require("../dominio/erroresProyectoActividades");
+const transiciones = require("./transiciones");
+const { ESTADOS_TRABAJO, PRIORIDADES, TEXTO_PRIORIDAD } = require("../dominio/trabajo");
 
 const TABLA = "proyecto_actividades";
 
@@ -100,16 +102,32 @@ async function actualizarActividad(pool, id, datos, usuarioId) {
   }
 
   const cambios = { ...datos, updated_by: usuarioId };
-  if (datos.estado === "completada" && anterior.estado !== "completada") {
+  const cambiaEstado = Boolean(datos.estado) && datos.estado !== anterior.estado;
+  if (datos.estado === ESTADOS_TRABAJO.COMPLETADA && anterior.estado !== ESTADOS_TRABAJO.COMPLETADA) {
     cambios.completada_por = usuarioId;
     cambios.completada_en = new Date();
-  } else if (datos.estado === "pendiente") {
+  } else if (datos.estado && datos.estado !== ESTADOS_TRABAJO.COMPLETADA) {
     cambios.completada_por = null;
     cambios.completada_en = null;
+  }
+  // iniciada_en guarda el primer arranque: el tiempo de espera va hasta ahí.
+  if (cambiaEstado && datos.estado === ESTADOS_TRABAJO.EN_CURSO && !anterior.iniciada_en) {
+    cambios.iniciada_en = new Date();
   }
 
   await proyectoActividadesRepositorio.actualizar(pool, id, cambios);
   const actualizada = await proyectoActividadesRepositorio.obtenerPorId(pool, id);
+
+  if (cambiaEstado) {
+    await transiciones.registrar(pool, {
+      entidad: "actividad",
+      registroId: id,
+      proyectoId: actualizada.proyecto_id,
+      estadoAnterior: anterior.estado,
+      estadoNuevo: actualizada.estado,
+      usuarioId,
+    });
+  }
 
   await auditoria.registrar(pool, {
     tabla: TABLA,
@@ -130,7 +148,40 @@ async function actualizarActividad(pool, id, datos, usuarioId) {
     });
   }
 
+  if (
+    datos.prioridad &&
+    datos.prioridad !== anterior.prioridad &&
+    datos.prioridad !== PRIORIDADES.NORMAL
+  ) {
+    await avisarPrioridad(pool, actualizada, usuarioId);
+  }
+
   return actualizada;
+}
+
+// Al marcar una actividad Alta o Urgente se avisa a su responsable, a los
+// responsables de las demás actividades de la misma fase y al responsable del
+// proyecto (nunca a quien hizo el cambio).
+async function avisarPrioridad(pool, actividad, usuarioId) {
+  const proyecto = await proyectosRepositorio.obtenerPorId(pool, actividad.proyecto_id);
+  const deLaFase = await proyectoActividadesRepositorio.listarResponsablesDeFase(
+    pool,
+    actividad.proyecto_id,
+    actividad.fase
+  );
+  const destinatarios = new Set(
+    [actividad.responsable_id, proyecto && proyecto.responsable_id, ...deLaFase].filter(Boolean)
+  );
+  destinatarios.delete(usuarioId);
+  const prioridad = TEXTO_PRIORIDAD[actividad.prioridad];
+  for (const destinatario of destinatarios) {
+    await notificacionesServicio.notificar(pool, {
+      usuarioId: destinatario,
+      tipo: "actividad_prioridad",
+      mensaje: `La actividad "${actividad.descripcion.slice(0, 120)}" del proyecto ${proyecto.codigo_pry} pasó a prioridad ${prioridad}.`,
+      enlace: `#/proyectos/${actividad.proyecto_id}/actividades/${actividad.id}`,
+    });
+  }
 }
 
 async function eliminarActividad(pool, id, usuarioId) {

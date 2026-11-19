@@ -43,7 +43,7 @@ test("una actividad por vencer aparece en la ventana y en la campana, y lleva a 
   await page.click('button:has-text("Crear proyecto")');
   await page.waitForURL("**/inicio#/proyectos");
   await page
-    .locator("tr", { hasText: nombreProyecto })
+    .locator(".pcard", { hasText: nombreProyecto })
     .getByRole("button", { name: /Ver proyecto/ })
     .click();
   await page.selectOption("#nueva_fase", "planeacion");

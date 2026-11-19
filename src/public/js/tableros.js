@@ -1415,6 +1415,15 @@
     const { status, cuerpo } = await api("GET", config.endpoint);
     // si el usuario navegó a otra vista mientras cargaba, no se pinta encima
     if (window.location.hash !== ruta) return;
+    if (status === 403) {
+      contenido.replaceChildren(
+        alerta(
+          "aviso",
+          "Tu cargo no tiene acceso a este tablero. Lo tuyo está en Inicio y en Mis tareas."
+        )
+      );
+      return;
+    }
     if (status !== 200) {
       contenido.replaceChildren(alerta("error", `No se pudo cargar ${config.nombre}.`));
       return;
