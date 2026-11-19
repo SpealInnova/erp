@@ -1831,70 +1831,81 @@ function tablaProyectos(proyectos, recargar) {
     const tdConfirmacion = document.createElement("td");
     tdConfirmacion.colSpan = 6;
 
-    const formEliminar = document.createElement("div");
-    formEliminar.style.display = "flex";
-    formEliminar.style.flexDirection = "column";
-    formEliminar.style.gap = "8px";
-    formEliminar.style.padding = "12px 0";
-    formEliminar.style.maxWidth = "420px";
+    // El formulario (con su campo de contraseña) se crea solo al pulsar
+    // "Eliminar" y va en su propio <form>: si existiera desde el inicio, el
+    // navegador lo toma por un inicio de sesión y llena el correo guardado
+    // en el buscador de la lista, que entonces no muestra ningún proyecto.
+    function crearFormEliminar() {
+      const formEliminar = document.createElement("form");
+      formEliminar.noValidate = true;
+      formEliminar.dataset.sucioVigilado = "1"; // confirmación, no edición
+      formEliminar.style.display = "flex";
+      formEliminar.style.flexDirection = "column";
+      formEliminar.style.gap = "8px";
+      formEliminar.style.padding = "12px 0";
+      formEliminar.style.maxWidth = "420px";
 
-    const nota = document.createElement("p");
-    nota.className = "subtitulo";
-    nota.textContent =
-      "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
-      "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
-    formEliminar.append(nota);
+      const nota = document.createElement("p");
+      nota.className = "subtitulo";
+      nota.textContent =
+        "Si quieres adjuntar una evidencia, súbela primero en Evidencias dentro del proyecto. " +
+        "Aquí solo confirmas tu contraseña y el motivo de la eliminación.";
+      formEliminar.append(nota);
 
-    const inputPassword = document.createElement("input");
-    inputPassword.type = "password";
-    inputPassword.placeholder = "Tu contraseña";
-    inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
+      const inputPassword = document.createElement("input");
+      inputPassword.type = "password";
+      inputPassword.autocomplete = "current-password";
+      inputPassword.placeholder = "Tu contraseña";
+      inputPassword.setAttribute("aria-label", `Confirmar contraseña para eliminar ${p.codigo_pry}`);
 
-    const textareaJustificacion = document.createElement("textarea");
-    textareaJustificacion.rows = 2;
-    textareaJustificacion.placeholder = "Justificación de la eliminación";
-    textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
+      const textareaJustificacion = document.createElement("textarea");
+      textareaJustificacion.rows = 2;
+      textareaJustificacion.placeholder = "Justificación de la eliminación";
+      textareaJustificacion.setAttribute("aria-label", `Justificación para eliminar ${p.codigo_pry}`);
 
-    const mensajeEliminar = document.createElement("div");
+      const mensajeEliminar = document.createElement("div");
 
-    const confirmarEliminar = boton(
-      "Confirmar eliminación",
-      async () => {
-        const password = inputPassword.value;
-        const justificacion = textareaJustificacion.value.trim();
-        mensajeEliminar.replaceChildren();
-        if (!password || !justificacion) {
-          mensajeEliminar.append(
-            alerta("error", "La contraseña y la justificación son obligatorias.")
+      const confirmarEliminar = boton(
+        "Confirmar eliminación",
+        async () => {
+          const password = inputPassword.value;
+          const justificacion = textareaJustificacion.value.trim();
+          mensajeEliminar.replaceChildren();
+          if (!password || !justificacion) {
+            mensajeEliminar.append(
+              alerta("error", "La contraseña y la justificación son obligatorias.")
+            );
+            return;
+          }
+          const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
+          if (r.status === 204) {
+            // recarga la misma página de la lista, con la búsqueda vigente
+            recargar();
+            return;
+          }
+          mensajeEliminar.replaceChildren(
+            alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
           );
-          return;
-        }
-        const r = await api("DELETE", `/proyectos/${p.id}`, { password, justificacion });
-        if (r.status === 204) {
-          // recarga la misma página de la lista, con la búsqueda vigente
-          recargar();
-          return;
-        }
-        mensajeEliminar.replaceChildren(
-          alerta("error", r.cuerpo?.error || "No se pudo eliminar el proyecto.")
-        );
-      },
-      true
-    );
+        },
+        true
+      );
 
-    const cancelarEliminar = boton(
-      "Cancelar",
-      () => {
-        filaConfirmacion.style.display = "none";
-        inputPassword.value = "";
-        textareaJustificacion.value = "";
-        mensajeEliminar.replaceChildren();
-      },
-      true
-    );
+      const cancelarEliminar = boton(
+        "Cancelar",
+        () => {
+          filaConfirmacion.style.display = "none";
+          tdConfirmacion.replaceChildren();
+        },
+        true
+      );
 
-    formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
-    tdConfirmacion.append(formEliminar);
+      formEliminar.addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        confirmarEliminar.click();
+      });
+      formEliminar.append(inputPassword, textareaJustificacion, mensajeEliminar, confirmarEliminar, cancelarEliminar);
+      return formEliminar;
+    }
     filaConfirmacion.append(tdConfirmacion);
 
     const eliminar = boton(
@@ -1909,7 +1920,7 @@ function tablaProyectos(proyectos, recargar) {
         const bloqueo = await bloqueoEliminacionProyecto(p, () => {
           filaConfirmacion.style.display = "none";
         });
-        tdConfirmacion.replaceChildren(bloqueo || formEliminar);
+        tdConfirmacion.replaceChildren(bloqueo || crearFormEliminar());
       },
       true
     );
