@@ -56,6 +56,27 @@ module.exports = async function globalTeardown() {
       idsUsuarios,
       `${PREFIJO_DATOS_E2E}%`,
     ]);
+    // Expedientes de diseño de las pruebas y sus secciones (antes que los proyectos).
+    const expedientesE2E = `SELECT id FROM expedientes_diseno WHERE proyecto_id IN (${proyectosE2E})`;
+    for (const seccion of [
+      "requisitos_entrada",
+      "salidas_diseno",
+      "verificaciones",
+      "validaciones",
+      "revisiones_diseno",
+      "riesgos_diseno",
+      "cambios_diseno",
+      "transferencias",
+    ]) {
+      await pool.query(
+        `DELETE FROM ${seccion} WHERE expediente_id IN (${expedientesE2E})`,
+        parametrosE2E
+      );
+    }
+    await pool.query(
+      `DELETE FROM expedientes_diseno WHERE proyecto_id IN (${proyectosE2E})`,
+      parametrosE2E
+    );
     await pool.query(
       `DELETE pa FROM proyecto_actividades pa
        JOIN proyectos p ON p.id = pa.proyecto_id

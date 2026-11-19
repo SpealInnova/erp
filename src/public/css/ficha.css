@@ -569,3 +569,251 @@ html[data-contraste="alto"] .ventana-actividades {
     justify-content: flex-start;
   }
 }
+
+/* ---------- Expediente guiado ---------- */
+/* Pasos y panel lateral a la izquierda; el paso elegido ocupa el resto. En
+   pantallas muy anchas, el panel pasa a una tercera columna. */
+.exp-guiado {
+  display: grid;
+  grid-template-areas:
+    "pasos centro"
+    "lateral centro";
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+.exp-pasos {
+  grid-area: pasos;
+}
+
+.exp-centro {
+  grid-area: centro;
+  min-width: 0;
+}
+
+.exp-lateral {
+  grid-area: lateral;
+}
+
+@media (min-width: 1700px) {
+  .exp-guiado {
+    grid-template-areas: "pasos centro lateral";
+    grid-template-rows: auto;
+    grid-template-columns: 260px minmax(0, 1fr) 300px;
+  }
+}
+
+.exp-pasos {
+  padding: 8px;
+}
+
+.exp-pasos ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exp-paso button {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 10px;
+  font: inherit;
+  text-align: left;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.exp-paso button:hover {
+  background: var(--surface-2);
+}
+
+.exp-paso button[aria-current="step"] {
+  color: var(--ink);
+  background: var(--accent-tint);
+}
+
+.exp-paso button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.exp-bola {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: var(--surface);
+  border: 2px solid var(--borde);
+  border-radius: 50%;
+}
+
+.exp-paso--ok .exp-bola {
+  color: #ffffff;
+  background: var(--good);
+  border-color: var(--good);
+}
+
+.exp-paso--en_curso .exp-bola {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.exp-paso-textos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.exp-paso-nom {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.exp-paso-ayuda {
+  font-size: 0.6875rem;
+  color: var(--ink-mute);
+}
+
+.exp-paso-n {
+  font-size: 0.75rem;
+  color: var(--ink-mute);
+}
+
+.exp-centro-cab {
+  margin-bottom: 4px;
+}
+
+.exp-centro-tit {
+  margin: 0 0 12px;
+  font-size: 1.125rem;
+}
+
+.ayuda-seccion {
+  margin: -8px 0 14px;
+}
+
+.exp-lateral {
+  display: grid;
+  gap: 16px;
+}
+
+.exp-lateral h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.rel-fila {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 0.875rem;
+  border-top: 1px solid var(--borde-suave);
+}
+
+.rel-fila:first-of-type {
+  border-top: none;
+}
+
+.rel-fila a {
+  font-weight: 700;
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+
+.rel-sigla {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  border-radius: 9px;
+}
+
+.rel-sigla--pry {
+  color: #5b4fd1;
+  background: #eeeafe;
+}
+
+.rel-sigla--eq {
+  color: #8a6508;
+  background: var(--gold-tint);
+}
+
+.rel-sigla--cd {
+  color: var(--warn);
+  background: var(--warn-tint);
+}
+
+.rel-sigla--req {
+  color: var(--accent-ink);
+  background: var(--accent-tint);
+}
+
+.check {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check li {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 0.875rem;
+}
+
+.check li::before {
+  content: "✓";
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  color: var(--good);
+  background: var(--good-tint);
+  border-radius: 50%;
+}
+
+.check li.no::before {
+  content: "!";
+  color: var(--warn);
+  background: var(--warn-tint);
+}
+
+.consecuencias {
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  background: var(--warn-tint);
+  border-radius: var(--r-md);
+}
+
+.consecuencias ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+@media (max-width: 1000px) {
+  .exp-guiado {
+    grid-template-areas:
+      "pasos"
+      "centro"
+      "lateral";
+    grid-template-columns: 1fr;
+  }
+}
