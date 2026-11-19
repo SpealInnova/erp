@@ -9,6 +9,7 @@ const { crearProyectoActividadesRutas } = require("./rutas/proyectoActividadesRu
 const { crearLineaTiempoRutas } = require("./rutas/lineaTiempoRutas");
 const { crearProyectoEquipoRutas } = require("./rutas/proyectoEquipoRutas");
 const { crearProyectoDocumentosRutas } = require("./rutas/proyectoDocumentosRutas");
+const { crearResumenEtapasRutas } = require("./rutas/resumenEtapasRutas");
 const { crearCotizacionesRutas } = require("./rutas/cotizacionesRutas");
 const { crearProveedoresRutas } = require("./rutas/proveedoresRutas");
 const { crearRequisicionesRutas } = require("./rutas/requisicionesRutas");
@@ -103,6 +104,11 @@ function crearApp() {
     "/proyectos/:proyectoId/documentos",
     requireAuth,
     crearProyectoDocumentosRutas(pool)
+  );
+  app.use(
+    "/proyectos/:proyectoId/resumen-etapas",
+    requireAuth,
+    crearResumenEtapasRutas(pool)
   );
   app.use("/cotizaciones", requireAuth, crearCotizacionesRutas(pool));
   app.use("/proveedores", requireAuth, crearProveedoresRutas(pool));

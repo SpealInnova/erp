@@ -30,8 +30,16 @@ async function listarEventosProyecto(pool, proyectoId) {
         OR (a.tabla = 'actas_cierre_satisfaccion' AND a.registro_id IN (
               SELECT id FROM actas_cierre_satisfaccion WHERE proyecto_id = ?
             ))
+        -- evidencias del proyecto y de sus actividades
+        OR (a.tabla = 'archivos_adjuntos' AND a.registro_id IN (
+              SELECT id FROM archivos_adjuntos
+               WHERE (tabla = 'proyectos' AND registro_id = ?)
+                  OR (tabla = 'proyecto_actividades' AND registro_id IN (
+                        SELECT id FROM proyecto_actividades WHERE proyecto_id = ?
+                      ))
+            ))
      ORDER BY a.creado_en DESC, a.id DESC`,
-    Array(9).fill(proyectoId)
+    Array(11).fill(proyectoId)
   );
   return filas;
 }
