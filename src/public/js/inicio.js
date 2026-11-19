@@ -6093,6 +6093,7 @@ function enrutarRuta(ruta) {
 
   // Definidas en tableros.js (se carga antes que este archivo).
   if (/^#\/tablero$/.test(ruta)) return window.vistaTableroGerencial();
+  if (/^#\/tiempos$/.test(ruta)) return window.vistaTiempos(); // tiemposKpi.js
   if (/^#\/comercial$/.test(ruta)) return window.vistaTableroComercial();
   if (/^#\/compras$/.test(ruta)) return window.vistaTableroCompras();
 

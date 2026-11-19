@@ -10,6 +10,7 @@ function crearTablerosRutas(pool) {
 
   router.get("/general", envolverAsync(controlador.general));
   router.get("/gerencial", envolverAsync(controlador.gerencial));
+  router.get("/tiempos", envolverAsync(controlador.tiempos));
   router.get("/comercial", envolverAsync(controlador.comercial));
   router.get("/compras", envolverAsync(controlador.compras));
 
