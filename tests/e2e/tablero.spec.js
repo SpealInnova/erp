@@ -3,12 +3,21 @@ const { PASSWORD, USUARIO_PRINCIPAL } = require("./fixtures");
 const { iniciarSesionComo, responderProximoDialogo } = require("./helpers");
 
 test.describe("Tablero gerencial y navegación por módulos", () => {
-  test("es la vista de inicio y pinta indicadores y gráficas sin errores", async ({ page }) => {
+  test("se abre desde el menú (cargos directivos) y pinta indicadores y gráficas sin errores", async ({
+    page,
+  }) => {
     const errores = [];
     page.on("pageerror", (error) => errores.push(String(error)));
 
     await iniciarSesionComo(page, USUARIO_PRINCIPAL, PASSWORD);
 
+    // El inicio es el tablero general; el gerencial está en el menú.
+    await expect(page.locator('.menu a[data-modulo="inicio"]')).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    await page.locator('.menu a[data-modulo="tablero"]').click();
+    await expect(page).toHaveURL(/#\/tablero$/);
     await expect(page.getByRole("heading", { name: "Tablero gerencial" })).toBeVisible();
     await expect(page.locator('.menu a[data-modulo="tablero"]')).toHaveAttribute(
       "aria-current",

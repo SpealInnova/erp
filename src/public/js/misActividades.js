@@ -2,10 +2,12 @@
 /* ------------------------------------------------------------------
    Ventana "Actividades pendientes" (botón junto a la campana).
 
-   Muestra las actividades pendientes del usuario que están vencidas o por
-   vencer, con un botón que lleva directo a cada una en el Gantt de su
-   proyecto (#/proyectos/<id>/actividades/<id>). Se abre sola una vez por
-   sesión si hay algo vencido o por vencer; después, desde el botón.
+   Muestra las actividades de proyecto y las tareas (gestor de tareas) del
+   usuario que están vencidas o por vencer, con un botón que lleva directo a
+   cada una: la actividad en el Gantt de su proyecto
+   (#/proyectos/<id>/actividades/<id>) y la tarea en Mis tareas
+   (#/tareas/<id>). Se abre sola una vez por sesión si hay algo vencido o por
+   vencer; después, desde el botón.
 
    Los avisos en la campana los crea el servidor (servicios/avisosActividades.js).
    Se carga después de inicio.js: usa api(), pill() y enrutar().
@@ -68,20 +70,26 @@
     return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
   }
 
-  function clasificar(actividades, diasAviso) {
+  function clasificar(actividades, tareas, diasAviso) {
     const hoy = hoyLocal();
     const resultado = { vencidas: [], porVencer: [], otras: 0, diasAviso };
-    actividades.forEach((actividad) => {
+    [
+      ...actividades.map((actividad) => ({ tipo: "actividad", actividad })),
+      ...tareas.map((actividad) => ({ tipo: "tarea", actividad })),
+    ].forEach(({ tipo, actividad }) => {
       const fin = deISO(actividad.fecha_fin);
       if (!fin) {
         resultado.otras += 1;
         return;
       }
       const dias = Math.round((fin - hoy) / UN_DIA_MS);
-      if (dias < 0) resultado.vencidas.push({ actividad, dias });
-      else if (dias <= diasAviso) resultado.porVencer.push({ actividad, dias });
+      if (dias < 0) resultado.vencidas.push({ tipo, actividad, dias });
+      else if (dias <= diasAviso) resultado.porVencer.push({ tipo, actividad, dias });
       else resultado.otras += 1;
     });
+    // actividades y tareas juntas, de la más atrasada a la más holgada
+    resultado.vencidas.sort((a, b) => a.dias - b.dias);
+    resultado.porVencer.sort((a, b) => a.dias - b.dias);
     return resultado;
   }
 
@@ -106,19 +114,35 @@
     );
   }
 
-  function irA(actividad) {
-    const destino = `#/proyectos/${actividad.proyecto_id}/actividades/${actividad.id}`;
+  function irA(tipo, actividad) {
+    const destino =
+      tipo === "tarea"
+        ? `#/tareas/${actividad.id}`
+        : `#/proyectos/${actividad.proyecto_id}/actividades/${actividad.id}`;
     abrir(false);
     if (window.location.hash === destino) enrutar();
     else window.location.hash = destino;
   }
 
-  function itemActividad({ actividad, dias }) {
+  function origenTarea(tarea) {
+    const partes = ["Tarea"];
+    if (tarea.proyecto_codigo) partes.push(tarea.proyecto_codigo);
+    if (tarea.created_by !== tarea.responsable_id) partes.push(`de ${tarea.creador_nombre}`);
+    return partes.join(" · ");
+  }
+
+  function itemActividad({ tipo, actividad, dias }) {
+    const esTarea = tipo === "tarea";
+    const titulo = esTarea ? actividad.titulo : actividad.descripcion;
     const li = crear("li", "item-actividad");
     const textos = crear("div", "item-actividad-textos");
     textos.append(
-      crear("b", "", actividad.descripcion),
-      crear("span", "subtitulo", `${actividad.codigo_pry} · ${actividad.nombre_proyecto}`)
+      crear("b", "", titulo),
+      crear(
+        "span",
+        "subtitulo",
+        esTarea ? origenTarea(actividad) : `${actividad.codigo_pry} · ${actividad.nombre_proyecto}`
+      )
     );
     const etiquetas = crear("div", "item-actividad-etiquetas");
     etiquetas.append(pill(textoPlazo(dias), dias < 0 ? "crit" : "warn"));
@@ -126,13 +150,14 @@
     // La prioridad Normal no se muestra: Alta en amarillo, Urgente en rojo.
     if (actividad.prioridad === "alta") etiquetas.append(pill("Alta", "alta"));
     if (actividad.prioridad === "urgente") etiquetas.append(pill("Urgente", "crit"));
-    if (!actividad.responsable_id) etiquetas.append(pill("Sin responsable", "mute"));
+    if (!esTarea && !actividad.responsable_id) etiquetas.append(pill("Sin responsable", "mute"));
     textos.append(etiquetas);
 
-    const ir = crear("button", "boton boton-pequeno boton-secundario", "Ir a la actividad");
+    const destino = esTarea ? "la tarea" : "la actividad";
+    const ir = crear("button", "boton boton-pequeno boton-secundario", `Ir a ${destino}`);
     ir.type = "button";
-    ir.setAttribute("aria-label", `Ir a la actividad ${actividad.descripcion}`);
-    ir.addEventListener("click", () => irA(actividad));
+    ir.setAttribute("aria-label", `Ir a ${destino} ${titulo}`);
+    ir.addEventListener("click", () => irA(tipo, actividad));
     li.append(textos, ir);
     return li;
   }
@@ -179,15 +204,22 @@
         crear(
           "p",
           "subtitulo ventana-actividades-pie",
-          `Además tienes ${otras} ${otras === 1 ? "actividad pendiente" : "actividades pendientes"} con más plazo o sin fechas.`
+          `Además tienes ${otras} ${otras === 1 ? "pendiente" : "pendientes"} con más plazo o sin fechas.`
         )
       );
     } else if (vencidas.length + porVencer.length === 0) {
       cuerpo.append(
-        crear("p", "subtitulo ventana-actividades-pie", "No tienes actividades pendientes.")
+        crear(
+          "p",
+          "subtitulo ventana-actividades-pie",
+          "No tienes actividades ni tareas pendientes."
+        )
       );
     }
-    cuerpo.append(opcionAbrirSola());
+    const todas = crear("a", "enlace-pie", "Ver todas mis tareas →");
+    todas.href = "#/tareas";
+    todas.addEventListener("click", () => abrir(false));
+    cuerpo.append(todas, opcionAbrirSola());
     ventana.replaceChildren(cabecera, cuerpo);
   }
 
@@ -195,7 +227,7 @@
     try {
       const r = await api("GET", "/actividades/pendientes");
       if (r.status !== 200) return false;
-      grupos = clasificar(r.cuerpo.actividades, r.cuerpo.dias_aviso);
+      grupos = clasificar(r.cuerpo.actividades, r.cuerpo.tareas || [], r.cuerpo.dias_aviso);
       pintarContador();
       if (!ventana.hidden) render();
       return true;

@@ -32,8 +32,20 @@
 
       <!-- Módulos agrupados como en la propuesta de interfaz; las entidades de
            cada módulo se recorren con las pestañas horizontales (#subtabs). -->
-      <div class="nav-section-label">Gerencia</div>
-      <a href="#/tablero" data-modulo="tablero">
+      <div class="nav-section-label">Mi trabajo</div>
+      <a href="#/inicio" data-modulo="inicio">
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-ini" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7FB2FF"/><stop offset="1" stop-color="#3460D9"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-ini)"/><path d="M9 19 20 10l11 9" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.5 17.5V30h15V17.5" fill="#fff" fill-opacity=".95"/><rect x="17.5" y="22" width="5" height="8" rx="1" fill="#3460D9" fill-opacity=".55"/></svg></span>
+        <span class="lbl">Inicio</span>
+      </a>
+      <a href="#/tareas" data-modulo="tareas">
+        <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-tar" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6FD3B5"/><stop offset="1" stop-color="#1C8E6E"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-tar)"/><rect x="9" y="8" width="22" height="24" rx="3" fill="#fff" fill-opacity=".96"/><path d="M13 15l2 2 3.5-3.5M13 23l2 2 3.5-3.5" stroke="#1C8E6E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="21" y="14.5" width="6.5" height="2.4" rx="1.2" fill="#1C8E6E" fill-opacity=".6"/><rect x="21" y="22.5" width="6.5" height="2.4" rx="1.2" fill="#1C8E6E" fill-opacity=".6"/></svg></span>
+        <span class="lbl">Mis tareas</span>
+      </a>
+
+      <!-- Solo para cargos directivos (permiso ver_tablero_gerencial); el
+           servidor también lo exige. -->
+      <div class="nav-section-label" data-permiso="ver_tablero_gerencial" hidden>Gerencia</div>
+      <a href="#/tablero" data-modulo="tablero" data-permiso="ver_tablero_gerencial" hidden>
         <span class="ic ic-svg" aria-hidden="true"><svg viewBox="0 0 40 40"><defs><linearGradient id="mi-dash" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#79A8FF"/><stop offset="1" stop-color="#2952CC"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="10" fill="url(#mi-dash)"/><rect x="9" y="21" width="5" height="10" rx="1.6" fill="#fff" fill-opacity=".92"/><rect x="17.5" y="15" width="5" height="16" rx="1.6" fill="#fff" fill-opacity=".92"/><rect x="26" y="9" width="5" height="22" rx="1.6" fill="#fff" fill-opacity=".8"/></svg></span>
         <span class="lbl">Tablero gerencial</span>
       </a>
@@ -111,6 +123,8 @@
   <script src="/js/proyectosTarjetas.js"></script>
   <script src="/js/fichaProyecto.js"></script>
   <script src="/js/expedienteGuiado.js"></script>
+  <script src="/js/tableroGeneral.js"></script>
+  <script src="/js/tareas.js"></script>
   <script src="/js/inicio.js"></script>
   <script src="/js/misActividades.js"></script>
 </body>

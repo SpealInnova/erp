@@ -103,6 +103,16 @@ describirSiHayBD("Gestor de tareas, tablero general y acceso al gerencial (integ
     expect(avisos[0].enlace).toBe(`#/tareas/${tarea.id}`);
   });
 
+  test("la tarea por id la ven quien la creó y su responsable; un tercero no", async () => {
+    const ver = (quien) => request(app).get(`/tareas/${ids.asignada}`).set(como(quien));
+    const delResponsable = await ver("responsable");
+    expect(delResponsable.status).toBe(200);
+    expect(delResponsable.body.tarea.creador_nombre).toBe("Tareas creador");
+    expect(delResponsable.body.tarea.segundos_en_curso).toBe(0);
+    expect((await ver("creador")).status).toBe(200);
+    expect((await ver("ajeno")).status).toBe(404);
+  });
+
   test("filtra por origen y por periodo", async () => {
     ids.vencida = (
       await crearTarea("creador", {

@@ -165,6 +165,18 @@ async function actualizarTarea(pool, id, datos, usuarioId) {
   return { ...actualizada, segundos_en_curso: segundos[id] || 0 };
 }
 
+// Una tarea (enlace de un aviso): la ven quien la creó, su responsable y
+// administración / Gerencia.
+async function verTarea(pool, id, usuarioId) {
+  const tarea = await obtenerTarea(pool, id);
+  if (tarea.created_by !== usuarioId && tarea.responsable_id !== usuarioId) {
+    const usuario = await usuariosRepositorio.buscarPorId(pool, usuarioId);
+    if (!esSuperusuario(usuario)) throw new ErrorTareaNoEncontrada();
+  }
+  const segundos = await transiciones.segundosEnCursoPorRegistro(pool, "tarea", [id]);
+  return { ...tarea, segundos_en_curso: segundos[id] || 0 };
+}
+
 // La elimina quien la creó (o administración / Gerencia).
 async function eliminarTarea(pool, id, usuarioId) {
   const anterior = await obtenerTarea(pool, id);
@@ -191,5 +203,6 @@ module.exports = {
   actualizarTarea,
   eliminarTarea,
   obtenerTarea,
+  verTarea,
   enlaceTarea,
 };

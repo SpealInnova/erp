@@ -59,12 +59,11 @@ test("un cargo sin permisos ve los documentos pero no sus acciones restringidas"
   colega.on("pageerror", (e) => errores.push(String(e)));
   await iniciarSesionComo(colega, USUARIO_COLEGA, PASSWORD);
 
-  // Tablero: la OC aparece con "Revisar", no con "Aprobar"
-  await colega.getByRole("button", { name: "Actualizar" }).click();
-  const pendiente = colega.locator(".ap", { hasText: orden.numero_oc });
-  await expect(pendiente).toBeVisible();
-  await expect(pendiente.getByRole("link", { name: "Revisar" })).toBeVisible();
-  await expect(pendiente.getByRole("button", { name: "Aprobar" })).toHaveCount(0);
+  // Inicio: el tablero general; el gerencial no está en su menú ni se abre
+  await expect(colega.getByRole("heading", { name: "Hola, QA" })).toBeVisible();
+  await expect(colega.locator('.menu a[data-modulo="tablero"]')).toBeHidden();
+  await colega.goto("/inicio#/tablero");
+  await expect(colega.getByText("Tu cargo no tiene acceso a este tablero")).toBeVisible();
 
   // Ficha de la OC: sin selector de estado ni botón de nueva versión
   await colega.goto(`/inicio#/ordenes-compra/${orden.id}`);

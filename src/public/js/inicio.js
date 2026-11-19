@@ -50,6 +50,13 @@ function puede(permiso) {
   return PERFIL.permisos.includes(permiso);
 }
 
+// Muestra los enlaces del menú marcados con data-permiso solo a quien lo tiene.
+function aplicarPermisosMenu() {
+  document.querySelectorAll(".menu [data-permiso]").forEach((el) => {
+    el.hidden = !puede(el.dataset.permiso);
+  });
+}
+
 // Aprobar exige el permiso y, salvo admin o Gerente General, no haber creado
 // el documento (separación de funciones, igual que en el servidor).
 function puedeAprobarDocumento(permiso, creadoPor) {
@@ -2730,7 +2737,10 @@ function tipoPillClasificacionProveedor(valor) {
 async function vistaProveedores() {
   marcarMenu("proveedores");
   const nuevo = boton("Nuevo proveedor", () => (window.location.hash = "#/proveedores/nuevo"));
-  contenido.replaceChildren(encabezado("Proveedores", [nuevo]));
+  const acciones = document.createElement("div");
+  acciones.className = "encabezado-acciones";
+  acciones.append(selectorVista("proveedores", vistaProveedores), nuevo);
+  contenido.replaceChildren(encabezado("Proveedores", [acciones]));
   await montarListado({
     clave: "proveedores",
     api: "/proveedores",
@@ -2738,8 +2748,113 @@ async function vistaProveedores() {
     titulo: "proveedores",
     buscar: "Buscar por razón social o NIT",
     vacio: "Aún no hay proveedores registrados.",
-    pintar: tablaProveedores,
+    pintar: preferenciaVista("proveedores") === "tabla" ? tablaProveedores : tarjetasProveedores,
   });
+}
+
+// Calificación del proveedor (0–100): aprobado desde 80.
+const UMBRAL_CALIFICACION_PROVEEDOR = 80;
+
+// Proveedores como tarjetas: calificación frente al umbral, contacto
+// comercial y su historial de órdenes de compra.
+function tarjetasProveedores(proveedores) {
+  const rejilla = document.createElement("div");
+  rejilla.className = "prov-tarjetas";
+  proveedores.forEach((p) => {
+    const tarjeta = document.createElement("article");
+    tarjeta.className = "prov-tarjeta";
+
+    const cab = document.createElement("div");
+    cab.className = "prov-cab";
+    const calificacion = p.calificacion_actual === null ? null : Number(p.calificacion_actual);
+    const anillo = document.createElement("div");
+    let tonoAnillo = "mute";
+    if (calificacion !== null) {
+      tonoAnillo = calificacion >= UMBRAL_CALIFICACION_PROVEEDOR ? "good" : "crit";
+    }
+    anillo.className = `anillo anillo--${tonoAnillo}`;
+    anillo.style.setProperty("--p", String(calificacion ?? 0));
+    const valorAnillo = document.createElement("span");
+    valorAnillo.textContent = calificacion === null ? "—" : String(Math.round(calificacion));
+    anillo.append(valorAnillo);
+    anillo.title =
+      calificacion === null
+        ? "Sin calificación"
+        : `Calificación ${calificacion} de 100 (aprobado desde ${UMBRAL_CALIFICACION_PROVEEDOR})`;
+    anillo.setAttribute("role", "img");
+    anillo.setAttribute("aria-label", anillo.title);
+
+    const textos = document.createElement("div");
+    const nombre = document.createElement("h3");
+    nombre.className = "prov-nombre";
+    nombre.textContent = p.razon_social;
+    const nit = document.createElement("div");
+    nit.className = "muted";
+    nit.textContent = `NIT/CC ${p.nit_cc}`;
+    const etiquetas = document.createElement("div");
+    etiquetas.className = "prov-etiquetas";
+    etiquetas.append(
+      pill(p.origen === "nacional" ? "Nacional" : "Extranjera", tipoPillOrigenProveedor(p.origen)),
+      pill(textoClasificacionProveedor(p.clasificacion), tipoPillClasificacionProveedor(p.clasificacion))
+    );
+    if (calificacion === null) etiquetas.append(pill("Sin calificación", "mute"));
+    else if (calificacion < UMBRAL_CALIFICACION_PROVEEDOR) etiquetas.append(pill("Bajo el umbral", "crit"));
+    textos.append(nombre, nit, etiquetas);
+    cab.append(anillo, textos);
+
+    const datos = document.createElement("dl");
+    datos.className = "prov-datos";
+    const dato = (titulo, ...valores) => {
+      const dt = document.createElement("dt");
+      dt.textContent = titulo;
+      const dd = document.createElement("dd");
+      dd.append(...valores);
+      datos.append(dt, dd);
+    };
+    const contacto = [p.contacto_comercial_nombre, p.contacto_comercial_telefono]
+      .filter(Boolean)
+      .join(" · ");
+    dato("Contacto comercial", contacto || "Sin registrar");
+    if (p.contacto_comercial_email) {
+      const correo = document.createElement("a");
+      correo.href = `mailto:${p.contacto_comercial_email}`;
+      correo.textContent = p.contacto_comercial_email;
+      dato("Correo", correo);
+    }
+    const totalOc = Number(p.oc_total) || 0;
+    dato(
+      "Órdenes de compra",
+      totalOc ? `${totalOc} · ${formatearCop(p.oc_valor)}` : "Ninguna todavía"
+    );
+    if (p.ultima_oc_id) {
+      const enlace = document.createElement("a");
+      enlace.href = `#/ordenes-compra/${p.ultima_oc_id}`;
+      enlace.textContent = p.ultima_oc_numero || `OC ${p.ultima_oc_id}`;
+      const espacio = document.createTextNode(" ");
+      dato(
+        "Última OC",
+        enlace,
+        espacio,
+        pill(textoEstadoOrdenCompra(p.ultima_oc_estado), tipoPillOrdenCompra(p.ultima_oc_estado))
+      );
+    }
+
+    const pie = document.createElement("div");
+    pie.className = "prov-pie";
+    const editar = boton("Ver y editar", () => (window.location.hash = `#/proveedores/${p.id}`), true);
+    editar.setAttribute("aria-label", `Ver y editar ${p.razon_social}`);
+    const nuevaOc = boton(
+      "Nueva OC",
+      () => (window.location.hash = `#/ordenes-compra/nuevo?proveedor=${p.id}`),
+      true
+    );
+    nuevaOc.setAttribute("aria-label", `Nueva orden de compra para ${p.razon_social}`);
+    pie.append(editar, nuevaOc);
+
+    tarjeta.append(cab, datos, pie);
+    rejilla.append(tarjeta);
+  });
+  return rejilla;
 }
 
 function tablaProveedores(proveedores) {
@@ -5931,14 +6046,20 @@ async function vistaUsuarioForm(id) {
   });
 }
 
-// "#/<módulo>/nuevo?proyecto=ID" (desde "Siguiente paso"): el formulario
-// abre con ese proyecto ya elegido.
+// "#/<módulo>/nuevo?proyecto=ID" (desde "Siguiente paso") o "?proveedor=ID"
+// (desde la tarjeta del proveedor): el formulario abre con ese registro ya
+// elegido.
+const PREFIJOS_FORMULARIO = { proyecto: "proyecto_id", proveedor: "proveedor_id" };
+
 function prefijarProyecto(consulta) {
-  const id = new URLSearchParams(consulta).get("proyecto");
-  const campo = document.getElementById("proyecto_id");
-  if (!id || !campo || ![...campo.options].some((o) => o.value === id)) return;
-  campo.value = id;
-  campo.dispatchEvent(new Event("change", { bubbles: true }));
+  const parametros = new URLSearchParams(consulta);
+  Object.entries(PREFIJOS_FORMULARIO).forEach(([parametro, campoId]) => {
+    const id = parametros.get(parametro);
+    const campo = document.getElementById(campoId);
+    if (!id || !campo || ![...campo.options].some((o) => o.value === id)) return;
+    campo.value = id;
+    campo.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   formularioSucio = false; // venir prellenado no es un cambio del usuario
 }
 
@@ -5948,7 +6069,7 @@ function prefijarProyecto(consulta) {
 let rutaEnCurso = null;
 
 function enrutar() {
-  const hash = window.location.hash || "#/tablero";
+  const hash = window.location.hash || "#/inicio";
   if (rutaEnCurso === hash) return undefined;
   rutaEnCurso = hash;
   const [ruta, consulta = ""] = hash.split("?");
@@ -5962,6 +6083,13 @@ function enrutar() {
 }
 
 function enrutarRuta(ruta) {
+
+  // Tablero general (tableroGeneral.js) y gestor de tareas (tareas.js).
+  if (/^#\/inicio$/.test(ruta)) return window.vistaTableroGeneral();
+  if (/^#\/tareas\/nueva$/.test(ruta)) return window.vistaTareas({ nueva: true });
+  const verTarea = ruta.match(/^#\/tareas\/(\d+)$/);
+  if (verTarea) return window.vistaTareas({ tareaId: Number(verTarea[1]) });
+  if (/^#\/tareas$/.test(ruta)) return window.vistaTareas();
 
   // Definidas en tableros.js (se carga antes que este archivo).
   if (/^#\/tablero$/.test(ruta)) return window.vistaTableroGerencial();
@@ -6049,7 +6177,7 @@ function enrutarRuta(ruta) {
   if (editarUsuario) return vistaUsuarioForm(editarUsuario[1]);
   if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
 
-  return window.vistaTableroGerencial();
+  return window.vistaTableroGeneral();
 }
 
 document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion);
@@ -6131,4 +6259,7 @@ function manejarCambioHash() {
 
 window.addEventListener("hashchange", manejarCambioHash);
 // El perfil se carga antes de la primera vista: decide qué acciones se muestran.
-cargarPerfil().finally(enrutar);
+cargarPerfil().finally(() => {
+  aplicarPermisosMenu();
+  enrutar();
+});

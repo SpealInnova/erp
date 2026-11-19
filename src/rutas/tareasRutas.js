@@ -19,6 +19,13 @@ function crearTareasRutas(pool) {
       res.status(200).json({ tareas: await tareas.listarTareas(pool, req.usuario.id, filtros) });
     })
   );
+  router.get(
+    "/:id(\\d+)",
+    envolverAsync(async (req, res) => {
+      const tarea = await tareas.verTarea(pool, Number(req.params.id), req.usuario.id);
+      res.status(200).json({ tarea });
+    })
+  );
   router.post(
     "/",
     envolverAsync(async (req, res) => {
