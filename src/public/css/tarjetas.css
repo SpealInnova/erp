@@ -974,3 +974,19 @@ a.tarea-titulo:hover,
     gap: 6px;
   }
 }
+
+/* ---------- Copias de seguridad (#/copias) ---------- */
+.vista-copias > .tarjeta-ancha {
+  margin-bottom: 14px;
+}
+
+.vista-copias h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.copias-error {
+  max-width: 360px;
+  margin-top: 4px;
+  white-space: normal;
+}

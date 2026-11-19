@@ -64,6 +64,10 @@ Flujo: crear rama `feature/<nombre>` desde `develop`, PR a `develop`. Promoción
   variable de entorno en el servidor (y se configure `DRIVE_FOLDER_ID`).
   `scripts/autorizar-gmail.js` ya pide los dos scopes; lo corre el usuario en su equipo y pega
   el token directo en hPanel. Un agente nunca debe ver, guardar ni repetir ese token.
+- Copias de seguridad diarias a Drive (`src/servicios/copiasSeguridad.js`,
+  `docs/COPIAS_DE_SEGURIDAD.md`): dependen del mismo token con `drive.file`. Hasta que exista,
+  cada copia queda como "fallida" en `copias_seguridad`. La automática solo corre con
+  `COPIAS_DIARIAS=1` (producción). Las pruebas nunca suben a Drive real (Drive simulado).
 
 ## Qué puede resolver un agente sin supervisión directa
 

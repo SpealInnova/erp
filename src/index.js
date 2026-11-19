@@ -2,6 +2,7 @@ const { crearApp } = require("./app");
 const { crearPool } = require("./config/db");
 const { ejecutarMigraciones } = require("./migrador");
 const { programarAvisos } = require("./servicios/avisosActividades");
+const { programarCopias } = require("./servicios/copiasSeguridad");
 
 const PORT = process.env.PORT || 3000;
 const APP_ENV = process.env.APP_ENV || "desconocido";
@@ -20,6 +21,8 @@ async function iniciar() {
     console.log(`SPEAL Project Control (${APP_ENV}) escuchando en puerto ${PORT}`);
   });
   programarAvisos(app.locals.pool);
+  // Copia diaria a Drive: solo donde COPIAS_DIARIAS=1 (producción).
+  programarCopias(app.locals.pool);
 }
 
 iniciar().catch((error) => {

@@ -32,6 +32,9 @@ const PERMISOS = {
   // Tablero gerencial y tiempos de los procesos: solo cargos directivos
   // (decisión del usuario, 2026-11-19). Los demás ven el tablero general.
   ver_tablero_gerencial: [DIR_OPERACIONES, DIR_ADMINISTRATIVO, "Gerente Comercial"],
+  // Copias de seguridad (ver el registro y hacer una a mano): solo el rol
+  // admin y el Gerente General, que tienen todos los permisos.
+  gestionar_copias: [],
 };
 
 // Un error de digitación en un cargo dejaría el permiso sin nadie: se detecta

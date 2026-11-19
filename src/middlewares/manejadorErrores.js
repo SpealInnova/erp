@@ -108,6 +108,7 @@ const {
 } = require("../dominio/erroresArchivosAdjuntos");
 const { ErrorSinPermiso, ErrorAutoAprobacion } = require("../dominio/erroresPermisos");
 const { ErrorTareaNoEncontrada } = require("../dominio/erroresTareas");
+const { ErrorCopiaEnCurso } = require("../dominio/erroresCopias");
 
 // eslint-disable-next-line no-unused-vars
 function manejadorErrores(error, req, res, next) {
@@ -152,6 +153,9 @@ function manejadorErrores(error, req, res, next) {
   }
   if (error instanceof ErrorTareaNoEncontrada) {
     return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorCopiaEnCurso) {
+    return res.status(409).json({ error: error.message });
   }
   if (error instanceof ErrorSinPermiso || error instanceof ErrorAutoAprobacion) {
     // 403 por la misma razón: el usuario sigue autenticado.

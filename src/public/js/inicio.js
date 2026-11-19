@@ -6177,6 +6177,7 @@ function enrutarRuta(ruta) {
   const editarUsuario = ruta.match(/^#\/usuarios\/(\d+)\/editar$/);
   if (editarUsuario) return vistaUsuarioForm(editarUsuario[1]);
   if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
+  if (/^#\/copias$/.test(ruta)) return window.vistaCopias(); // copias.js
 
   return window.vistaTableroGeneral();
 }

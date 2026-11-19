@@ -14,6 +14,7 @@ const ACCIONES = {
   versionar_acta: "Crear versiones de actas",
   versionar_reporte: "Crear versiones de reportes de servicio",
   ver_tablero_gerencial: "Ver el tablero gerencial y los tiempos de los procesos",
+  gestionar_copias: "Ver y hacer copias de seguridad",
 };
 
 function mensajeSinPermiso(clave) {
