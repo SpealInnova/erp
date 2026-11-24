@@ -14,17 +14,42 @@ const { ErrorCopiaEnCurso } = require("../dominio/erroresCopias");
    queda todo el ERP. Cada intento queda en la tabla copias_seguridad.
 
    - Diaria y automática solo si COPIAS_DIARIAS=1 (producción). Se hace una
-     vez al día a partir de la hora COPIAS_HORA (por defecto las 2), y si
-     falla se reintenta en la siguiente revisión, hasta 3 veces al día.
-   - Manual desde el panel de copias (admin y Gerente General).
+     vez al día a partir de la hora COPIAS_HORA en hora de Colombia (por
+     defecto las 2), sin importar la zona horaria del servidor. El servidor
+     revisa cada 10 minutos; si falla, reintenta en la siguiente revisión,
+     hasta 3 veces al día.
+   - Manual desde el panel de copias (admin y Gerente General), en cualquier
+     momento. Una copia manual no reemplaza la automática del día.
    - Para restaurar: descomprimir el .sql.gz e importarlo en una base vacía
      (phpMyAdmin → Importar). Ver docs/COPIAS_DE_SEGURIDAD.md.
    Usa el mismo token de Google que el correo y las evidencias: necesita el
    permiso de Drive (drive.file). Un agente nunca debe ver ese token. */
 
 const FILAS_POR_INSERT = 200;
-const UNA_HORA_MS = 60 * 60 * 1000;
+const REVISION_MS = 10 * 60 * 1000;
 const MAXIMO_FALLIDAS_POR_DIA = 3;
+const ZONA_HORARIA = "America/Bogota";
+
+const formatoColombia = new Intl.DateTimeFormat("en-CA", {
+  timeZone: ZONA_HORARIA,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+// Fecha y hora en Colombia, sin depender de la zona horaria del servidor.
+function enColombia(fecha) {
+  const partes = {};
+  for (const { type, value } of formatoColombia.formatToParts(fecha)) partes[type] = value;
+  return {
+    dia: `${partes.year}-${partes.month}-${partes.day}`,
+    hora: Number(partes.hour),
+    minuto: Number(partes.minute),
+  };
+}
 
 // Fechas, horas, decimales y JSON se copian tal como están en la base (texto),
 // sin pasar por la zona horaria ni por números de JavaScript.
@@ -44,10 +69,10 @@ function dosDigitos(n) {
   return String(n).padStart(2, "0");
 }
 
+// El nombre lleva la fecha y la hora de Colombia.
 function nombreArchivo(baseDeDatos, fecha) {
-  const dia = `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`;
-  const hora = `${dosDigitos(fecha.getHours())}${dosDigitos(fecha.getMinutes())}`;
-  return `copia-erp-${baseDeDatos}-${dia}_${hora}.sql.gz`;
+  const { dia, hora, minuto } = enColombia(fecha);
+  return `copia-erp-${baseDeDatos}-${dia}_${dosDigitos(hora)}${dosDigitos(minuto)}.sql.gz`;
 }
 
 // Volcado SQL de toda la base: DROP + CREATE de cada tabla y sus filas en
@@ -185,16 +210,28 @@ function horaDeCopia() {
   return Number.isInteger(hora) && hora >= 0 && hora <= 23 ? hora : 2;
 }
 
-// ¿Toca la copia automática? Desde la hora fijada, si hoy no hay una exitosa
-// y no se agotaron los reintentos.
-async function tocaCopiaDiaria(pool, ahora = new Date()) {
-  if (ahora.getHours() < horaDeCopia()) return false;
-  const hoy = await repo.resumenDeHoy(pool);
-  return hoy.exitosas === 0 && hoy.fallidasAutomaticas < MAXIMO_FALLIDAS_POR_DIA;
+// Minutos que van desde la hora de copia de hoy (hora de Colombia), o null si
+// todavía no es esa hora.
+function minutosDesdeHoraDeCopia(ahora) {
+  const { hora, minuto } = enColombia(ahora);
+  const hora0 = horaDeCopia();
+  return hora < hora0 ? null : (hora - hora0) * 60 + minuto;
 }
 
-// Revisión cada hora (la llama index.js). Solo con COPIAS_DIARIAS=1.
-function programarCopias(pool, { cadaMs = UNA_HORA_MS, retrasoInicialMs = 60000 } = {}) {
+// ¿Toca la copia automática? Desde la hora fijada (hora de Colombia), si
+// desde esa hora no hay una copia automática exitosa y no se agotaron los
+// reintentos. Las copias manuales no cuentan: la automática sale igual.
+async function tocaCopiaDiaria(pool, ahora = new Date()) {
+  const minutos = minutosDesdeHoraDeCopia(ahora);
+  if (minutos === null) return false;
+  // +1 minuto de margen para incluir la copia que arrancó justo a la hora.
+  const hoy = await repo.automaticasDesde(pool, minutos + 1);
+  return hoy.exitosas === 0 && hoy.fallidas < MAXIMO_FALLIDAS_POR_DIA;
+}
+
+// Revisión cada 10 minutos (la llama index.js), para que la copia salga
+// poco después de la hora fijada. Solo con COPIAS_DIARIAS=1.
+function programarCopias(pool, { cadaMs = REVISION_MS, retrasoInicialMs = 60000 } = {}) {
   if (process.env.COPIAS_DIARIAS !== "1") return () => {};
   const revisar = async () => {
     try {
