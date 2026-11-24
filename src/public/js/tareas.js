@@ -617,9 +617,22 @@
       e.preventDefault();
       cerrar();
     });
+    // Si la ruta cambia con la ventana abierta (p. ej. con Atrás del
+    // navegador), la ventana se cierra como las demás del ERP y no se vuelve a
+    // la lista: manda la ruta a la que fue la persona.
+    const rutaAlAbrir = window.location.hash;
+    let cerradaPorCambioDeRuta = false;
+    const alCambiarRuta = () => {
+      if (window.location.hash === rutaAlAbrir) return;
+      cerradaPorCambioDeRuta = true;
+      dialogo.close();
+    };
+    window.addEventListener("hashchange", alCambiarRuta);
+
     dialogo.addEventListener("close", () => {
+      window.removeEventListener("hashchange", alCambiarRuta);
       dialogo.remove();
-      if (alCerrar) alCerrar(guardada);
+      if (alCerrar && !cerradaPorCambioDeRuta) alCerrar(guardada);
     });
 
     document.body.append(dialogo);

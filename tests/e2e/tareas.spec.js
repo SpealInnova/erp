@@ -152,4 +152,22 @@ test.describe("Inicio, Mis tareas y proveedores en tarjetas", () => {
     await expect(page.locator("table", { hasText: proveedor.razon_social })).toBeVisible();
     await page.evaluate(() => localStorage.removeItem("vista-proveedores"));
   });
+
+  test("con Atrás del navegador la ventana de nueva tarea se cierra", async ({ page }) => {
+    const errores = [];
+    page.on("pageerror", (error) => errores.push(String(error)));
+    await iniciarSesionComo(page, USUARIO_PRINCIPAL, PASSWORD);
+    await expect(page.getByRole("heading", { name: "Hola, QA" })).toBeVisible();
+
+    await page.getByRole("button", { name: "+ Nueva tarea" }).click();
+    const ventana = page.getByRole("dialog", { name: "Nueva tarea" });
+    await expect(ventana).toBeVisible();
+
+    await page.goBack();
+    // Vuelve al inicio (tras iniciar sesión la dirección es /inicio, sin #/inicio).
+    await expect(page).toHaveURL(/\/inicio(#\/inicio)?$/);
+    await expect(ventana).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Hola, QA" })).toBeVisible();
+    expect(errores).toEqual([]);
+  });
 });
