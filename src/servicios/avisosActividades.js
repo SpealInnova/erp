@@ -1,6 +1,8 @@
 const proyectoActividadesRepositorio = require("../repositorios/proyectoActividadesRepositorio");
 const notificacionesRepositorio = require("../repositorios/notificacionesRepositorio");
 const notificacionesServicio = require("./notificaciones");
+const tareasRepositorio = require("../repositorios/tareasRepositorio");
+const transiciones = require("./transiciones");
 
 // "Por vencer": vence hoy o en los próximos DIAS_AVISO días.
 const DIAS_AVISO = 3;
@@ -35,6 +37,14 @@ function cuandoVence(dias, fecha) {
   return `vence el ${fecha} (en ${dias} días)`;
 }
 
+function mensajeAvisoTarea(tarea) {
+  const titulo =
+    tarea.titulo.length > LARGO_MAXIMO_DESCRIPCION
+      ? `${tarea.titulo.slice(0, LARGO_MAXIMO_DESCRIPCION - 1)}…`
+      : tarea.titulo;
+  return `La tarea "${titulo}" ${cuandoVence(Number(tarea.dias_restantes), fechaTexto(tarea.fecha_fin))}.`;
+}
+
 function mensajeAviso(actividad) {
   const descripcion =
     actividad.descripcion.length > LARGO_MAXIMO_DESCRIPCION
@@ -56,11 +66,20 @@ async function generarAvisosVencimiento(pool, { usuarioId } = {}) {
     diasVencida: DIAS_VENCIDA,
     usuarioId,
   });
+  const tareas = await tareasRepositorio.listarParaAviso(pool, {
+    diasAviso: DIAS_AVISO,
+    diasVencida: DIAS_VENCIDA,
+    usuarioId,
+  });
+  const todas = [
+    ...candidatas.map((a) => ({ ...a, enlace: enlaceActividad(a), mensaje: mensajeAviso(a) })),
+    ...tareas.map((t) => ({ ...t, enlace: `#/tareas/${t.id}`, mensaje: mensajeAvisoTarea(t) })),
+  ];
   let creadas = 0;
-  for (const actividad of candidatas) {
+  for (const actividad of todas) {
     const tipo =
       Number(actividad.dias_restantes) < 0 ? "actividad_vencida" : "actividad_por_vencer";
-    const enlace = enlaceActividad(actividad);
+    const { enlace } = actividad;
     const yaAvisada = await notificacionesRepositorio.existeReciente(pool, {
       usuarioId: actividad.destinatario_id,
       tipo,
@@ -73,7 +92,7 @@ async function generarAvisosVencimiento(pool, { usuarioId } = {}) {
     await notificacionesServicio.notificar(pool, {
       usuarioId: actividad.destinatario_id,
       tipo,
-      mensaje: mensajeAviso(actividad),
+      mensaje: actividad.mensaje,
       enlace,
     });
     creadas += 1;
@@ -86,11 +105,22 @@ async function generarAvisosVencimiento(pool, { usuarioId } = {}) {
 // proceso periódico no haya corrido (p. ej. tras un reinicio del hosting).
 async function listarMisActividades(pool, usuarioId) {
   await generarAvisosVencimiento(pool, { usuarioId });
-  const actividades = await proyectoActividadesRepositorio.listarPendientesDeUsuario(
+  const [actividades, tareas] = await Promise.all([
+    proyectoActividadesRepositorio.listarPendientesDeUsuario(pool, usuarioId),
+    tareasRepositorio.listarDeUsuario(pool, usuarioId, { origen: "todas", estado: "abiertas" }),
+  ]);
+  // horómetro: segundos en curso de cada actividad
+  const segundos = await transiciones.segundosEnCursoPorRegistro(
     pool,
-    usuarioId
+    "actividad",
+    actividades.map((a) => a.id)
   );
-  return { actividades, dias_aviso: DIAS_AVISO };
+  return {
+    actividades: actividades.map((a) => ({ ...a, segundos_en_curso: segundos[a.id] || 0 })),
+    // solo las tareas de las que es responsable
+    tareas: tareas.filter((t) => t.responsable_id === usuarioId),
+    dias_aviso: DIAS_AVISO,
+  };
 }
 
 // Revisión periódica para todos los usuarios (la llama index.js al arrancar).

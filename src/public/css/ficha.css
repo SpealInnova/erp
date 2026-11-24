@@ -204,3 +204,616 @@ html[data-contraste="alto"] .ventana-actividades {
   border-top: 1px solid var(--borde-suave);
   cursor: pointer;
 }
+
+/* Prioridad Alta (amarillo); Urgente usa el rojo de pill--crit */
+:root {
+  --prioridad-alta: #f2c200;
+}
+
+.pill--alta {
+  color: #7a5c00;
+  background: #fff4c2;
+}
+
+/* ---------- Siguiente paso ---------- */
+.siguiente-paso {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, var(--accent-tint), var(--surface) 70%);
+  border: 1px solid var(--accent-tint-2);
+  border-radius: var(--r-lg);
+}
+
+.sp-ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: var(--accent);
+  border-radius: 12px;
+}
+
+.sp-textos h3 {
+  margin: 0 0 3px;
+  font-size: 1rem;
+}
+
+.sp-textos p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.sp-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.sp-acciones .boton,
+.sp-acciones .boton-secundario {
+  margin-top: 0;
+}
+
+/* ---------- Resumen por etapa ---------- */
+.etapas-tira {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(112px, 1fr));
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.etapa-tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 11px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--surface);
+  border: 1.5px solid var(--borde);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.etapa-tarjeta[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.etapa-tarjeta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.etapa-tarjeta--completada {
+  background: linear-gradient(180deg, var(--good-tint), var(--surface) 65%);
+}
+
+.etapa-tarjeta--completada .barra > i {
+  background: var(--good);
+}
+
+.etapa-tarjeta--en_curso {
+  background: linear-gradient(180deg, var(--accent-tint), var(--surface) 65%);
+}
+
+.etapa-tarjeta--por_iniciar {
+  opacity: 0.65;
+}
+
+.et-n {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--ink-mute);
+}
+
+.et-nom {
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.et-dias {
+  margin-bottom: 5px;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.et-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.etapa-detalle {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.etapa-lateral {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.etapa-detalle h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.etapa-det-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.etapa-det-cab h3 {
+  margin: 0;
+}
+
+.metricas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.met {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+}
+
+.met-t {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.met-v {
+  font-size: 1.0625rem;
+  font-weight: 800;
+}
+
+.etapa-sub {
+  margin: 4px 0 8px;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+/* ---------- Línea de tiempo vertical ---------- */
+.ltg-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ltg-cab h3 {
+  margin: 0;
+  font-size: 1.0625rem;
+}
+
+.vtl {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 30px;
+  list-style: none;
+}
+
+.vtl::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 10px;
+  width: 2px;
+  background: var(--borde);
+}
+
+.vtl-fase {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin: 18px 0 6px;
+}
+
+.vtl-fase:first-child {
+  margin-top: 0;
+}
+
+.vtl-fase::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: -27px;
+  width: 16px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 5px;
+  box-shadow: 0 0 0 4px var(--surface);
+}
+
+.vtl-fase--completada::before {
+  background: var(--good);
+}
+
+.vtl-fase--por_iniciar::before {
+  background: var(--ink-mute);
+}
+
+.vtl-fase-nom {
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.vtl-fase-dur {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.vtl-ev {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 7px 0;
+}
+
+.vtl-ev[hidden] {
+  display: none;
+}
+
+.vtl-ico {
+  position: absolute;
+  top: 7px;
+  left: -30px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  background: var(--surface);
+  border: 2px solid var(--borde);
+  border-radius: 50%;
+}
+
+.vtl-ico--ok {
+  color: var(--good);
+  border-color: var(--good);
+}
+
+.vtl-ico--doc {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.vtl-ico--alt {
+  color: var(--crit);
+  border-color: var(--crit);
+}
+
+.vtl-ico--evi {
+  color: var(--gold-dark, #8a6508);
+  border-color: var(--gold);
+}
+
+.vtl-ico--fase {
+  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.vtl-ico--mute {
+  color: var(--ink-mute);
+}
+
+.vtl-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.vtl-txt .enlace-documento {
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.vtl-cuando {
+  font-size: 0.75rem;
+  color: var(--ink-mute);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vtl-lapso {
+  display: block;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 1100px) {
+  .etapa-detalle {
+    grid-template-columns: 1fr;
+  }
+
+  .siguiente-paso {
+    grid-template-columns: auto 1fr;
+  }
+
+  .sp-acciones {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* ---------- Expediente guiado ---------- */
+/* Pasos y panel lateral a la izquierda; el paso elegido ocupa el resto. En
+   pantallas muy anchas, el panel pasa a una tercera columna. */
+.exp-guiado {
+  display: grid;
+  grid-template-areas:
+    "pasos centro"
+    "lateral centro";
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+.exp-pasos {
+  grid-area: pasos;
+}
+
+.exp-centro {
+  grid-area: centro;
+  min-width: 0;
+}
+
+.exp-lateral {
+  grid-area: lateral;
+}
+
+@media (min-width: 1700px) {
+  .exp-guiado {
+    grid-template-areas: "pasos centro lateral";
+    grid-template-rows: auto;
+    grid-template-columns: 260px minmax(0, 1fr) 300px;
+  }
+}
+
+.exp-pasos {
+  padding: 8px;
+}
+
+.exp-pasos ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exp-paso button {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 10px;
+  font: inherit;
+  text-align: left;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.exp-paso button:hover {
+  background: var(--surface-2);
+}
+
+.exp-paso button[aria-current="step"] {
+  color: var(--ink);
+  background: var(--accent-tint);
+}
+
+.exp-paso button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.exp-bola {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: var(--surface);
+  border: 2px solid var(--borde);
+  border-radius: 50%;
+}
+
+.exp-paso--ok .exp-bola {
+  color: #ffffff;
+  background: var(--good);
+  border-color: var(--good);
+}
+
+.exp-paso--en_curso .exp-bola {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.exp-paso-textos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.exp-paso-nom {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.exp-paso-ayuda {
+  font-size: 0.6875rem;
+  color: var(--ink-mute);
+}
+
+.exp-paso-n {
+  font-size: 0.75rem;
+  color: var(--ink-mute);
+}
+
+.exp-centro-cab {
+  margin-bottom: 4px;
+}
+
+.exp-centro-tit {
+  margin: 0 0 12px;
+  font-size: 1.125rem;
+}
+
+.ayuda-seccion {
+  margin: -8px 0 14px;
+}
+
+.exp-lateral {
+  display: grid;
+  gap: 16px;
+}
+
+.exp-lateral h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.rel-fila {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 0.875rem;
+  border-top: 1px solid var(--borde-suave);
+}
+
+.rel-fila:first-of-type {
+  border-top: none;
+}
+
+.rel-fila a {
+  font-weight: 700;
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+
+.rel-sigla {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  border-radius: 9px;
+}
+
+.rel-sigla--pry {
+  color: #5b4fd1;
+  background: #eeeafe;
+}
+
+.rel-sigla--eq {
+  color: #8a6508;
+  background: var(--gold-tint);
+}
+
+.rel-sigla--cd {
+  color: var(--warn);
+  background: var(--warn-tint);
+}
+
+.rel-sigla--req {
+  color: var(--accent-ink);
+  background: var(--accent-tint);
+}
+
+.check {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check li {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 0.875rem;
+}
+
+.check li::before {
+  content: "✓";
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  color: var(--good);
+  background: var(--good-tint);
+  border-radius: 50%;
+}
+
+.check li.no::before {
+  content: "!";
+  color: var(--warn);
+  background: var(--warn-tint);
+}
+
+.consecuencias {
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  background: var(--warn-tint);
+  border-radius: var(--r-md);
+}
+
+.consecuencias ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+@media (max-width: 1000px) {
+  .exp-guiado {
+    grid-template-areas:
+      "pasos"
+      "centro"
+      "lateral";
+    grid-template-columns: 1fr;
+  }
+}

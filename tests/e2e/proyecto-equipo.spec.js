@@ -31,7 +31,7 @@ test.describe("Flujo crítico: proyecto, fase, actividades y línea de tiempo", 
     await page.waitForURL("**/inicio#/proyectos");
 
     // Abrir el proyecto recién creado
-    const fila = page.locator("tr", { hasText: nombreProyecto });
+    const fila = page.locator(".pcard", { hasText: nombreProyecto });
     await fila.getByRole("button", { name: /Ver proyecto/ }).click();
     await expect(page.locator("#nueva_fase")).toBeVisible();
 
@@ -83,7 +83,7 @@ test.describe("Flujo crítico: proyecto, fase, actividades y línea de tiempo", 
     await page.getByRole("tab", { name: "Línea de tiempo" }).click();
     const lineaTiempo = page.getByRole("tabpanel", { name: "Línea de tiempo" });
     await expect(lineaTiempo).toContainText("Cambio de fase");
-    await expect(lineaTiempo).toContainText("Actividad completada");
+    await expect(lineaTiempo).toContainText("Actividad finalizada");
     await expect(seccionActividades).toBeHidden();
   });
 });

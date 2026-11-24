@@ -547,3 +547,71 @@ html[data-contraste="alto"] .gantt-marco {
 .campana-contador--info {
   background: var(--accent);
 }
+
+/* En curso: franjas diagonales sobre la barra */
+.gantt-barra--en-curso {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.32) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+/* Prioridad: Alta en amarillo y Urgente en rojo (Normal no se muestra) */
+.gantt-prioridad {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px #ffffff;
+  transform: translateY(-50%);
+}
+
+.gantt-barra--prioridad-alta,
+.gantt-barra--prioridad-urgente {
+  padding-left: 22px;
+}
+
+.gantt-barra--prioridad-alta .gantt-prioridad {
+  color: #4a3700;
+  background: var(--prioridad-alta);
+}
+
+.gantt-barra--prioridad-urgente .gantt-prioridad {
+  color: #ffffff;
+  background: var(--crit);
+}
+
+.gantt-etiqueta--alta::before,
+.gantt-etiqueta--urgente::before {
+  content: "●";
+  margin-right: 4px;
+}
+
+.gantt-etiqueta--alta::before {
+  color: var(--prioridad-alta);
+}
+
+.gantt-etiqueta--urgente::before {
+  color: var(--crit);
+}
+
+.gantt-popup-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.gantt-popup-acciones .boton {
+  margin-top: 0;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+}

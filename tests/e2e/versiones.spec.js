@@ -38,6 +38,16 @@ test.describe("Bloqueo de eliminación y versiones", () => {
 
     // Eliminar desde la lista: aparece qué lo bloquea, con vista previa
     await page.goto("/inicio#/proyectos");
+    // Sin campos de contraseña hasta pulsar "Eliminar": si los hubiera, el
+    // navegador llena el correo guardado en el buscador y la lista sale vacía.
+    await expect(page.locator(".pcard").first()).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await expect(page.getByRole("searchbox", { name: "Buscar proyectos" })).toHaveAttribute(
+      "autocomplete",
+      "off"
+    );
+    // en las tarjetas, "Eliminar" está en el detalle desplegable
+    await page.getByRole("button", { name: `Ver detalle de ${proyecto.codigo_pry}` }).click();
     await page.getByRole("button", { name: `Eliminar proyecto ${proyecto.codigo_pry}` }).click();
     const bloqueo = page.locator(".bloqueo-eliminacion");
     await expect(bloqueo).toContainText("no se puede eliminar");
@@ -48,6 +58,12 @@ test.describe("Bloqueo de eliminación y versiones", () => {
     // Nueva versión con motivo
     await bloqueo.getByRole("button", { name: "Crear nueva versión" }).click();
     await expect(page).toHaveURL(new RegExp(`#/proyectos/${proyecto.id}/nueva-version$`));
+    // El motivo ocupa el ancho del formulario (antes salía angosto).
+    const anchoMotivo = await page.locator("#motivo_version").evaluate((el) => ({
+      campo: el.getBoundingClientRect().width,
+      formulario: el.closest("form").getBoundingClientRect().width,
+    }));
+    expect(anchoMotivo.campo).toBeGreaterThan(anchoMotivo.formulario * 0.9);
     await page.fill("#nombre_proyecto", nombreCorregido);
     await page.click('button:has-text("Guardar como versión 2")');
     await expect(page.locator(".alerta.error")).toContainText("motivo");

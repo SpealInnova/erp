@@ -54,9 +54,26 @@ async function obtenerPorId(pool, id) {
 
 // Página de la lista (más recientes primero) con búsqueda por texto y estado;
 // trae resueltos los nombres que la tabla muestra. Devuelve { filas, total }.
+// Subconsultas sobre las actividades vigentes de cada proyecto de la página.
+const DE_ACTIVIDADES = "FROM proyecto_actividades a WHERE a.proyecto_id = p.id AND a.deleted_at IS NULL";
+const ACTIVIDAD_ACTUAL = `${DE_ACTIVIDADES} AND a.estado <> 'completada'
+  ORDER BY a.estado = 'en_curso' DESC, a.fecha_fin IS NULL, a.fecha_fin, a.orden, a.id LIMIT 1`;
+const COLUMNAS_TARJETA = [
+  `(SELECT MIN(a.fecha_inicio) ${DE_ACTIVIDADES}) AS plan_inicio`,
+  `(SELECT MAX(a.fecha_fin) ${DE_ACTIVIDADES}) AS plan_fin`,
+  `(SELECT COUNT(*) ${DE_ACTIVIDADES}) AS actividades_total`,
+  `(SELECT COUNT(*) ${DE_ACTIVIDADES} AND a.estado = 'completada') AS actividades_finalizadas`,
+  `(SELECT COUNT(*) ${DE_ACTIVIDADES} AND a.estado <> 'completada' AND a.prioridad = 'urgente') AS urgentes`,
+  `(SELECT COUNT(*) ${DE_ACTIVIDADES} AND a.estado <> 'completada' AND a.fecha_fin < CURDATE()) AS vencidas`,
+  `(SELECT a.descripcion ${ACTIVIDAD_ACTUAL}) AS actividad_actual`,
+  `(SELECT a.estado ${ACTIVIDAD_ACTUAL}) AS actividad_actual_estado`,
+  `(SELECT a.fecha_fin ${ACTIVIDAD_ACTUAL}) AS actividad_actual_fin`,
+].join(", ");
+
 async function listar(pool, { limite, offset, q, estado }) {
   return listarPaginado(pool, {
-    columnas: "p.*, c.nombre_razon_social AS cliente_nombre, u.nombre AS responsable_nombre",
+    columnas: `p.*, c.nombre_razon_social AS cliente_nombre, u.nombre AS responsable_nombre,
+      ${COLUMNAS_TARJETA}`,
     desde: `FROM proyectos p
        LEFT JOIN clientes c ON c.id = p.cliente_id
        LEFT JOIN usuarios u ON u.id = p.responsable_id`,

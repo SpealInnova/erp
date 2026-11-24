@@ -56,6 +56,25 @@
   const ICONO_EVIDENCIAS =
     '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 7.5 8.2 12.8a3.2 3.2 0 0 1-4.5-4.5l5.6-5.6a2.1 2.1 0 0 1 3 3l-5.6 5.6a1.1 1.1 0 0 1-1.5-1.5l5.1-5.1"/></svg>';
 
+  // "completada" se guarda igual, pero se muestra como "Finalizado".
+  const TEXTO_ESTADO = { pendiente: "Pendiente", en_curso: "En curso", completada: "Finalizado" };
+  const TIPO_ESTADO = { pendiente: "mute", en_curso: "info", completada: "good" };
+  // La prioridad Normal no se muestra.
+  const TEXTO_PRIORIDAD = { alta: "Alta", urgente: "Urgente" };
+  const TIPO_PRIORIDAD = { alta: "alta", urgente: "crit" };
+  // Botones rápidos del resumen según el estado (alimentan los tiempos).
+  const ACCIONES_ESTADO = {
+    pendiente: [
+      ["▶ Iniciar", "en_curso"],
+      ["✓ Finalizar", "completada"],
+    ],
+    en_curso: [
+      ["❚❚ Pausar", "pendiente"],
+      ["✓ Finalizar", "completada"],
+    ],
+    completada: [["↺ Reabrir", "pendiente"]],
+  };
+
   let secuenciaIds = 0;
 
   function crear(etiqueta, clase, texto) {
@@ -327,6 +346,8 @@
     function dibujarFila(tarea) {
       const { actividad } = tarea;
       const completada = actividad.estado === "completada";
+      const enCurso = actividad.estado === "en_curso";
+      const prioridad = TEXTO_PRIORIDAD[actividad.prioridad] ? actividad.prioridad : null;
       let desde = diasEntre(rango.inicio, tarea.inicio);
       let hasta = diasEntre(rango.inicio, tarea.fin);
       const recortada = desde < 0;
@@ -334,12 +355,17 @@
       hasta = Math.min(Math.max(hasta, desde), rango.total - 1);
 
       const fila = crear("div", "gantt-fila");
-      const texto = `${completada ? "✓ " : ""}${actividad.descripcion}`;
+      const texto = `${completada ? "✓ " : enCurso ? "▶ " : ""}${actividad.descripcion}`;
 
       const barra = crear("button", "gantt-barra");
       barra.type = "button";
       barra.dataset.actividadId = String(actividad.id);
       if (completada) barra.classList.add("gantt-barra--completada");
+      if (enCurso) barra.classList.add("gantt-barra--en-curso");
+      if (prioridad) {
+        barra.classList.add(`gantt-barra--prioridad-${prioridad}`);
+        barra.append(crear("span", "gantt-prioridad", "!"));
+      }
       if (recortada) barra.classList.add("gantt-barra--recortada");
       const plazo = plazoDe(tarea, hoy);
       if (plazo) barra.classList.add(`gantt-barra--${plazo.clase}`);
@@ -351,11 +377,14 @@
           tarea.provisional
             ? "Sin fechas definidas"
             : `${textoFecha(tarea.inicio)} a ${textoFecha(tarea.fin)}`
-        }. ${completada ? "Completada" : "Pendiente"}${plazo ? `, ${plazo.texto.toLowerCase()}` : ""}.`
+        }. ${TEXTO_ESTADO[actividad.estado] || "Pendiente"}${
+          prioridad ? `, prioridad ${TEXTO_PRIORIDAD[prioridad]}` : ""
+        }${plazo ? `, ${plazo.texto.toLowerCase()}` : ""}.`
       );
       barra.append(crear("span", "gantt-barra-texto", texto));
 
       const etiqueta = crear("span", "gantt-etiqueta", texto);
+      if (prioridad) etiqueta.classList.add(`gantt-etiqueta--${prioridad}`);
       etiqueta.setAttribute("aria-hidden", "true");
       etiqueta.title = actividad.descripcion;
       etiqueta.addEventListener("click", () => barra.click());
@@ -521,7 +550,6 @@
     function abrirPopup(tarea, barra) {
       cerrarPopup();
       const { actividad } = tarea;
-      const completada = actividad.estado === "completada";
       const idTitulo = `gantt-popup-${++secuenciaIds}`;
 
       const caja = crear("div", "gantt-popup");
@@ -530,7 +558,14 @@
 
       const cabecera = crear("div", "gantt-popup-cabecera");
       const etiquetas = crear("div", "gantt-popup-etiquetas");
-      etiquetas.append(pill(completada ? "Completada" : "Pendiente", completada ? "good" : "info"));
+      etiquetas.append(
+        pill(TEXTO_ESTADO[actividad.estado] || "Pendiente", TIPO_ESTADO[actividad.estado] || "mute")
+      );
+      if (TEXTO_PRIORIDAD[actividad.prioridad]) {
+        etiquetas.append(
+          pill(TEXTO_PRIORIDAD[actividad.prioridad], TIPO_PRIORIDAD[actividad.prioridad])
+        );
+      }
       const plazo = plazoDe(tarea, hoy);
       if (plazo) etiquetas.append(pill(plazo.texto, plazo.tipo));
       etiquetas.append(pill(actividad.categoria || "General", "mute"));
@@ -566,7 +601,31 @@
       );
       dato("Responsable", nombreUsuario(actividad.responsable_id) || "Sin asignar");
 
-      caja.append(cabecera, titulo, datos);
+      // Iniciar / Pausar / Finalizar desde el resumen: cada cambio queda en
+      // las transiciones y alimenta los tiempos de los procesos.
+      const acciones = crear("div", "gantt-popup-acciones");
+      (ACCIONES_ESTADO[actividad.estado] || ACCIONES_ESTADO.pendiente).forEach(
+        ([texto, destino]) => {
+          const b = crear("button", "boton boton-secundario boton-pequeno", texto);
+          b.type = "button";
+          b.addEventListener("click", async () => {
+            b.disabled = true;
+            const r = await api("PUT", `/proyectos/${proyectoId}/actividades/${actividad.id}`, {
+              estado: destino,
+            });
+            if (r.status !== 200) {
+              b.disabled = false;
+              mostrarError(r.cuerpo?.error || "No se pudo cambiar el estado de la actividad.");
+              return;
+            }
+            cerrarPopup();
+            await alCambiar();
+          });
+          acciones.append(b);
+        }
+      );
+
+      caja.append(cabecera, titulo, datos, acciones);
       if (tarea.provisional) {
         caja.append(
           crear(
@@ -679,9 +738,19 @@
       const estado = selector(
         [
           { valor: "pendiente", texto: "Pendiente" },
-          { valor: "completada", texto: "Completada" },
+          { valor: "en_curso", texto: "En curso" },
+          { valor: "completada", texto: "Finalizado" },
         ],
-        actividad.estado === "completada" ? "completada" : "pendiente"
+        TEXTO_ESTADO[actividad.estado] ? actividad.estado : "pendiente"
+      );
+      // Alta se resalta en amarillo y Urgente en rojo; Normal no se muestra.
+      const prioridad = selector(
+        [
+          { valor: "normal", texto: "Normal" },
+          { valor: "alta", texto: "Alta" },
+          { valor: "urgente", texto: "Urgente" },
+        ],
+        actividad.prioridad || "normal"
       );
       const fechaInicio = entrada(
         "date",
@@ -700,6 +769,7 @@
         campo("Categoría *", categoria),
         campo("Responsable", responsable),
         campo("Estado", estado),
+        campo("Prioridad", prioridad),
         campo(tieneFechas ? "Fecha de inicio *" : "Fecha de inicio", fechaInicio),
         campo(tieneFechas ? "Fecha de fin *" : "Fecha de fin", fechaFin)
       );
@@ -731,6 +801,8 @@
         const resp = responsable.value ? Number(responsable.value) : null;
         if (resp !== (actividad.responsable_id || null)) datos.responsable_id = resp;
         if (estado.value !== actividad.estado) datos.estado = estado.value;
+        if (prioridad.value !== (actividad.prioridad || "normal"))
+          datos.prioridad = prioridad.value;
 
         const fi = fechaInicio.value;
         const ff = fechaFin.value;

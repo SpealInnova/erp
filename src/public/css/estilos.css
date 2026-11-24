@@ -203,7 +203,8 @@ body:not(.app-body)::before {
 }
 
 .campo input,
-.campo select {
+.campo select,
+.campo textarea {
   width: 100%;
   padding: 12px 14px;
   font: inherit;
@@ -224,8 +225,17 @@ body:not(.app-body)::before {
   cursor: pointer;
 }
 
+/* Áreas de texto (p. ej. motivo de una nueva versión): mismo ancho y estilo
+   que los demás campos, crecen solo en alto */
+.campo textarea {
+  min-height: 72px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
 .campo input:focus,
-.campo select:focus {
+.campo select:focus,
+.campo textarea:focus {
   outline: none;
   border-color: var(--accent);
   background: var(--surface);
@@ -233,7 +243,8 @@ body:not(.app-body)::before {
 }
 
 .campo-error input,
-.campo-error select {
+.campo-error select,
+.campo-error textarea {
   border-color: var(--crit);
   box-shadow: 0 0 0 3px var(--crit-tint);
 }
@@ -500,6 +511,11 @@ body.app-body::before {
 .menu .marca::before {
   width: 36px;
   height: 36px;
+}
+
+/* Enlaces que dependen de un permiso (data-permiso): ocultos sin él */
+.menu [hidden] {
+  display: none;
 }
 
 .menu a {

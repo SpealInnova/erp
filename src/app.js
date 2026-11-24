@@ -9,6 +9,7 @@ const { crearProyectoActividadesRutas } = require("./rutas/proyectoActividadesRu
 const { crearLineaTiempoRutas } = require("./rutas/lineaTiempoRutas");
 const { crearProyectoEquipoRutas } = require("./rutas/proyectoEquipoRutas");
 const { crearProyectoDocumentosRutas } = require("./rutas/proyectoDocumentosRutas");
+const { crearResumenEtapasRutas } = require("./rutas/resumenEtapasRutas");
 const { crearCotizacionesRutas } = require("./rutas/cotizacionesRutas");
 const { crearProveedoresRutas } = require("./rutas/proveedoresRutas");
 const { crearRequisicionesRutas } = require("./rutas/requisicionesRutas");
@@ -31,6 +32,8 @@ const { crearActasEntregaRutas } = require("./rutas/actasEntregaRutas");
 const { crearUsuariosRutas } = require("./rutas/usuariosRutas");
 const { crearNotificacionesRutas } = require("./rutas/notificacionesRutas");
 const { crearMisActividadesRutas } = require("./rutas/misActividadesRutas");
+const { crearTareasRutas } = require("./rutas/tareasRutas");
+const { crearCopiasRutas } = require("./rutas/copiasRutas");
 const { crearArchivosAdjuntosRutas } = require("./rutas/archivosAdjuntosRutas");
 const { crearTablerosRutas } = require("./rutas/tablerosRutas");
 const { crearEquiposRutas } = require("./rutas/equiposRutas");
@@ -104,6 +107,11 @@ function crearApp() {
     requireAuth,
     crearProyectoDocumentosRutas(pool)
   );
+  app.use(
+    "/proyectos/:proyectoId/resumen-etapas",
+    requireAuth,
+    crearResumenEtapasRutas(pool)
+  );
   app.use("/cotizaciones", requireAuth, crearCotizacionesRutas(pool));
   app.use("/proveedores", requireAuth, crearProveedoresRutas(pool));
   app.use("/requisiciones", requireAuth, crearRequisicionesRutas(pool));
@@ -164,6 +172,8 @@ function crearApp() {
   app.use("/usuarios", requireAuth, crearUsuariosRutas(pool));
   app.use("/notificaciones", requireAuth, crearNotificacionesRutas(pool));
   app.use("/actividades", requireAuth, crearMisActividadesRutas(pool));
+  app.use("/tareas", requireAuth, crearTareasRutas(pool));
+  app.use("/copias", requireAuth, crearCopiasRutas(pool));
   app.use("/archivos-adjuntos", requireAuth, crearArchivosAdjuntosRutas(pool));
   app.use("/tableros", requireAuth, crearTablerosRutas(pool));
   app.use("/equipos", requireAuth, crearEquiposRutas(pool));

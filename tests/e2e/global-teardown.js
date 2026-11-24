@@ -12,6 +12,19 @@ module.exports = async function globalTeardown() {
     if (idsUsuarios.length === 0) return;
 
     await pool.query("DELETE FROM notificaciones WHERE usuario_id IN (?)", [idsUsuarios]);
+    // Tareas (gestor de tareas) y transiciones de estado (horómetro): antes
+    // que usuarios, clientes y proyectos por las llaves foráneas.
+    await pool.query(
+      `DELETE te FROM transiciones_estado te
+       JOIN tareas t ON t.id = te.registro_id AND te.entidad = 'tarea'
+       WHERE t.created_by IN (?) OR t.responsable_id IN (?)`,
+      [idsUsuarios, idsUsuarios]
+    );
+    await pool.query("DELETE FROM tareas WHERE created_by IN (?) OR responsable_id IN (?)", [
+      idsUsuarios,
+      idsUsuarios,
+    ]);
+    await pool.query("DELETE FROM transiciones_estado WHERE usuario_id IN (?)", [idsUsuarios]);
     await pool.query("DELETE FROM proyecto_equipo WHERE usuario_id IN (?)", [idsUsuarios]);
     await pool.query("DELETE FROM auditoria WHERE usuario_id IN (?)", [idsUsuarios]);
     await pool.query("DELETE FROM documento_versiones WHERE reemplazada_por IN (?)", [idsUsuarios]);
@@ -56,6 +69,27 @@ module.exports = async function globalTeardown() {
       idsUsuarios,
       `${PREFIJO_DATOS_E2E}%`,
     ]);
+    // Expedientes de diseño de las pruebas y sus secciones (antes que los proyectos).
+    const expedientesE2E = `SELECT id FROM expedientes_diseno WHERE proyecto_id IN (${proyectosE2E})`;
+    for (const seccion of [
+      "requisitos_entrada",
+      "salidas_diseno",
+      "verificaciones",
+      "validaciones",
+      "revisiones_diseno",
+      "riesgos_diseno",
+      "cambios_diseno",
+      "transferencias",
+    ]) {
+      await pool.query(
+        `DELETE FROM ${seccion} WHERE expediente_id IN (${expedientesE2E})`,
+        parametrosE2E
+      );
+    }
+    await pool.query(
+      `DELETE FROM expedientes_diseno WHERE proyecto_id IN (${proyectosE2E})`,
+      parametrosE2E
+    );
     await pool.query(
       `DELETE pa FROM proyecto_actividades pa
        JOIN proyectos p ON p.id = pa.proyecto_id

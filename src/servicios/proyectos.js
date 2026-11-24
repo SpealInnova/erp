@@ -12,6 +12,7 @@ const proyectoDocumentosRepositorio = require("../repositorios/proyectoDocumento
 const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const proyectoActividadesServicio = require("./proyectoActividades");
 const notificacionesServicio = require("./notificaciones");
+const transiciones = require("./transiciones");
 const archivosDrive = require("./archivosDrive");
 const { formatearCodigoPry } = require("../dominio/codigoProyecto");
 const { transicionar, ESTADOS } = require("../dominio/estadoProyecto");
@@ -85,6 +86,15 @@ async function crearProyecto(pool, datos, usuarioId) {
     usuarioId,
     datosAnteriores: null,
     datosNuevos: proyecto,
+  });
+  // Entrada a la primera fase: desde aquí se cuentan los días por fase.
+  await transiciones.registrar(pool, {
+    entidad: "proyecto",
+    registroId: id,
+    proyectoId: id,
+    estadoAnterior: null,
+    estadoNuevo: proyecto.estado,
+    usuarioId,
   });
 
   return proyecto;
@@ -167,6 +177,15 @@ async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observa
     usuarioId,
     datosAnteriores: anterior,
     datosNuevos: observacion ? { ...actualizado, observacion } : actualizado,
+  });
+
+  await transiciones.registrar(pool, {
+    entidad: "proyecto",
+    registroId: id,
+    proyectoId: id,
+    estadoAnterior: anterior.estado,
+    estadoNuevo: estadoDestino,
+    usuarioId,
   });
 
   await proyectoActividadesServicio.generarActividadesParaFase(pool, id, estadoDestino, usuarioId);

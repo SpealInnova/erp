@@ -82,12 +82,13 @@ async function softDelete(pool, id) {
 // Lo que se le pide al usuario: las actividades pendientes que tiene
 // asignadas y las sin responsable de los proyectos que dirige. No cuenta
 // proyectos eliminados, cerrados ni cancelados.
-const CONDICION_PENDIENTE = `a.deleted_at IS NULL AND a.estado = 'pendiente'
+// "Pendiente" para el usuario: todo lo no finalizado (pendiente o en curso).
+const CONDICION_PENDIENTE = `a.deleted_at IS NULL AND a.estado <> 'completada'
    AND p.deleted_at IS NULL AND p.estado NOT IN ('cerrado', 'cancelado')`;
 
 async function listarPendientesDeUsuario(pool, usuarioId) {
   const [filas] = await pool.query(
-    `SELECT a.id, a.proyecto_id, a.fase, a.categoria, a.descripcion, a.fecha_inicio,
+    `SELECT a.id, a.proyecto_id, a.fase, a.categoria, a.descripcion, a.estado, a.prioridad, a.fecha_inicio,
             a.fecha_fin, a.responsable_id, p.codigo_pry, p.nombre_proyecto
        FROM proyecto_actividades a
        JOIN proyectos p ON p.id = a.proyecto_id
@@ -124,7 +125,34 @@ async function listarParaAviso(pool, { diasAviso, diasVencida, usuarioId }) {
   return filas;
 }
 
+// { fase: cantidad } de evidencias (archivos adjuntos vigentes) de las
+// actividades de un proyecto.
+async function contarEvidenciasPorFase(pool, proyectoId) {
+  const [filas] = await pool.query(
+    `SELECT a.fase, COUNT(*) AS n
+       FROM archivos_adjuntos aa
+       JOIN proyecto_actividades a ON a.id = aa.registro_id
+      WHERE aa.tabla = 'proyecto_actividades' AND aa.deleted_at IS NULL
+        AND a.proyecto_id = ? AND a.deleted_at IS NULL
+      GROUP BY a.fase`,
+    [proyectoId]
+  );
+  return Object.fromEntries(filas.map((f) => [f.fase, Number(f.n)]));
+}
+
+// Responsables de las actividades de una fase (personas vinculadas a la fase).
+async function listarResponsablesDeFase(pool, proyectoId, fase) {
+  const [filas] = await pool.query(
+    `SELECT DISTINCT responsable_id FROM proyecto_actividades
+      WHERE proyecto_id = ? AND fase = ? AND deleted_at IS NULL AND responsable_id IS NOT NULL`,
+    [proyectoId, fase]
+  );
+  return filas.map((f) => f.responsable_id);
+}
+
 module.exports = {
+  contarEvidenciasPorFase,
+  listarResponsablesDeFase,
   listarPendientesDeUsuario,
   listarParaAviso,
   crear,
