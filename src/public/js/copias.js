@@ -43,7 +43,7 @@
     );
     item(
       configuracion.diarias,
-      `Copia automática diaria activa, desde las ${configuracion.hora}:00.`,
+      `Copia automática diaria activa, a las ${configuracion.hora}:00 (hora de Colombia).`,
       "La copia automática diaria no está activa en este ambiente (COPIAS_DIARIAS=1 en producción)."
     );
     caja.append(crear("h3", "", "Estado"), lista);

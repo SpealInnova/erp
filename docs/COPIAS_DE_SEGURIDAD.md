@@ -14,7 +14,7 @@ lo valida (permiso `gestionar_copias`).
 | Variable | Valor |
 |---|---|
 | `COPIAS_DIARIAS` | `1` solo en producción. Activa la copia automática diaria. |
-| `COPIAS_HORA` | Hora desde la que se hace la copia del día, de 0 a 23. Por defecto es 2. |
+| `COPIAS_HORA` | Hora de la copia del día, de 0 a 23, en hora de Colombia. Por defecto es 2. En producción: `3`. |
 | `DRIVE_COPIAS_FOLDER_ID` | ID de la carpeta de copias en el Drive de innova@speal-intl.com. Si está vacía, se usa `DRIVE_FOLDER_ID`. |
 
 Las copias usan el mismo token de Google que el correo y las evidencias (`GMAIL_REFRESH_TOKEN`).
@@ -31,9 +31,14 @@ copias desde la aplicación o usa la misma carpeta que ya funciona para las evid
 
 ## Cómo funciona
 
-- **Copia automática:** el servidor revisa cada hora. A partir de `COPIAS_HORA`, si hoy no hay una
-  copia exitosa, hace una.
+- **Copia automática:** el servidor revisa cada 10 minutos. A partir de `COPIAS_HORA` (hora de
+  Colombia, sin importar la zona horaria del servidor), si hoy no hay una copia automática
+  exitosa, hace una. Con `COPIAS_HORA=3` sale entre las 3:00 y las 3:10 a. m.
   - Si falla, lo reintenta en la siguiente revisión, hasta 3 veces al día.
+  - Las copias manuales no la reemplazan: la automática sale igual.
+- **Copia manual:** el botón **Hacer copia ahora** funciona en cualquier momento, también con la
+  copia automática activa.
+- **Nombre del archivo:** lleva la fecha y la hora de Colombia.
 - **Sin cruces:** solo se hace una copia a la vez. Staging y producción comparten el servidor
   MySQL, por eso el bloqueo es por base de datos.
 - **Copias interrumpidas:** una copia que quede a medias, por ejemplo por un reinicio, aparece

@@ -41,19 +41,19 @@ async function listarRecientes(pool, limite = 30) {
   return filas;
 }
 
-// Intentos automáticos de hoy (para no repetir la copia del día ni insistir
-// sin fin si Drive falla).
-async function resumenDeHoy(pool) {
+// Copias automáticas de los últimos `minutos` (desde la hora de copia de hoy),
+// para no repetir la copia del día ni insistir sin fin si Drive falla. Se
+// compara con NOW() de la base, la misma zona horaria con la que se guardó
+// iniciada_en, así no depende de la zona del servidor de la aplicación.
+async function automaticasDesde(pool, minutos) {
   const [[fila]] = await pool.query(
     `SELECT COALESCE(SUM(resultado = 'exitosa'), 0) AS exitosas,
-            COALESCE(SUM(resultado = 'fallida' AND origen = 'automatica'), 0) AS fallidas_automaticas
+            COALESCE(SUM(resultado = 'fallida'), 0) AS fallidas
        FROM copias_seguridad
-      WHERE iniciada_en >= CURDATE()`
+      WHERE origen = 'automatica' AND iniciada_en >= NOW() - INTERVAL ? MINUTE`,
+    [minutos]
   );
-  return {
-    exitosas: Number(fila.exitosas),
-    fallidasAutomaticas: Number(fila.fallidas_automaticas),
-  };
+  return { exitosas: Number(fila.exitosas), fallidas: Number(fila.fallidas) };
 }
 
 // Una copia que quedó "en_curso" (p. ej. el proceso se reinició a mitad)
@@ -73,6 +73,6 @@ module.exports = {
   terminar,
   obtenerPorId,
   listarRecientes,
-  resumenDeHoy,
+  automaticasDesde,
   cerrarInterrumpidas,
 };

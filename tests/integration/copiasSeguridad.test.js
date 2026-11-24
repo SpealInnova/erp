@@ -15,6 +15,7 @@ jest.mock("../../src/servicios/archivosDrive", () => ({
   }),
 }));
 const archivosDrive = require("../../src/servicios/archivosDrive");
+const { tocaCopiaDiaria } = require("../../src/servicios/copiasSeguridad");
 
 const hayBaseDeDatos = Boolean(process.env.DB_HOST);
 const describirSiHayBD = hayBaseDeDatos ? describe : describe.skip;
@@ -178,5 +179,60 @@ describirSiHayBD("Copias de seguridad (integración)", () => {
     } finally {
       process.env.GMAIL_REFRESH_TOKEN = VARIABLES.GMAIL_REFRESH_TOKEN;
     }
+  });
+
+  describe("copia automática diaria a las 3 (hora de Colombia)", () => {
+    // 08:10 UTC = 03:10 en Colombia (UTC-5): van 10 minutos desde las 3.
+    const A_LAS_3_Y_10 = new Date("2026-11-24T08:10:00Z");
+    const A_LAS_2_Y_59 = new Date("2026-11-24T07:59:00Z");
+    let horaOriginal;
+
+    // Copia registrada hace `minutos` minutos (según el reloj de la base).
+    const registrar = (origen, resultado, minutos) =>
+      pool.query(
+        `INSERT INTO copias_seguridad (origen, resultado, solicitada_por, iniciada_en)
+         VALUES (?, ?, ?, NOW() - INTERVAL ? MINUTE)`,
+        [origen, resultado, u.admin, minutos]
+      );
+
+    beforeAll(() => {
+      horaOriginal = process.env.COPIAS_HORA;
+      process.env.COPIAS_HORA = "3";
+    });
+    afterAll(() => {
+      if (horaOriginal === undefined) delete process.env.COPIAS_HORA;
+      else process.env.COPIAS_HORA = horaOriginal;
+    });
+    beforeEach(() =>
+      pool.query("DELETE FROM copias_seguridad WHERE solicitada_por = ?", [u.admin])
+    );
+
+    test("antes de las 3 no toca, aunque el servidor esté en otra zona horaria", async () => {
+      expect(await tocaCopiaDiaria(pool, A_LAS_2_Y_59)).toBe(false);
+      expect(await tocaCopiaDiaria(pool, A_LAS_3_Y_10)).toBe(true);
+    });
+
+    test("una copia manual no reemplaza la automática", async () => {
+      await registrar("manual", "exitosa", 5);
+      expect(await tocaCopiaDiaria(pool, A_LAS_3_Y_10)).toBe(true);
+    });
+
+    test("con la automática de hoy ya hecha no se repite", async () => {
+      await registrar("automatica", "exitosa", 5);
+      expect(await tocaCopiaDiaria(pool, A_LAS_3_Y_10)).toBe(false);
+    });
+
+    test("la automática de ayer no cuenta para hoy", async () => {
+      await registrar("automatica", "exitosa", 60 * 24);
+      expect(await tocaCopiaDiaria(pool, A_LAS_3_Y_10)).toBe(true);
+    });
+
+    test("después de 3 intentos fallidos hoy deja de insistir", async () => {
+      await registrar("automatica", "fallida", 8);
+      await registrar("automatica", "fallida", 4);
+      expect(await tocaCopiaDiaria(pool, A_LAS_3_Y_10)).toBe(true);
+      await registrar("automatica", "fallida", 1);
+      expect(await tocaCopiaDiaria(pool, A_LAS_3_Y_10)).toBe(false);
+    });
   });
 });
