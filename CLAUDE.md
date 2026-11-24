@@ -52,22 +52,29 @@ Flujo: crear rama `feature/<nombre>` desde `develop`, PR a `develop`. Promoción
 - Toda consulta parametrizada, nunca concatenar SQL.
 - Validar permisos en el servidor, no solo ocultar botones en el frontend.
 
+## Google: correo, evidencias y copias de seguridad
+
+- Correo, evidencias/adjuntos (`src/servicios/archivosDrive.js`) y copias de seguridad
+  (`src/servicios/copiasSeguridad.js`, `docs/COPIAS_DE_SEGURIDAD.md`) usan el mismo
+  `GMAIL_REFRESH_TOKEN`. Desde el 2026-11-23 ese token tiene los scopes `gmail.send` y
+  `drive.file` en `staging` y en `main`.
+- Con `drive.file`, la aplicación solo escribe en las carpetas que ella misma creó. Esas carpetas
+  están en el Drive de innova@speal-intl.com, dentro de "SPEAL ERP":
+  - "Evidencias - producción": `DRIVE_FOLDER_ID` de `main`.
+  - "Evidencias - pruebas": `DRIVE_FOLDER_ID` de `staging`.
+  - "Copias de seguridad": `DRIVE_COPIAS_FOLDER_ID` de ambos.
+- Para regenerar el token, el usuario corre `scripts/autorizar-gmail.js` en su equipo y pega el
+  token directo en hPanel. El script usa el redirect `http://localhost:53682/callback`, que ya
+  está registrado en el cliente OAuth. Un agente nunca debe ver, guardar ni repetir ese token.
+- Las pruebas nunca suben a Drive real (usan Drive simulado).
+
 ## Pendientes conocidos (no asumir que ya existen)
 
 - Catálogos cerrados (productos, clientes, proveedores) aún no entregados por el usuario.
 - El diccionario de datos vive en `documentacion/DICCIONARIO_DE_DATOS.txt`, en el repo de
   documentación del proyecto (no en este repo de código).
-- Evidencias/archivos adjuntos (sube a Google Drive, `src/servicios/archivosDrive.js`): el
-  `GMAIL_REFRESH_TOKEN` real en `staging`/`main` todavía NO tiene el scope de Drive
-  (`drive.file`) — solo el de Gmail. Subir un archivo en esos entornos fallará con 500 hasta
-  que el usuario regenere ese token autorizando ambos scopes a la vez y se actualice la
-  variable de entorno en el servidor (y se configure `DRIVE_FOLDER_ID`).
-  `scripts/autorizar-gmail.js` ya pide los dos scopes; lo corre el usuario en su equipo y pega
-  el token directo en hPanel. Un agente nunca debe ver, guardar ni repetir ese token.
-- Copias de seguridad diarias a Drive (`src/servicios/copiasSeguridad.js`,
-  `docs/COPIAS_DE_SEGURIDAD.md`): dependen del mismo token con `drive.file`. Hasta que exista,
-  cada copia queda como "fallida" en `copias_seguridad`. La automática solo corre con
-  `COPIAS_DIARIAS=1` (producción). Las pruebas nunca suben a Drive real (Drive simulado).
+- Copia diaria automática: corre solo con `COPIAS_DIARIAS=1`, y solo se activará en producción
+  después de llevar el panel de copias a `main`. En `staging` la copia manual ya funciona.
 
 ## Qué puede resolver un agente sin supervisión directa
 
