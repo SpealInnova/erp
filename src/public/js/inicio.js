@@ -225,6 +225,12 @@ const SECCIONES_POR_MODULO = {
     { seccion: "actas-entrega", texto: "Actas de entrega", ruta: "#/actas-entrega" },
     { seccion: "actas-cierre", texto: "Actas de cierre", ruta: "#/actas-cierre" },
   ],
+  // "permiso": la pestaña solo aparece a quien lo tiene (el servidor también
+  // lo exige)
+  usuarios: [
+    { seccion: "usuarios", texto: "Usuarios", ruta: "#/usuarios" },
+    { seccion: "auditoria", texto: "Auditoría", ruta: "#/auditoria", permiso: "ver_auditoria" },
+  ],
 };
 
 const MODULO_DE_SECCION = {};
@@ -235,8 +241,11 @@ Object.entries(SECCIONES_POR_MODULO).forEach(([modulo, secciones]) => {
 function pintarPestanasModulo(modulo, seccionActual) {
   const nav = document.getElementById("subtabs");
   if (!nav) return;
-  const secciones = SECCIONES_POR_MODULO[modulo];
-  if (!secciones) {
+  const secciones = (SECCIONES_POR_MODULO[modulo] || []).filter(
+    (s) => !s.permiso || puede(s.permiso)
+  );
+  // con una sola pestaña visible no hace falta la barra
+  if (secciones.length < 2) {
     nav.hidden = true;
     nav.replaceChildren();
     return;
@@ -6023,6 +6032,15 @@ async function vistaUsuarios() {
       );
       editar.setAttribute("aria-label", `Editar usuario ${u.nombre}`);
       if (esAdmin) accion.append(editar);
+      if (puede("ver_auditoria")) {
+        const actividad = boton(
+          "Ver actividad",
+          () => (window.location.hash = `#/auditoria?usuario=${u.id}`),
+          true
+        );
+        actividad.setAttribute("aria-label", `Ver la actividad de ${u.nombre}`);
+        accion.append(actividad);
+      }
       fila.append(accion);
       tbody.append(fila);
     });
@@ -6262,6 +6280,8 @@ function enrutarRuta(ruta) {
   if (editarUsuario) return vistaUsuarioForm(editarUsuario[1]);
   if (/^#\/usuarios$/.test(ruta)) return vistaUsuarios();
   if (/^#\/copias$/.test(ruta)) return window.vistaCopias(); // copias.js
+  // auditoria.js; el filtro (?usuario=ID) lo lee la vista
+  if (/^#\/auditoria$/.test(ruta)) return window.vistaAuditoria();
 
   return window.vistaTableroGeneral();
 }
