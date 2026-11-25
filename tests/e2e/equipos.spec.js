@@ -59,5 +59,11 @@ test.describe("Equipos y reportes de servicio", () => {
     const fila = page.locator("tr", { hasText: serie });
     await expect(fila).toContainText(proyecto.codigo_pry);
     await expect(fila).toContainText(/RST-\d{4}-\d{3}/);
+
+    // el reporte ya creado admite evidencias (fotos y PDF a Drive)
+    await fila.getByRole("button", { name: `Editar reporte de ${serie}` }).click();
+    await expect(page).toHaveURL(/#\/reportes-servicio\/\d+$/);
+    await expect(page.getByRole("heading", { name: "Evidencias del servicio" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Subir evidencia" })).toBeVisible();
   });
 });

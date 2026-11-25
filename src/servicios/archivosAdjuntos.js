@@ -5,6 +5,9 @@ const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const proyectoActividadesRepositorio = require("../repositorios/proyectoActividadesRepositorio");
 const requisicionesRepositorio = require("../repositorios/requisicionesRepositorio");
 const ordenesCompraRepositorio = require("../repositorios/ordenesCompraRepositorio");
+const reportesServicioTecnicoRepositorio = require("../repositorios/reportesServicioTecnicoRepositorio");
+const actasEntregaRepositorio = require("../repositorios/actasEntregaRepositorio");
+const actasCierreRepositorio = require("../repositorios/actasCierreRepositorio");
 const auditoria = require("./auditoria");
 const {
   ErrorTablaNoPermitida,
@@ -20,6 +23,9 @@ const VERIFICADORES_POR_TABLA = {
   proyecto_actividades: proyectoActividadesRepositorio.obtenerPorId,
   requisiciones: requisicionesRepositorio.obtenerPorId,
   ordenes_compra: ordenesCompraRepositorio.obtenerPorId,
+  reportes_servicio_tecnico: reportesServicioTecnicoRepositorio.obtenerPorId,
+  actas_entrega_equipos: actasEntregaRepositorio.obtenerPorId,
+  actas_cierre_satisfaccion: actasCierreRepositorio.obtenerPorId,
 };
 
 const MIME_TYPES_PERMITIDOS = [

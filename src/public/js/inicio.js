@@ -4868,7 +4868,10 @@ async function vistaReporteServicioForm(id, opciones = {}) {
     }
   });
 
-  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("reportes-servicio", id));
+  if (id && !modoVersion) {
+    tarjeta.append(renderSeccionEvidencias("reportes_servicio_tecnico", id, "Evidencias del servicio"));
+    tarjeta.append(await renderPanelVersiones("reportes-servicio", id));
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -5460,7 +5463,10 @@ async function vistaActaCierreForm(id, opciones = {}) {
     }
   });
 
-  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("actas-cierre", id));
+  if (id && !modoVersion) {
+    tarjeta.append(renderSeccionEvidencias("actas_cierre_satisfaccion", id, "Evidencias del cierre"));
+    tarjeta.append(await renderPanelVersiones("actas-cierre", id));
+  }
 }
 
 async function obtenerActasEntrega() {
@@ -5763,7 +5769,10 @@ async function vistaActaEntregaForm(id, opciones = {}) {
     }
   });
 
-  if (id && !modoVersion) tarjeta.append(await renderPanelVersiones("actas-entrega", id));
+  if (id && !modoVersion) {
+    tarjeta.append(renderSeccionEvidencias("actas_entrega_equipos", id, "Evidencias de la entrega"));
+    tarjeta.append(await renderPanelVersiones("actas-entrega", id));
+  }
 }
 
 const CARGOS = [

@@ -18,13 +18,21 @@ beforeEach(() => {
 
 describe("obtenerCarpetaParaArchivo", () => {
   test("proyecto sin carpeta: crea carpeta de proyecto y de fase, y guarda ambos ids", async () => {
-    const proyecto = { id: 1, codigo_pry: "PRY-2026-001", estado: "planeacion", drive_folder_id: null };
+    const proyecto = {
+      id: 1,
+      codigo_pry: "PRY-2026-001",
+      estado: "planeacion",
+      drive_folder_id: null,
+    };
     archivosDrive.crearCarpeta
       .mockResolvedValueOnce({ id: "carpeta-proyecto" })
       .mockResolvedValueOnce({ id: "carpeta-fase" });
     proyectoDriveCarpetasRepositorio.obtenerPorProyectoYFase.mockResolvedValue(null);
 
-    const carpetaId = await obtenerCarpetaParaArchivo(pool, { tabla: "proyectos", registro: proyecto });
+    const carpetaId = await obtenerCarpetaParaArchivo(pool, {
+      tabla: "proyectos",
+      registro: proyecto,
+    });
 
     expect(archivosDrive.crearCarpeta).toHaveBeenNthCalledWith(1, {
       nombre: "PRY-2026-001",
@@ -46,12 +54,20 @@ describe("obtenerCarpetaParaArchivo", () => {
   });
 
   test("proyecto con carpeta y fase ya existentes: no crea nada en Drive", async () => {
-    const proyecto = { id: 2, codigo_pry: "PRY-2026-002", estado: "ejecucion", drive_folder_id: "ya-existe" };
+    const proyecto = {
+      id: 2,
+      codigo_pry: "PRY-2026-002",
+      estado: "ejecucion",
+      drive_folder_id: "ya-existe",
+    };
     proyectoDriveCarpetasRepositorio.obtenerPorProyectoYFase.mockResolvedValue({
       drive_folder_id: "fase-ya-existe",
     });
 
-    const carpetaId = await obtenerCarpetaParaArchivo(pool, { tabla: "proyectos", registro: proyecto });
+    const carpetaId = await obtenerCarpetaParaArchivo(pool, {
+      tabla: "proyectos",
+      registro: proyecto,
+    });
 
     expect(archivosDrive.crearCarpeta).not.toHaveBeenCalled();
     expect(carpetaId).toBe("fase-ya-existe");
@@ -106,6 +122,29 @@ describe("obtenerCarpetaParaArchivo", () => {
     );
     expect(carpetaId).toBe("carpeta-fase-cierre");
   });
+
+  test.each(["reportes_servicio_tecnico", "actas_entrega_equipos", "actas_cierre_satisfaccion"])(
+    "%s: usa la fase vigente de su proyecto",
+    async (tabla) => {
+      proyectosRepositorio.obtenerPorId.mockResolvedValue({
+        id: 9,
+        codigo_pry: "PRY-2026-009",
+        estado: "seguimiento",
+        drive_folder_id: "carpeta-proyecto-9",
+      });
+      proyectoDriveCarpetasRepositorio.obtenerPorProyectoYFase.mockResolvedValue({
+        drive_folder_id: "carpeta-fase-seguimiento",
+      });
+
+      const carpetaId = await obtenerCarpetaParaArchivo(pool, {
+        tabla,
+        registro: { proyecto_id: 9 },
+      });
+
+      expect(proyectosRepositorio.obtenerPorId).toHaveBeenCalledWith(pool, 9);
+      expect(carpetaId).toBe("carpeta-fase-seguimiento");
+    }
+  );
 
   test("ordenes_compra: resuelve proyecto a través de la requisición", async () => {
     const orden = { requisicion_id: 10 };
