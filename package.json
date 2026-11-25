@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "autorizar-gmail": "node scripts/autorizar-gmail.js"
+    "autorizar-gmail": "node scripts/autorizar-gmail.js",
+    "revisar:staging": "node scripts/revisar-sitio.js https://erp-test.speal-pad.com"
   },
   "engines": {
     "node": ">=18"

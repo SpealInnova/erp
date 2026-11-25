@@ -25,6 +25,11 @@ Excel/Word dispersos (ver diccionario de datos en el repo de documentación, fue
 - E2E (Playwright, `tests/e2e/`): flujos críticos completos. Corren contra un servidor local +
   BD de prueba (Docker), no contra `staging` real — esa BD está conectada a la cuenta real de
   soluctiasas.com y no se usa para generar datos de prueba. Wireados en CI tras los tests de Jest.
+- Revisión de sitio (`npm run revisar:staging`, `scripts/revisar-sitio.js`,
+  `docs/REVISION_DE_SITIO.md`): es lo único que corre contra `staging`, porque es de solo lectura.
+  Bloquea en el navegador toda petición que no sea GET y la reporta como falla. Se corre después de
+  cada redespliegue. Las credenciales están en `~/.erp-revision.env`, en el equipo del usuario; un
+  agente nunca abre ni repite ese archivo.
 - CI (`.github/workflows/ci.yml`) corre lint + test en cada push/PR a `develop`/`staging`/`main`.
   Un PR no se aprueba si CI falla. Sin excepciones.
 
