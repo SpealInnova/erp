@@ -71,9 +71,10 @@ test.describe("Bloqueo de eliminación y versiones", () => {
     await page.click('button:has-text("Guardar como versión 2")');
 
     await expect(page).toHaveURL(new RegExp(`#/proyectos/${proyecto.id}$`));
-    await expect(
-      page.getByRole("heading", { name: `Proyecto ${proyecto.codigo_pry} · v2` })
-    ).toBeVisible();
+    // la cabecera de la ficha muestra la versión y el nombre corregido
+    await expect(page.locator(".ficha-cod")).toHaveText(`${proyecto.codigo_pry} · v2`);
+    await expect(page.getByRole("heading", { name: nombreCorregido, level: 2 })).toBeVisible();
+    await page.getByRole("tab", { name: "Datos y versiones" }).click();
     const panel = page.locator(".panel-versiones");
     await expect(panel).toContainText("v1 reemplazada");
     await expect(panel).toContainText("El nombre no coincidía con el contrato firmado");

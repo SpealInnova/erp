@@ -58,6 +58,30 @@ function fechaLocal(page, dias) {
 }
 
 test.describe("Gantt de actividades", () => {
+  test("una subactividad se agrega con Enter y queda al final de su fase", async ({ page }) => {
+    const { gantt, proyectoId } = await proyectoEnPlaneacion(page, "Sub");
+    const barrasAntes = await gantt.locator(".gantt-barra").count();
+    const fase = page.locator("details.fase-actividades[open]").first();
+
+    await fase.getByRole("button", { name: "+ Agregar subactividad" }).click();
+    const campo = fase.getByLabel("Nueva subactividad en Planeación");
+    await campo.fill("Visita técnica previa");
+    await campo.press("Enter");
+
+    await expect(page.locator("details[open] .gantt").first().locator(".gantt-barra")).toHaveCount(
+      barrasAntes + 1
+    );
+    const headers = await encabezadosApi(page);
+    const { actividades } = await (
+      await page.request.get(`/proyectos/${proyectoId}/actividades`, { headers })
+    ).json();
+    const dePlaneacion = actividades.filter((a) => a.fase === "planeacion");
+    expect(dePlaneacion[dePlaneacion.length - 1]).toMatchObject({
+      descripcion: "Visita técnica previa",
+      origen: "manual",
+    });
+  });
+
   test("ocupa todo el ancho, se comprime al sumar semanas y no muestra días pasados", async ({
     page,
   }) => {
@@ -162,9 +186,11 @@ test.describe("Gantt de actividades", () => {
     const { gantt, proyectoId } = await proyectoEnPlaneacion(page, "Gestion");
     const seccion = page.locator(".tarjeta-ancha", { hasText: "Actividades por fase" }).last();
 
-    // La tabla de actividades y las subactividades ya no aparecen.
+    // La tabla de actividades ya no aparece; cada fase ofrece agregar subactividades.
     await expect(seccion.locator("table")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "+ Agregar subactividad" })).toHaveCount(0);
+    expect(
+      await seccion.getByRole("button", { name: "+ Agregar subactividad" }).count()
+    ).toBeGreaterThan(0);
 
     const headers = await encabezadosApi(page);
     const { actividades } = await (

@@ -9,6 +9,36 @@
   font-weight: 700;
 }
 
+/* "+ Agregar subactividad" de cada fase */
+.fila-subactividad {
+  margin-top: 8px;
+}
+
+.form-subactividad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.form-subactividad label {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.form-subactividad input {
+  flex: 1 1 280px;
+  max-width: 520px;
+  padding: 9px 12px;
+  font: inherit;
+  border: 1.5px solid var(--borde);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+
 .gantt {
   --gantt-linea-dia: #d5dbe6;
   --gantt-linea-semana: #a3acbb;

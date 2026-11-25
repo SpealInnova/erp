@@ -21,13 +21,14 @@ async function obtenerProyectoExistente(pool, proyectoId) {
 
 // Se llama desde proyectosServicio.cambiarEstadoProyecto al entrar a una fase
 // nueva: siembra las actividades preestablecidas del catálogo para esa fase,
-// una sola vez por proyecto+fase.
+// una sola vez por proyecto+fase. Las subactividades agregadas a mano antes
+// de llegar a la fase no lo impiden.
 async function generarActividadesParaFase(pool, proyectoId, fase, usuarioId) {
   const plantillas = obtenerActividadesPorFase(fase);
   if (plantillas.length === 0) {
     return;
   }
-  const yaGeneradas = await proyectoActividadesRepositorio.contarPorProyectoYFase(
+  const yaGeneradas = await proyectoActividadesRepositorio.contarPlantillaPorProyectoYFase(
     pool,
     proyectoId,
     fase
@@ -52,12 +53,15 @@ async function agregarActividad(pool, proyectoId, datos, usuarioId) {
     }
   }
 
+  // Subactividad agregada a mano: al final de su fase y marcada como manual
+  const fase = datos.fase || proyecto.estado;
   const id = await proyectoActividadesRepositorio.crear(pool, proyectoId, {
-    fase: datos.fase || proyecto.estado,
+    fase,
     categoria: datos.categoria,
     descripcion: datos.descripcion,
     responsable_id: datos.responsable_id,
-    orden: 0,
+    orden: await proyectoActividadesRepositorio.siguienteOrden(pool, proyectoId, fase),
+    origen: "manual",
     created_by: usuarioId,
   });
   const actividad = await proyectoActividadesRepositorio.obtenerPorId(pool, id);

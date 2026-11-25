@@ -374,3 +374,74 @@ describirSiHayBD("Actividades de proyecto por fase (integración contra BD real)
     });
   });
 });
+
+describirSiHayBD("Subactividades agregadas a mano (integración)", () => {
+  let app;
+  let pool;
+  let token;
+  const ids = {};
+
+  beforeAll(async () => {
+    process.env.JWT_SECRET = process.env.JWT_SECRET || "secreto-de-pruebas";
+    pool = crearPool();
+    const sufijo = sufijoUnico();
+    const correo = `subactividades-${sufijo}@speal.test`;
+    const [usuario] = await pool.query(
+      "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, 'x', 'tester', 1)",
+      [`Subactividades ${sufijo}`, correo]
+    );
+    ids.usuario = usuario.insertId;
+    token = jwt.sign({ id: ids.usuario, correo, rol: "tester" }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    const [cliente] = await pool.query(
+      `INSERT INTO clientes (nombre_razon_social, tipo_identificacion, numero_identificacion, created_by)
+       VALUES (?, 'NIT', ?, ?)`,
+      [`Cliente subactividades ${sufijo}`, `SUB-${sufijo}`, ids.usuario]
+    );
+    ids.cliente = cliente.insertId;
+    const [proyecto] = await pool.query(
+      `INSERT INTO proyectos (codigo_pry, cliente_id, nombre_proyecto, estado, responsable_id)
+       VALUES (?, ?, 'Proyecto con subactividades', 'diseno', ?)`,
+      [`PRY-${sufijo}`, ids.cliente, ids.usuario]
+    );
+    ids.proyecto = proyecto.insertId;
+    app = crearApp();
+  });
+
+  afterAll(async () => {
+    await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [ids.usuario]);
+    await pool.query("DELETE FROM notificaciones WHERE usuario_id = ?", [ids.usuario]);
+    await pool.query("DELETE FROM transiciones_estado WHERE proyecto_id = ?", [ids.proyecto]);
+    await pool.query("DELETE FROM proyecto_actividades WHERE proyecto_id = ?", [ids.proyecto]);
+    await pool.query("DELETE FROM proyectos WHERE id = ?", [ids.proyecto]);
+    await pool.query("DELETE FROM clientes WHERE id = ?", [ids.cliente]);
+    await pool.query("DELETE FROM usuarios WHERE id = ?", [ids.usuario]);
+    await pool.end();
+  });
+
+  test("una subactividad en una fase futura no le quita su plantilla y queda al final", async () => {
+    const autorizacion = { Authorization: `Bearer ${token}` };
+    const sub = await request(app)
+      .post(`/proyectos/${ids.proyecto}/actividades`)
+      .set(autorizacion)
+      .send({ categoria: "General", descripcion: "Cotizar repuesto especial", fase: "compras" });
+    expect(sub.status).toBe(201);
+    expect(sub.body.actividad).toMatchObject({ fase: "compras", origen: "manual" });
+
+    const avance = await request(app)
+      .patch(`/proyectos/${ids.proyecto}/estado`)
+      .set(autorizacion)
+      .send({ estado: "compras" });
+    expect(avance.status).toBe(200);
+
+    const lista = await request(app)
+      .get(`/proyectos/${ids.proyecto}/actividades`)
+      .set(autorizacion);
+    const deCompras = lista.body.actividades.filter((a) => a.fase === "compras");
+    const plantilla = obtenerActividadesPorFase("compras");
+    expect(deCompras).toHaveLength(plantilla.length + 1);
+    expect(deCompras.filter((a) => a.origen === "plantilla")).toHaveLength(plantilla.length);
+    expect(deCompras[deCompras.length - 1].id).toBe(sub.body.actividad.id);
+  });
+});

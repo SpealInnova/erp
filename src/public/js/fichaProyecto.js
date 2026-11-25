@@ -109,10 +109,16 @@
     return () => (window.location.hash = hash);
   }
 
+  // Lleva a un campo de la ficha; si está en otra pestaña (p. ej. la
+  // cotización de origen, en "Datos y versiones"), primero la abre.
   function enfocarCampo(id, valor) {
     return () => {
       const campo = document.getElementById(id);
       if (!campo) return;
+      const panel = campo.closest('[role="tabpanel"]');
+      if (panel && panel.hidden) {
+        document.getElementById(panel.getAttribute("aria-labelledby"))?.click();
+      }
       if (valor !== undefined) campo.value = valor;
       campo.scrollIntoView({ block: "center" });
       campo.focus();

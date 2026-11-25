@@ -12,6 +12,59 @@
   margin-top: 0;
 }
 
+/* Cabecera de la ficha del proyecto: código y versión, nombre y una línea
+   con cliente, responsable, fase y fechas (maqueta PropuestaRediseno) */
+.ficha-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 18px;
+}
+
+.ficha-cod {
+  font-family: var(--mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.ficha-cab h2 {
+  margin: 2px 0 4px;
+}
+
+.ficha-sub {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* Pestaña Actividades: la fase va en su propia tarjeta sobre el Gantt */
+.ficha-fase h3 {
+  margin: 0 0 12px;
+  font-size: 1.125rem;
+}
+
+/* Pestaña Documentos: "+ Crear" al pie de cada paso del flujo */
+.docs-crear {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--surface);
+  border: 1px dashed var(--accent);
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.docs-crear:hover,
+.docs-crear:focus-visible {
+  background: var(--accent-tint);
+}
+
 /* Pestañas dentro de una vista: mismo estilo que las del módulo */
 .pestanas-vista {
   display: flex;

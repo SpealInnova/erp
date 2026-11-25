@@ -1070,10 +1070,10 @@ function renderSeccionEvidencias(tabla, registroId, titulo = "Evidencias") {
   return tarjeta;
 }
 
-// Agregar subactividades está suspendido por ahora (decisión del 2026-11-13):
-// las fases traen sus actividades de la plantilla. El API sigue aceptando
-// altas; para reactivarlo basta con poner esta constante en true.
-const SUBACTIVIDADES_HABILITADAS = false;
+// Subactividades: actividades agregadas a mano en cualquier fase, además de
+// las de plantilla (retomadas por decisión del usuario, 2026-11-24). Quedan
+// al final de su fase y no impiden que la fase reciba su plantilla.
+const SUBACTIVIDADES_HABILITADAS = true;
 
 async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, opciones = {}) {
   const tarjeta = document.createElement("div");
@@ -1098,35 +1098,55 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, op
 
   const mostrarError = (texto) => mensaje.replaceChildren(alerta("error", texto));
 
+  // "+ Agregar subactividad": un formulario corto (Enter agrega) que crea la
+  // actividad en esa fase; luego se le ponen fechas y responsable con el
+  // engranaje de su barra, como a las demás.
   function filaAgregarSubactividad(fase) {
     const filaAgregar = document.createElement("div");
-    filaAgregar.style.marginTop = "8px";
+    filaAgregar.className = "fila-subactividad";
     const mostrarFormAgregar = () => {
+      const form = document.createElement("form");
+      form.className = "form-subactividad";
+      form.noValidate = true;
+      // tiene sus propios Agregar/Cancelar: no cuenta como cambio sin guardar
+      form.dataset.sucioVigilado = "1";
+      const idCampo = `subactividad-${fase}`;
+      const etiqueta = document.createElement("label");
+      etiqueta.htmlFor = idCampo;
+      etiqueta.textContent = `Nueva subactividad en ${textoEstadoProyecto(fase)}`;
       const input = document.createElement("input");
       input.type = "text";
-      input.placeholder = "Nombre de la subactividad";
-      input.setAttribute("aria-label", `Nueva subactividad en ${textoEstadoProyecto(fase)}`);
-      input.style.marginRight = "8px";
-      const confirmar = boton(
-        "Agregar",
-        async () => {
-          const nombre = input.value.trim();
-          if (!nombre) return;
-          const r2 = await api("POST", `/proyectos/${proyectoId}/actividades`, {
-            categoria: "General",
-            descripcion: nombre,
-            fase,
-          });
-          if (r2.status !== 201) {
-            mostrarError(r2.cuerpo?.error || "No se pudo agregar la subactividad.");
-            return;
-          }
-          cargar();
-        },
-        true
-      );
+      input.id = idCampo;
+      input.maxLength = 255;
+      input.placeholder = "Qué hay que hacer";
+      const confirmar = document.createElement("button");
+      confirmar.type = "submit";
+      confirmar.className = "boton boton-pequeno";
+      confirmar.textContent = "Agregar";
       const cancelar = boton("Cancelar", () => filaAgregar.replaceChildren(botonMas), true);
-      filaAgregar.replaceChildren(input, confirmar, cancelar);
+      form.addEventListener("submit", async (evento) => {
+        evento.preventDefault();
+        const nombre = input.value.trim();
+        if (!nombre) {
+          input.focus();
+          return;
+        }
+        confirmar.disabled = true;
+        const r2 = await api("POST", `/proyectos/${proyectoId}/actividades`, {
+          categoria: "General",
+          descripcion: nombre,
+          fase,
+        });
+        confirmar.disabled = false;
+        if (r2.status !== 201) {
+          mostrarError(r2.cuerpo?.error || "No se pudo agregar la subactividad.");
+          return;
+        }
+        fasesAbiertas.add(fase);
+        cargar();
+      });
+      form.append(etiqueta, input, confirmar, cancelar);
+      filaAgregar.replaceChildren(form);
       input.focus();
     };
     const botonMas = boton("+ Agregar subactividad", mostrarFormAgregar, true);
@@ -1142,6 +1162,7 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, op
     }
     mensaje.replaceChildren();
     const actividades = r.cuerpo.actividades;
+    if (opciones.alCargar) opciones.alCargar(actividades);
 
     const porFase = new Map();
     actividades.forEach((actividad) => {
@@ -1271,6 +1292,7 @@ function columnasDocumentosProyecto(docs) {
       titulo: "Expedientes de diseño",
       items: docs.expedientes,
       vacio: "Sin expedientes",
+      crear: "#/expedientes-diseno/nuevo",
       enlace: (e) => `#/expedientes-diseno/${e.id}`,
       codigo: (e) => e.codigo_expediente,
       pill: (e) => pillDe(textoEstadoExpediente(e.estado_liberacion), tipoPillExpediente(e.estado_liberacion)),
@@ -1280,6 +1302,7 @@ function columnasDocumentosProyecto(docs) {
       titulo: "Requisiciones",
       items: docs.requisiciones,
       vacio: "Sin requisiciones",
+      crear: "#/requisiciones/nuevo",
       enlace: (r) => `#/requisiciones/${r.id}`,
       codigo: (r) => r.numero_requisicion,
       pill: (r) => pillDe(textoEstadoRequisicion(r.estado), tipoPillRequisicion(r.estado)),
@@ -1298,6 +1321,7 @@ function columnasDocumentosProyecto(docs) {
       titulo: "Actas de entrega",
       items: docs.actas_entrega,
       vacio: "Sin actas de entrega",
+      crear: "#/actas-entrega/nuevo",
       enlace: (a) => `#/actas-entrega/${a.id}`,
       codigo: (a) => a.numero_acta,
       pill: null,
@@ -1307,6 +1331,7 @@ function columnasDocumentosProyecto(docs) {
       titulo: "Actas de cierre",
       items: docs.actas_cierre,
       vacio: "Sin actas de cierre",
+      crear: "#/actas-cierre/nuevo",
       enlace: (a) => `#/actas-cierre/${a.id}`,
       codigo: (a) => a.numero_acta,
       pill: (a) => pillDe(textoTipoEntrega(a.tipo_entrega), tipoPillTipoEntrega(a.tipo_entrega)),
@@ -1319,6 +1344,7 @@ function columnasDocumentosProyecto(docs) {
       titulo: "Reportes de servicio",
       items: docs.reportes_servicio,
       vacio: "Sin reportes de servicio",
+      crear: "#/reportes-servicio/nuevo",
       enlace: (r) => `#/reportes-servicio/${r.id}`,
       codigo: (r) => r.numero_reporte,
       pill: (r) => pillDe(textoTipoServicio(r.tipo_servicio), tipoPillTipoServicio(r.tipo_servicio)),
@@ -1332,7 +1358,9 @@ function columnasDocumentosProyecto(docs) {
   ];
 }
 
-async function renderSeccionDocumentosProyecto(proyectoId) {
+// opciones.conCrear: cada paso que se puede crear desde aquí ofrece
+// "+ Crear", con el proyecto ya elegido en el formulario (?proyecto=ID).
+async function renderSeccionDocumentosProyecto(proyectoId, opciones = {}) {
   const bloque = document.createElement("section");
   bloque.className = "docs-proyecto";
   bloque.setAttribute("aria-labelledby", "docs-proyecto-titulo");
@@ -1433,6 +1461,14 @@ async function renderSeccionDocumentosProyecto(proyectoId) {
       lista.append(item);
     });
     columna.append(lista);
+    if (opciones.conCrear && col.crear) {
+      const crear = document.createElement("a");
+      crear.className = "docs-crear";
+      crear.href = `${col.crear}?proyecto=${proyectoId}`;
+      crear.textContent = col.items.length ? "+ Otro" : "+ Crear";
+      crear.setAttribute("aria-label", `Crear ${col.titulo.toLowerCase()} para este proyecto`);
+      columna.append(crear);
+    }
     flujo.append(columna);
   });
   bloque.append(flujo);
@@ -1968,6 +2004,48 @@ function tablaProyectos(proyectos, recargar) {
 }
 
 // opciones.modoVersion: corrige el proyecto como una nueva versión (con motivo).
+// Cabecera de la ficha: código y versión, nombre, y una línea con cliente,
+// responsable, fase y fechas. Las fechas salen de las actividades, que carga
+// la pestaña Actividades (ponerFechas).
+function cabeceraFichaProyecto(proyecto, clientes, usuarios, acciones) {
+  const elemento = document.createElement("div");
+  elemento.className = "ficha-cab";
+  const textos = document.createElement("div");
+  const codigo = document.createElement("div");
+  codigo.className = "ficha-cod";
+  codigo.textContent = `${proyecto.codigo_pry} · v${proyecto.version || 1}`;
+  const nombre = document.createElement("h2");
+  nombre.textContent = proyecto.nombre_proyecto;
+  const sub = document.createElement("p");
+  sub.className = "ficha-sub";
+  const responsable = usuarios.find((u) => u.id === proyecto.responsable_id);
+  sub.textContent = [
+    nombreClienteDe(clientes, proyecto.cliente_id),
+    `Responsable: ${responsable ? responsable.nombre : "—"}`,
+    `Fase: ${textoEstadoProyecto(proyecto.estado)}`,
+  ].join(" · ");
+  const fechas = document.createElement("span");
+  sub.append(fechas);
+  textos.append(codigo, nombre, sub);
+  elemento.append(textos, acciones);
+
+  function ponerFechas(actividades) {
+    const dias = (campo) =>
+      actividades
+        .map((a) => a[campo])
+        .filter(Boolean)
+        .map((f) => String(f).slice(0, 10))
+        .sort();
+    const inicios = dias("fecha_inicio");
+    const fines = dias("fecha_fin");
+    const partes = [];
+    if (inicios.length) partes.push(`Inicio ${fechaCortaTexto(inicios[0])}`);
+    if (fines.length) partes.push(`Fin previsto ${fechaCortaTexto(fines[fines.length - 1])}`);
+    fechas.textContent = partes.length ? ` · ${partes.join(" · ")}` : "";
+  }
+  return { elemento, ponerFechas };
+}
+
 async function vistaProyectoForm(id, opciones = {}) {
   const modoVersion = Boolean(id && opciones.modoVersion);
   marcarMenu("proyectos");
@@ -2015,14 +2093,17 @@ async function vistaProyectoForm(id, opciones = {}) {
   const tituloProyecto = id
     ? `${modoVersion ? "Nueva versión del proyecto" : "Proyecto"} ${proyecto.codigo_pry}${proyecto.version > 1 ? ` · v${proyecto.version}` : ""}`
     : "Nuevo proyecto";
-  // La ficha de un proyecto existente va en pestañas: "Proyecto" (todo lo
-  // de abajo) y "Línea de tiempo" (se carga al abrirla, siempre al día).
+  // La ficha de un proyecto existente (maqueta PropuestaRediseno.html):
+  // cabecera con código, nombre y fechas; "Siguiente paso"; y cinco
+  // pestañas: Actividades (abre primero), Resumen por etapa, Línea de
+  // tiempo, Documentos y Datos y versiones.
   const conFicha = Boolean(id) && !modoVersion;
   const acciones = document.createElement("div");
   acciones.className = "encabezado-acciones";
   if (conFicha) acciones.append(botonEvidenciasProyecto(id));
   acciones.append(volver);
-  contenido.append(encabezado(tituloProyecto, [acciones]));
+  const cabecera = conFicha ? cabeceraFichaProyecto(proyecto, clientes, usuarios, acciones) : null;
+  contenido.append(cabecera ? cabecera.elemento : encabezado(tituloProyecto, [acciones]));
   // Se recargan cada vez que se abre la pestaña: siempre al día.
   const pestanaQueCarga = (vista) => async (panel) => {
     const cargando = document.createElement("p");
@@ -2031,13 +2112,18 @@ async function vistaProyectoForm(id, opciones = {}) {
     panel.replaceChildren(cargando);
     panel.replaceChildren(await vista(id));
   };
-  const pestanas = conFicha
-    ? pestanasVista([
-        { clave: "ficha", texto: "Proyecto" },
-        { clave: "etapas", texto: "Resumen por etapa", alActivar: pestanaQueCarga(window.vistaResumenEtapas) },
-        { clave: "linea", texto: "Línea de tiempo", alActivar: pestanaQueCarga(window.vistaLineaTiempo) },
-      ])
-    : null;
+  const definicionesPestanas = [
+    { clave: "actividades", texto: "Actividades" },
+    { clave: "etapas", texto: "Resumen por etapa", alActivar: pestanaQueCarga(window.vistaResumenEtapas) },
+    { clave: "linea", texto: "Línea de tiempo", alActivar: pestanaQueCarga(window.vistaLineaTiempo) },
+    {
+      clave: "documentos",
+      texto: "Documentos",
+      alActivar: pestanaQueCarga((pid) => renderSeccionDocumentosProyecto(pid, { conCrear: true })),
+    },
+    { clave: "datos", texto: "Datos y versiones" },
+  ];
+  const pestanas = conFicha ? pestanasVista(definicionesPestanas) : null;
   // "Siguiente paso" va arriba de las pestañas: qué sigue, quién y qué implica.
   const lugarSiguientePaso = document.createElement("div");
   if (pestanas) contenido.append(lugarSiguientePaso, pestanas.lista, ...Object.values(pestanas.paneles));
@@ -2111,7 +2197,7 @@ async function vistaProyectoForm(id, opciones = {}) {
   form.append(grid, guardar);
   if (!id) form.append(botonCancelar("#/proyectos"));
   tarjeta.append(mensaje, form);
-  (pestanas ? pestanas.paneles.ficha : contenido).append(tarjeta);
+  (pestanas ? pestanas.paneles.datos : contenido).append(tarjeta);
 
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
@@ -2142,7 +2228,8 @@ async function vistaProyectoForm(id, opciones = {}) {
           return;
         }
         window.location.hash = id ? `#/proyectos/${id}` : "#/proyectos";
-        if (id) vistaProyectoForm(id);
+        // se vuelve a la pestaña de los datos que se acaban de guardar
+        if (id) vistaProyectoForm(id, { pestana: "datos" });
         return;
       }
       if (r.status === 400 && Array.isArray(r.cuerpo?.detalles)) {
@@ -2162,15 +2249,15 @@ async function vistaProyectoForm(id, opciones = {}) {
 
   if (modoVersion) return;
   if (id) {
+    // Datos y versiones: formulario, presupuesto y panel de versiones
+    tarjeta.append(renderSeccionPresupuestoProyecto(proyecto));
     tarjeta.append(await renderPanelVersiones("proyectos", id));
 
+    // Actividades: la fase del proyecto y el Gantt de cada fase
     const bloqueFase = document.createElement("div");
-    bloqueFase.style.marginTop = "24px";
-    bloqueFase.style.paddingTop = "24px";
-    bloqueFase.style.borderTop = "1px solid var(--borde)";
+    bloqueFase.className = "tarjeta-ancha ficha-fase";
 
-    const subtitulo = document.createElement("p");
-    subtitulo.className = "subtitulo";
+    const subtitulo = document.createElement("h3");
     subtitulo.textContent = "Fase del proyecto";
     bloqueFase.append(subtitulo, construirStageTrack(proyecto.estado));
 
@@ -2207,15 +2294,17 @@ async function vistaProyectoForm(id, opciones = {}) {
     });
 
     bloqueFase.append(filaFase, botonFase, mensajeFase);
-    tarjeta.append(bloqueFase);
-
-    tarjeta.append(renderSeccionPresupuestoProyecto(proyecto));
-    tarjeta.append(await renderSeccionDocumentosProyecto(id));
-    tarjeta.append(
+    pestanas.paneles.actividades.append(
+      bloqueFase,
       await renderSeccionActividadesProyecto(id, opcionesUsuarios, {
         actividadId: opciones.actividadId,
+        alCargar: cabecera.ponerFechas,
       })
     );
+    if (opciones.pestana) {
+      const indice = definicionesPestanas.findIndex((p) => p.clave === opciones.pestana);
+      if (indice >= 0) pestanas.activar(indice);
+    }
     lugarSiguientePaso.replaceChildren(await window.panelSiguientePaso(proyecto, opcionesUsuarios));
     const refrescarPaso = async (evento) => {
       if (!lugarSiguientePaso.isConnected) {
