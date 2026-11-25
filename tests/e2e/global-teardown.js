@@ -55,7 +55,14 @@ module.exports = async function globalTeardown() {
       `DELETE FROM requisiciones WHERE proyecto_id IN (${proyectosE2E})`,
       parametrosE2E
     );
-    // Equipos y reportes de servicio de las pruebas (dependen de proyectos y clientes).
+    // Equipos y reportes de servicio de las pruebas (dependen de proyectos y
+    // clientes); primero los parámetros medidos de esos reportes.
+    await pool.query(
+      `DELETE FROM parametros_medidos WHERE reporte_id IN (
+         SELECT id FROM reportes_servicio_tecnico
+          WHERE created_by IN (?) OR proyecto_id IN (${proyectosE2E}))`,
+      [idsUsuarios, ...parametrosE2E]
+    );
     await pool.query(
       `DELETE FROM reportes_servicio_tecnico
        WHERE created_by IN (?) OR proyecto_id IN (${proyectosE2E})`,

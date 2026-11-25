@@ -4382,7 +4382,11 @@ function construirInputCeldaSubrecurso(config, valor) {
 
 // alCargar(lista): se llama cada vez que se recarga la sección (el
 // expediente guiado recalcula con eso lo que falta para liberar).
+// config.rutaBase: recurso padre de la API (por defecto el expediente);
+// config.accionVacia(recargar): elemento que se muestra solo cuando la lista
+// está vacía (p. ej. cargar los parámetros del formato en un reporte).
 async function renderSeccionSubrecurso(expedienteId, config, editable, alCargar) {
+  const base = `${config.rutaBase || `/expedientes-diseno/${expedienteId}`}/${config.ruta}`;
   const tarjeta = document.createElement("div");
   tarjeta.className = "tarjeta-ancha";
   tarjeta.style.marginTop = "24px";
@@ -4453,9 +4457,12 @@ async function renderSeccionSubrecurso(expedienteId, config, editable, alCargar)
     completar();
   }
 
+  // se crea antes de la primera carga, que decide si se muestra
+  const accionVacia = editable && config.accionVacia ? config.accionVacia(() => cargar()) : null;
+
   async function cargar() {
     mensaje.replaceChildren();
-    const r = await api("GET", `/expedientes-diseno/${expedienteId}/${config.ruta}`);
+    const r = await api("GET", base);
     tbody.replaceChildren();
     if (r.status !== 200) {
       mensaje.append(alerta("error", `No se pudo cargar: ${config.titulo.toLowerCase()}.`));
@@ -4463,6 +4470,7 @@ async function renderSeccionSubrecurso(expedienteId, config, editable, alCargar)
     }
     const lista = r.cuerpo[config.clave] || [];
     if (alCargar) alCargar(lista);
+    if (accionVacia) accionVacia.hidden = lista.length > 0;
     if (lista.length === 0) {
       const fila = document.createElement("tr");
       const td = document.createElement("td");
@@ -4505,7 +4513,7 @@ async function renderSeccionSubrecurso(expedienteId, config, editable, alCargar)
           if (!window.confirm(`¿Eliminar este/a ${config.nombreSingular}?`)) return;
           const r = await api(
             "DELETE",
-            `/expedientes-diseno/${expedienteId}/${config.ruta}/${registro.id}`
+            `${base}/${registro.id}`
           );
           if (r.status === 204) {
             cargar();
@@ -4543,7 +4551,7 @@ async function renderSeccionSubrecurso(expedienteId, config, editable, alCargar)
         }
         const r = await api(
           "PUT",
-          `/expedientes-diseno/${expedienteId}/${config.ruta}/${registro.id}`,
+          `${base}/${registro.id}`,
           datos
         );
         if (r.status === 200) {
@@ -4582,7 +4590,7 @@ async function renderSeccionSubrecurso(expedienteId, config, editable, alCargar)
       }
       agregarBtn.disabled = true;
       try {
-        const r = await api("POST", `/expedientes-diseno/${expedienteId}/${config.ruta}`, datos);
+        const r = await api("POST", base, datos);
         if (r.status === 201) {
           formAgregar.reset();
           cargar();
@@ -4607,9 +4615,68 @@ async function renderSeccionSubrecurso(expedienteId, config, editable, alCargar)
   tarjeta.append(h3);
   if (config.ayuda) tarjeta.append(ayuda);
   tarjeta.append(mensaje, tabla);
+  if (accionVacia) tarjeta.append(accionVacia);
   if (editable) tarjeta.append(formAgregar);
   await cargar();
   return tarjeta;
+}
+
+// Parámetros de funcionamiento impresos en el formato FO-ST-005 (reporte de
+// servicio técnico): se ofrecen para cargarlos de una vez en un reporte nuevo.
+const PARAMETROS_FORMATO_FO_ST_005 = [
+  { parametro: "Presión manométrica", unidad: "PSI" },
+  { parametro: "Flujo de oxígeno", unidad: "LPM" },
+  { parametro: "Concentración de oxígeno", unidad: "%" },
+  { parametro: "Voltaje", unidad: "V" },
+  { parametro: "Consumo de corriente", unidad: "A" },
+  { parametro: "Horómetro", unidad: "Hrs" },
+  { parametro: "Concentración de oxígeno disuelto", unidad: "%" },
+];
+
+// Sección "Parámetros de funcionamiento" del reporte: lo que se midió frente
+// a lo esperado. Usa la misma tabla editable que las secciones del expediente.
+function renderSeccionParametrosReporte(reporteId) {
+  const rutaBase = `/reportes-servicio-tecnico/${reporteId}`;
+  return renderSeccionSubrecurso(
+    reporteId,
+    {
+      titulo: "Parámetros de funcionamiento",
+      ayuda: "Lo que se midió en el servicio frente al valor esperado (formato FO-ST-005).",
+      ruta: "parametros-medidos",
+      rutaBase,
+      clave: "parametros",
+      nombreSingular: "parámetro",
+      campos: [
+        { nombre: "parametro", etiqueta: "Parámetro", requerido: true },
+        { nombre: "unidad", etiqueta: "Unidad" },
+        { nombre: "valor_medido", etiqueta: "Valor medido" },
+        { nombre: "valor_esperado", etiqueta: "Valor esperado" },
+      ],
+      accionVacia: (recargar) => {
+        const caja = document.createElement("div");
+        caja.className = "accion-vacia";
+        const aviso = document.createElement("div");
+        const cargarFormato = boton("Cargar parámetros del formato (FO-ST-005)", async () => {
+          cargarFormato.disabled = true;
+          aviso.replaceChildren();
+          try {
+            for (const p of PARAMETROS_FORMATO_FO_ST_005) {
+              const r = await api("POST", `${rutaBase}/parametros-medidos`, p);
+              if (r.status !== 201) throw new Error(r.cuerpo?.error || "No se pudieron cargar.");
+            }
+          } catch (error) {
+            if (error.message !== "sesion-expirada") aviso.append(alerta("error", error.message));
+          } finally {
+            cargarFormato.disabled = false;
+            recargar();
+          }
+        }, true);
+        caja.append(cargarFormato, aviso);
+        return caja;
+      },
+    },
+    true
+  );
 }
 
 const TIPOS_SERVICIO = [
@@ -4869,6 +4936,7 @@ async function vistaReporteServicioForm(id, opciones = {}) {
   });
 
   if (id && !modoVersion) {
+    tarjeta.append(await renderSeccionParametrosReporte(id));
     tarjeta.append(renderSeccionEvidencias("reportes_servicio_tecnico", id, "Evidencias del servicio"));
     tarjeta.append(await renderPanelVersiones("reportes-servicio", id));
   }

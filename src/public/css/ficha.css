@@ -703,6 +703,19 @@ html[data-contraste="alto"] .ventana-actividades {
   margin: -8px 0 14px;
 }
 
+/* Acción que solo aparece con la lista vacía (p. ej. cargar los parámetros
+   del formato en un reporte de servicio) */
+.accion-vacia {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.accion-vacia[hidden] {
+  display: none;
+}
+
 .exp-lateral {
   display: grid;
   gap: 16px;

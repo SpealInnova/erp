@@ -65,5 +65,28 @@ test.describe("Equipos y reportes de servicio", () => {
     await expect(page).toHaveURL(/#\/reportes-servicio\/\d+$/);
     await expect(page.getByRole("heading", { name: "Evidencias del servicio" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Subir evidencia" })).toBeVisible();
+
+    // parámetros de funcionamiento: se cargan los 7 del formato FO-ST-005
+    const parametros = page.locator(".tarjeta-ancha", {
+      has: page.getByRole("heading", { name: "Parámetros de funcionamiento" }),
+    });
+    const cargarFormato = parametros.getByRole("button", {
+      name: "Cargar parámetros del formato (FO-ST-005)",
+    });
+    await cargarFormato.click();
+    await expect(parametros.locator("tbody tr")).toHaveCount(7);
+    await expect(cargarFormato).toBeHidden();
+    // la primera fila es la presión (orden del formato); al editarla su texto
+    // pasa a un campo, así que se ubica por posición y no por texto
+    const presion = parametros.locator("tbody tr").first();
+    await expect(presion).toContainText("Presión manométrica");
+    await presion.getByRole("button", { name: "Editar" }).click();
+    await presion.getByLabel("Valor medido").fill("52");
+    await presion.getByLabel("Valor esperado").fill("50");
+    await presion.getByRole("button", { name: "Guardar" }).click();
+    await expect(parametros.locator("tbody tr", { hasText: "Presión manométrica" })).toContainText(
+      "52"
+    );
+    await page.screenshot({ path: "test-results/reporte-parametros.png", fullPage: true });
   });
 });
