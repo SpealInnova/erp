@@ -132,6 +132,9 @@ describirSiHayBD("Tiempos y KPI (integración)", () => {
     await pool.query("DELETE FROM proyecto_actividades WHERE proyecto_id = ?", [proyectoId]);
     await pool.query("DELETE FROM proyectos WHERE id = ?", [proyectoId]);
     await pool.query("DELETE FROM clientes WHERE id = ?", [clienteId]);
+    // las actividades vencidas de la prueba pueden generar avisos (según la
+    // fecha y la hora en que corra): se borran antes que sus usuarios
+    await pool.query("DELETE FROM notificaciones WHERE usuario_id IN (?)", [Object.values(u)]);
     await pool.query("DELETE FROM usuarios WHERE id IN (?)", [Object.values(u)]);
     await pool.end();
   });
