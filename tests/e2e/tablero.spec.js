@@ -100,6 +100,46 @@ test.describe("Tablero gerencial y navegación por módulos", () => {
     expect(errores).toEqual([]);
   });
 
+  test("los resúmenes de Diseño, Soporte y Entregas se abren desde el menú", async ({ page }) => {
+    const errores = [];
+    page.on("pageerror", (error) => errores.push(String(error)));
+    await iniciarSesionComo(page, USUARIO_PRINCIPAL, PASSWORD);
+    const pestanas = page.locator("#subtabs");
+    const modulos = [
+      { modulo: "diseno", titulo: "Diseño I+D+i", kpis: 4, pestanas: 2, tabla: "#ds-pendientes" },
+      { modulo: "soporte", titulo: "Soporte técnico", kpis: 5, pestanas: 3, tabla: "#st-ultimos" },
+      {
+        modulo: "entregas",
+        titulo: "Entregas y cierre",
+        kpis: 5,
+        pestanas: 3,
+        tabla: "#en-pendientes",
+      },
+    ];
+    for (const m of modulos) {
+      await page.locator(`.menu a[data-modulo="${m.modulo}"]`).click();
+      await expect(page).toHaveURL(new RegExp(`#/${m.modulo}$`));
+      await expect(page.getByRole("heading", { name: m.titulo, level: 1 })).toBeVisible();
+      await expect(pestanas.getByRole("link")).toHaveCount(m.pestanas);
+      await expect(pestanas.getByRole("link", { name: "Resumen" })).toHaveAttribute(
+        "aria-current",
+        "page"
+      );
+      await expect(page.locator(".tablero .kpi")).toHaveCount(m.kpis);
+      await expect(page.locator(`${m.tabla} thead th`).first()).toBeVisible();
+      await page.screenshot({ path: `test-results/tablero-${m.modulo}.png`, fullPage: true });
+    }
+
+    // la pestaña de la lista sigue llevando a su módulo
+    await pestanas.getByRole("link", { name: "Actas de entrega" }).click();
+    await expect(page).toHaveURL(/#\/actas-entrega$/);
+    await expect(page.locator('.menu a[data-modulo="entregas"]')).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(errores).toEqual([]);
+  });
+
   test("aprueba una orden de compra desde la lista de pendientes", async ({ page }) => {
     const sufijo = Date.now().toString().slice(-8);
     await iniciarSesionComo(page, USUARIO_PRINCIPAL, PASSWORD);

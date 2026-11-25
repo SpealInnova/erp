@@ -211,20 +211,23 @@ const SECCIONES_POR_MODULO = {
     { seccion: "ordenes-compra", texto: "Órdenes de compra", ruta: "#/ordenes-compra" },
     { seccion: "proveedores", texto: "Proveedores", ruta: "#/proveedores" },
   ],
+  diseno: [
+    { seccion: "resumen-diseno", texto: "Resumen", ruta: "#/diseno" },
+    { seccion: "expedientes-diseno", texto: "Expedientes", ruta: "#/expedientes-diseno" },
+  ],
   soporte: [
+    { seccion: "resumen-soporte", texto: "Resumen", ruta: "#/soporte" },
     { seccion: "reportes-servicio", texto: "Reportes de servicio", ruta: "#/reportes-servicio" },
     { seccion: "equipos", texto: "Equipos", ruta: "#/equipos" },
   ],
   entregas: [
+    { seccion: "resumen-entregas", texto: "Resumen", ruta: "#/entregas" },
     { seccion: "actas-entrega", texto: "Actas de entrega", ruta: "#/actas-entrega" },
     { seccion: "actas-cierre", texto: "Actas de cierre", ruta: "#/actas-cierre" },
   ],
 };
 
-const MODULO_DE_SECCION = {
-  "expedientes-diseno": "diseno",
-  "reportes-servicio": "soporte",
-};
+const MODULO_DE_SECCION = {};
 Object.entries(SECCIONES_POR_MODULO).forEach(([modulo, secciones]) => {
   secciones.forEach((s) => (MODULO_DE_SECCION[s.seccion] = modulo));
 });
@@ -6096,6 +6099,10 @@ function enrutarRuta(ruta) {
   if (/^#\/tiempos$/.test(ruta)) return window.vistaTiempos(); // tiemposKpi.js
   if (/^#\/comercial$/.test(ruta)) return window.vistaTableroComercial();
   if (/^#\/compras$/.test(ruta)) return window.vistaTableroCompras();
+  // Resúmenes de Diseño, Soporte y Entregas (tablerosOperacion.js)
+  if (/^#\/diseno$/.test(ruta)) return window.vistaTableroDiseno();
+  if (/^#\/soporte$/.test(ruta)) return window.vistaTableroSoporte();
+  if (/^#\/entregas$/.test(ruta)) return window.vistaTableroEntregas();
 
   // Nueva versión de un documento: #/<recurso>/<id>/nueva-version
   const nuevaVersion = ruta.match(

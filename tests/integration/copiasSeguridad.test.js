@@ -155,7 +155,9 @@ describirSiHayBD("Copias de seguridad (integración)", () => {
       await conexion.query(`DROP DATABASE IF EXISTS \`${base}\``);
       await conexion.end();
     }
-  });
+    // restaura la base de pruebas completa: crece con los datos que dejan las
+    // demás suites y puede pasar de los 5 s por defecto
+  }, 30000);
 
   test("si Drive falla, la copia queda como fallida con el motivo", async () => {
     archivosDrive.subirArchivo.mockRejectedValueOnce(new Error("insufficient permissions"));

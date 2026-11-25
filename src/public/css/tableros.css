@@ -1985,3 +1985,33 @@ html[data-contraste="alto"] .docs-item {
     --lab: 150px;
   }
 }
+
+/* Avance de pasos (resumen de Diseño: qué falta para liberar) */
+.tablero .avance-pasos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 110px;
+}
+.tablero .avance-pista {
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line, #e3e8f2);
+  overflow: hidden;
+}
+.tablero .avance-pista i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+.tablero .avance-pista .avance-good {
+  background: var(--good);
+}
+.tablero .avance-pista .avance-warn {
+  background: var(--warn);
+}
+.tablero .avance-pista .avance-crit {
+  background: var(--crit);
+}
