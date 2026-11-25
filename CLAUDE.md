@@ -68,13 +68,35 @@ Flujo: crear rama `feature/<nombre>` desde `develop`, PR a `develop`. Promoción
   está registrado en el cliente OAuth. Un agente nunca debe ver, guardar ni repetir ese token.
 - Las pruebas nunca suben a Drive real (usan Drive simulado).
 
+- Copia diaria automática: activa en producción desde el 2026-11-24 (`COPIAS_DIARIAS=1`,
+  `COPIAS_HORA=3`, hora de Colombia). En `staging` solo se usa la copia manual.
+
+## Front-end (`src/public/`)
+
+- `inicio.html` carga primero los módulos en IIFE que exponen `window.*` (`tableros.js`,
+  `tablerosOperacion.js`, `gantt.js`, `fichaProyecto.js`, `tareas.js`, `auditoria.js`…). Después
+  carga la aplicación, dividida en scripts clásicos que comparten sus nombres globales y van en
+  este orden: `nucleo.js` (api, perfil, piezas de interfaz, menú), `formulariosComunes.js`,
+  `clientes.js`, `proyectosComun.js`, `documentos.js`, `proyectos.js`, `cotizaciones.js`,
+  `proveedores.js`, `requisiciones.js`, `ordenesCompra.js`, `expedientes.js`, `soporte.js`,
+  `actas.js`, `usuarios.js` e `inicio.js` (enrutador y arranque, siempre al final).
+- Cada script lleva `/* global */` (lo que usa de otros) y `/* exported */` (lo que otros usan
+  de él); ESLint los exige.
+- El código que corre al cargar un script (fuera de funciones) no puede usar nombres de un
+  script que carga después: da ReferenceError. Si hace falta, se envuelve en una función o se
+  espera a `DOMContentLoaded`.
+- Las pestañas de un módulo (`SECCIONES_POR_MODULO` en `nucleo.js`) pueden pedir un `permiso`.
+- Permisos que solo tienen el rol admin y el Gerente General: `gestionar_copias` y
+  `ver_auditoria` (pantalla `#/auditoria`, `GET /auditoria`).
+- Actividades del proyecto: `origen` es `plantilla` (catálogo de la fase) o `manual`
+  (subactividad). Las manuales no impiden sembrar la plantilla de su fase y se listan al final.
+
 ## Pendientes conocidos (no asumir que ya existen)
 
 - Catálogos cerrados (productos, clientes, proveedores) aún no entregados por el usuario.
 - El diccionario de datos vive en `documentacion/DICCIONARIO_DE_DATOS.txt`, en el repo de
   documentación del proyecto (no en este repo de código).
-- Copia diaria automática: corre solo con `COPIAS_DIARIAS=1`, y solo se activará en producción
-  después de llevar el panel de copias a `main`. En `staging` la copia manual ya funciona.
+- Mejoras visuales: el usuario las pedirá después del rediseño de 2026-11-24.
 
 ## Qué puede resolver un agente sin supervisión directa
 
