@@ -11,7 +11,16 @@ async function resolverProyectoYFase(pool, tabla, registro) {
     const proyecto = await proyectosRepositorio.obtenerPorId(pool, registro.proyecto_id);
     return { proyectoId: registro.proyecto_id, fase: registro.fase, proyecto };
   }
-  if (tabla === "requisiciones") {
+  // Requisiciones, reportes de servicio y actas llevan su proyecto: la
+  // evidencia va a la carpeta de la fase en la que está el proyecto.
+  if (
+    [
+      "requisiciones",
+      "reportes_servicio_tecnico",
+      "actas_entrega_equipos",
+      "actas_cierre_satisfaccion",
+    ].includes(tabla)
+  ) {
     const proyecto = await proyectosRepositorio.obtenerPorId(pool, registro.proyecto_id);
     return { proyectoId: registro.proyecto_id, fase: proyecto.estado, proyecto };
   }

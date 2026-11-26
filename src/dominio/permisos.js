@@ -35,6 +35,9 @@ const PERMISOS = {
   // Copias de seguridad (ver el registro y hacer una a mano): solo el rol
   // admin y el Gerente General, que tienen todos los permisos.
   gestionar_copias: [],
+  // Auditoría (quién cambió qué y cuándo en todo el ERP): solo el rol admin
+  // y el Gerente General (decisión del usuario, 2026-11-24).
+  ver_auditoria: [],
 };
 
 // Un error de digitación en un cargo dejaría el permiso sin nadie: se detecta

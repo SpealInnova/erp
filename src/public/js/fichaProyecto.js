@@ -109,10 +109,16 @@
     return () => (window.location.hash = hash);
   }
 
+  // Lleva a un campo de la ficha; si está en otra pestaña (p. ej. la
+  // cotización de origen, en "Datos y versiones"), primero la abre.
   function enfocarCampo(id, valor) {
     return () => {
       const campo = document.getElementById(id);
       if (!campo) return;
+      const panel = campo.closest('[role="tabpanel"]');
+      if (panel && panel.hidden) {
+        document.getElementById(panel.getAttribute("aria-labelledby"))?.click();
+      }
       if (valor !== undefined) campo.value = valor;
       campo.scrollIntoView({ block: "center" });
       campo.focus();
@@ -538,10 +544,12 @@
     const caja = crear("div", "tarjeta-ancha");
     caja.append(crear("h3", "", "Evidencias de la etapa"));
     const deFase = new Set(datos.actividades.filter((a) => a.fase === etapa.fase).map((a) => a.id));
+    // se compara el id del archivo: el del evento de auditoría es distinto
+    // en la subida y en la eliminación
     const quitadas = new Set(
       datos.eventos
         .filter((e) => e.tabla === "archivos_adjuntos" && e.accion === "eliminar")
-        .map((e) => e.id)
+        .map((e) => e.evidencia_id)
     );
     const subidas = datos.eventos.filter(
       (e) =>
@@ -549,7 +557,7 @@
         e.accion === "crear" &&
         e.evidencia_tabla === "proyecto_actividades" &&
         deFase.has(e.evidencia_registro_id) &&
-        !quitadas.has(e.id)
+        !quitadas.has(e.evidencia_id)
     );
     if (subidas.length === 0) {
       caja.append(crear("p", "subtitulo", "Aún no hay evidencias en esta etapa."));

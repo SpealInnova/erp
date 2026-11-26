@@ -1458,4 +1458,26 @@
       nombre: "el resumen de compras",
       pintar: pintarTableroCompras,
     });
+
+  // Piezas que reutilizan los resúmenes de Diseño, Soporte y Entregas
+  // (tablerosOperacion.js), para que todos los tableros se vean igual.
+  window.tableroComun = {
+    COLOR,
+    MES_LARGO,
+    esc,
+    num,
+    aFecha,
+    fechaCorta,
+    vacio,
+    pillHTML,
+    pillDias,
+    kpisHTML,
+    barrasHorizontales,
+    dona,
+    tabla,
+    columnas,
+    leyendaHTML,
+    encabezadoVista,
+    cargarTablero,
+  };
 })();

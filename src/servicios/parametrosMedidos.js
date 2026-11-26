@@ -40,16 +40,18 @@ async function listarParametros(pool, reporteId) {
   return parametrosMedidosRepositorio.listarPorReporte(pool, reporteId);
 }
 
-async function obtenerParametro(pool, id) {
+// El parámetro debe ser del reporte de la ruta: si es de otro, se responde
+// como si no existiera (no se puede leer ni cambiar a través de otro reporte).
+async function obtenerParametro(pool, reporteId, id) {
   const parametro = await parametrosMedidosRepositorio.obtenerPorId(pool, id);
-  if (!parametro) {
+  if (!parametro || parametro.reporte_id !== Number(reporteId)) {
     throw new ErrorParametroNoEncontrado();
   }
   return parametro;
 }
 
-async function actualizarParametro(pool, id, datos, usuarioId) {
-  const anterior = await obtenerParametro(pool, id);
+async function actualizarParametro(pool, reporteId, id, datos, usuarioId) {
+  const anterior = await obtenerParametro(pool, reporteId, id);
 
   await parametrosMedidosRepositorio.actualizar(pool, id, datos);
   const actualizado = await parametrosMedidosRepositorio.obtenerPorId(pool, id);
@@ -66,8 +68,8 @@ async function actualizarParametro(pool, id, datos, usuarioId) {
   return actualizado;
 }
 
-async function eliminarParametro(pool, id, usuarioId) {
-  const anterior = await obtenerParametro(pool, id);
+async function eliminarParametro(pool, reporteId, id, usuarioId) {
+  const anterior = await obtenerParametro(pool, reporteId, id);
   await parametrosMedidosRepositorio.softDelete(pool, id);
 
   await auditoria.registrar(pool, {

@@ -139,6 +139,29 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
     expect(listar.body.parametros).toHaveLength(1);
   });
 
+  test("un parámetro solo se ve, edita o elimina a través de su propio reporte", async () => {
+    const [parametro] = (
+      await request(app)
+        .get(`/reportes-servicio-tecnico/${reporteId}/parametros-medidos`)
+        .set(autorizacion())
+    ).body.parametros;
+    const ajena = `/reportes-servicio-tecnico/${reporteId + 999999}/parametros-medidos/${parametro.id}`;
+
+    expect((await request(app).get(ajena).set(autorizacion())).status).toBe(404);
+    expect(
+      (await request(app).put(ajena).set(autorizacion()).send({ valor_medido: "9" })).status
+    ).toBe(404);
+    expect((await request(app).delete(ajena).set(autorizacion())).status).toBe(404);
+
+    const propia = `/reportes-servicio-tecnico/${reporteId}/parametros-medidos/${parametro.id}`;
+    const editada = await request(app)
+      .put(propia)
+      .set(autorizacion())
+      .send({ valor_medido: "4.9" });
+    expect(editada.status).toBe(200);
+    expect(editada.body.parametro.valor_medido).toBe("4.9");
+  });
+
   test("edita el reporte (no hay gate de estado para este módulo)", async () => {
     const respuesta = await request(app)
       .put(`/reportes-servicio-tecnico/${reporteId}`)

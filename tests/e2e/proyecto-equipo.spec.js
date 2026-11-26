@@ -76,7 +76,7 @@ test.describe("Flujo crítico: proyecto, fase, actividades y línea de tiempo", 
     await expect(ventana).toHaveCount(0);
 
     // La línea de tiempo vive en su propia pestaña y se carga al abrirla.
-    await expect(page.getByRole("tab", { name: "Proyecto" })).toHaveAttribute(
+    await expect(page.getByRole("tab", { name: "Actividades" })).toHaveAttribute(
       "aria-selected",
       "true"
     );

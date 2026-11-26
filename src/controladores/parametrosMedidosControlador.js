@@ -24,16 +24,19 @@ function crearParametrosMedidosControlador(pool) {
   }
 
   async function obtener(req, res) {
+    const reporteId = Number(req.params.reporteId);
     const id = Number(req.params.id);
-    const parametro = await parametrosMedidosServicio.obtenerParametro(pool, id);
+    const parametro = await parametrosMedidosServicio.obtenerParametro(pool, reporteId, id);
     res.status(200).json({ parametro });
   }
 
   async function actualizar(req, res) {
+    const reporteId = Number(req.params.reporteId);
     const id = Number(req.params.id);
     const datos = actualizarParametroSchema.parse(req.body);
     const parametro = await parametrosMedidosServicio.actualizarParametro(
       pool,
+      reporteId,
       id,
       datos,
       req.usuario.id
@@ -42,8 +45,9 @@ function crearParametrosMedidosControlador(pool) {
   }
 
   async function eliminar(req, res) {
+    const reporteId = Number(req.params.reporteId);
     const id = Number(req.params.id);
-    await parametrosMedidosServicio.eliminarParametro(pool, id, req.usuario.id);
+    await parametrosMedidosServicio.eliminarParametro(pool, reporteId, id, req.usuario.id);
     res.status(204).send();
   }
 

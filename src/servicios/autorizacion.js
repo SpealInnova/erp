@@ -15,6 +15,7 @@ const ACCIONES = {
   versionar_reporte: "Crear versiones de reportes de servicio",
   ver_tablero_gerencial: "Ver el tablero gerencial y los tiempos de los procesos",
   gestionar_copias: "Ver y hacer copias de seguridad",
+  ver_auditoria: "Ver la auditoría del ERP",
 };
 
 function mensajeSinPermiso(clave) {

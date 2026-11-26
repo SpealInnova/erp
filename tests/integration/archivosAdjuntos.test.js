@@ -60,9 +60,10 @@ describirSiHayBD("Archivos adjuntos / evidencias (integración contra BD real)",
   });
 
   afterAll(async () => {
-    await pool.query("DELETE FROM archivos_adjuntos WHERE registro_id = ? AND tabla = 'proyectos'", [
-      proyectoId,
-    ]);
+    await pool.query(
+      "DELETE FROM archivos_adjuntos WHERE registro_id = ? AND tabla = 'proyectos'",
+      [proyectoId]
+    );
     await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [usuarioId]);
     await pool.query("DELETE FROM proyecto_drive_carpetas WHERE proyecto_id = ?", [proyectoId]);
     await pool.query("DELETE FROM proyectos WHERE id = ?", [proyectoId]);
@@ -142,5 +143,134 @@ describirSiHayBD("Archivos adjuntos / evidencias (integración contra BD real)",
       .query({ tabla: "proyectos", registro_id: proyectoId });
     expect(respuesta.status).toBe(200);
     expect(respuesta.body.archivos).toHaveLength(0);
+  });
+});
+
+describirSiHayBD("Evidencias en reportes de servicio y actas (integración)", () => {
+  let app;
+  let pool;
+  let token;
+  const sufijo = sufijoUnico();
+  const ids = {};
+
+  beforeAll(async () => {
+    process.env.JWT_SECRET = process.env.JWT_SECRET || "secreto-de-pruebas";
+    pool = crearPool();
+    const q = async (sql, params) => (await pool.query(sql, params))[0];
+    const correo = `evidencias-docs-${sufijo}@speal.test`;
+    ids.usuario = (
+      await q(
+        "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, 'x', 'tester', 1)",
+        [`Evidencias ${sufijo}`, correo]
+      )
+    ).insertId;
+    token = jwt.sign({ id: ids.usuario, correo, rol: "tester" }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    ids.cliente = (
+      await q(
+        `INSERT INTO clientes (nombre_razon_social, tipo_identificacion, numero_identificacion, created_by)
+         VALUES (?, 'NIT', ?, ?)`,
+        [`Cliente evidencias ${sufijo}`, `EV-${sufijo}`, ids.usuario]
+      )
+    ).insertId;
+    ids.proyecto = (
+      await q(
+        `INSERT INTO proyectos (codigo_pry, cliente_id, nombre_proyecto, estado, responsable_id, drive_folder_id)
+         VALUES (?, ?, 'Proyecto evidencias', 'seguimiento', ?, 'carpeta-existente')`,
+        [`PRY-EV-${sufijo}`, ids.cliente, ids.usuario]
+      )
+    ).insertId;
+    const serie = `EQ-EV-${sufijo}`;
+    ids.equipo = (
+      await q(
+        `INSERT INTO equipos (numero_serie, cliente_id, proyecto_id, descripcion, origen)
+         VALUES (?, ?, ?, 'Equipo de evidencias', 'historico')`,
+        [serie, ids.cliente, ids.proyecto]
+      )
+    ).insertId;
+    ids.reportes_servicio_tecnico = (
+      await q(
+        `INSERT INTO reportes_servicio_tecnico
+          (numero_reporte, equipo_numero_serie, cliente_id, proyecto_id, tipo_servicio, tecnico_responsable_id)
+         VALUES (?, ?, ?, ?, 'inspeccion', ?)`,
+        [`RST-EV-${sufijo}`, serie, ids.cliente, ids.proyecto, ids.usuario]
+      )
+    ).insertId;
+    ids.actas_entrega_equipos = (
+      await q(
+        `INSERT INTO actas_entrega_equipos
+          (numero_acta, proyecto_id, cliente_id, objeto, entregante_id, receptor_nombre, fecha_elaboracion)
+         VALUES (?, ?, ?, 'Entrega', ?, 'Receptor', '2026-11-01')`,
+        [`AE-EV-${sufijo}`, ids.proyecto, ids.cliente, ids.usuario]
+      )
+    ).insertId;
+    ids.actas_cierre_satisfaccion = (
+      await q(
+        `INSERT INTO actas_cierre_satisfaccion
+          (numero_acta, proyecto_id, cliente_id, tipo_entrega, tipo_documento_referencia, objeto,
+           responsable_entrega_id, receptor_cliente_nombre, fecha_elaboracion)
+         VALUES (?, ?, ?, 'venta', 'contrato', 'Cierre', ?, 'Receptor', '2026-11-10')`,
+        [`ACS-EV-${sufijo}`, ids.proyecto, ids.cliente, ids.usuario]
+      )
+    ).insertId;
+    app = crearApp();
+  });
+
+  afterAll(async () => {
+    const q = (sql, params) => pool.query(sql, params);
+    await q("DELETE FROM archivos_adjuntos WHERE subido_por = ?", [ids.usuario]);
+    await q("DELETE FROM auditoria WHERE usuario_id = ?", [ids.usuario]);
+    await q("DELETE FROM proyecto_drive_carpetas WHERE proyecto_id = ?", [ids.proyecto]);
+    await q("DELETE FROM actas_cierre_satisfaccion WHERE id = ?", [ids.actas_cierre_satisfaccion]);
+    await q("DELETE FROM actas_entrega_equipos WHERE id = ?", [ids.actas_entrega_equipos]);
+    await q("DELETE FROM reportes_servicio_tecnico WHERE id = ?", [ids.reportes_servicio_tecnico]);
+    await q("DELETE FROM equipos WHERE id = ?", [ids.equipo]);
+    await q("DELETE FROM proyectos WHERE id = ?", [ids.proyecto]);
+    await q("DELETE FROM clientes WHERE id = ?", [ids.cliente]);
+    await q("DELETE FROM usuarios WHERE id = ?", [ids.usuario]);
+    await pool.end();
+  });
+
+  test.each(["reportes_servicio_tecnico", "actas_entrega_equipos", "actas_cierre_satisfaccion"])(
+    "sube y lista una evidencia de %s",
+    async (tabla) => {
+      const subida = await request(app)
+        .post("/archivos-adjuntos")
+        .set("Authorization", `Bearer ${token}`)
+        .field("tabla", tabla)
+        .field("registro_id", String(ids[tabla]))
+        .attach("archivo", Buffer.from("%PDF-1.4"), "soporte.pdf");
+      expect(subida.status).toBe(201);
+      const lista = await request(app)
+        .get("/archivos-adjuntos")
+        .set("Authorization", `Bearer ${token}`)
+        .query({ tabla, registro_id: ids[tabla] });
+      expect(lista.body.archivos.map((a) => a.id)).toContain(subida.body.archivo.id);
+    }
+  );
+
+  test("un documento que no existe se rechaza", async () => {
+    const r = await request(app)
+      .post("/archivos-adjuntos")
+      .set("Authorization", `Bearer ${token}`)
+      .field("tabla", "actas_cierre_satisfaccion")
+      .field("registro_id", "999999999")
+      .attach("archivo", Buffer.from("%PDF-1.4"), "soporte.pdf");
+    expect(r.status).toBe(400);
+  });
+
+  test("las evidencias de reportes y actas aparecen en la línea de tiempo del proyecto", async () => {
+    const r = await request(app)
+      .get(`/proyectos/${ids.proyecto}/linea-tiempo`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(r.status).toBe(200);
+    const evidencias = r.body.eventos.filter((e) => e.tabla === "archivos_adjuntos");
+    expect(evidencias.map((e) => e.evidencia_tabla).sort()).toEqual([
+      "actas_cierre_satisfaccion",
+      "actas_entrega_equipos",
+      "reportes_servicio_tecnico",
+    ]);
+    expect(evidencias.every((e) => Number.isInteger(e.evidencia_id))).toBe(true);
   });
 });

@@ -1,14 +1,15 @@
 async function crear(pool, proyectoId, datos) {
   const [resultado] = await pool.query(
     `INSERT INTO proyecto_actividades
-      (proyecto_id, fase, categoria, descripcion, orden, responsable_id, estado, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (proyecto_id, fase, categoria, descripcion, orden, origen, responsable_id, estado, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       proyectoId,
       datos.fase,
       datos.categoria,
       datos.descripcion,
       datos.orden || 0,
+      datos.origen || "plantilla",
       datos.responsable_id || null,
       datos.estado || "pendiente",
       datos.created_by,
@@ -46,20 +47,36 @@ async function obtenerPorId(pool, id) {
   return filas[0] || null;
 }
 
+// Las de plantilla primero, en su orden; las agregadas a mano después (aunque
+// se hayan agregado antes de que la fase recibiera su plantilla).
 async function listarPorProyecto(pool, proyectoId) {
   const [filas] = await pool.query(
-    "SELECT * FROM proyecto_actividades WHERE proyecto_id = ? AND deleted_at IS NULL ORDER BY orden, id",
+    `SELECT * FROM proyecto_actividades WHERE proyecto_id = ? AND deleted_at IS NULL
+     ORDER BY origen = 'manual', orden, id`,
     [proyectoId]
   );
   return filas;
 }
 
-async function contarPorProyectoYFase(pool, proyectoId, fase) {
+// Actividades de plantilla ya sembradas en la fase. Las agregadas a mano
+// (origen 'manual') no cuentan: no impiden que la fase reciba su plantilla.
+async function contarPlantillaPorProyectoYFase(pool, proyectoId, fase) {
   const [filas] = await pool.query(
-    "SELECT COUNT(*) AS total FROM proyecto_actividades WHERE proyecto_id = ? AND fase = ? AND deleted_at IS NULL",
+    `SELECT COUNT(*) AS total FROM proyecto_actividades
+     WHERE proyecto_id = ? AND fase = ? AND origen = 'plantilla' AND deleted_at IS NULL`,
     [proyectoId, fase]
   );
-  return filas[0].total;
+  return Number(filas[0].total);
+}
+
+// Siguiente posición en la fase: una actividad agregada a mano va al final.
+async function siguienteOrden(pool, proyectoId, fase) {
+  const [filas] = await pool.query(
+    `SELECT COALESCE(MAX(orden), 0) + 1 AS siguiente FROM proyecto_actividades
+     WHERE proyecto_id = ? AND fase = ? AND deleted_at IS NULL`,
+    [proyectoId, fase]
+  );
+  return Number(filas[0].siguiente);
 }
 
 async function actualizar(pool, id, datos) {
@@ -159,7 +176,8 @@ module.exports = {
   crearMuchas,
   obtenerPorId,
   listarPorProyecto,
-  contarPorProyectoYFase,
+  contarPlantillaPorProyectoYFase,
+  siguienteOrden,
   actualizar,
   softDelete,
 };

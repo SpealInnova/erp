@@ -89,6 +89,8 @@ function normalizarEvento(fila, nombresPorUsuario) {
     const datos = nuevo || anterior || {};
     return {
       ...base,
+      // id del archivo (no del evento): enlaza su "crear" con su "eliminar"
+      evidencia_id: fila.registro_id,
       evidencia_nombre: datos.nombre_archivo || null,
       evidencia_enlace: datos.drive_enlace || null,
       evidencia_tabla: datos.tabla || null,

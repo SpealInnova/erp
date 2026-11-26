@@ -142,13 +142,16 @@ async function listarOrdenesCompra(pool) {
 
 // Cambios de estado registrados en auditoría. El estado se extrae en SQL
 // (no se compara allí) para no depender de cómo el motor tipa las columnas
-// JSON ni de colaciones distintas entre MySQL y MariaDB.
-async function listarCambiosDeEstado(pool, tabla, ids) {
+// JSON ni de colaciones distintas entre MySQL y MariaDB. `campo` es el nombre
+// de la columna de estado (p. ej. "estado_liberacion" en los expedientes); lo
+// fija el código, nunca el usuario, y aun así se valida.
+async function listarCambiosDeEstado(pool, tabla, ids, campo = "estado") {
   if (!ids.length) return [];
+  if (!/^[a-z_]+$/.test(campo)) throw new Error(`Campo de estado no válido: ${campo}`);
   const [filas] = await pool.query(
     `SELECT registro_id, DATE_FORMAT(creado_en, '%Y-%m-%d') AS fecha,
-            JSON_UNQUOTE(JSON_EXTRACT(datos_anteriores, '$.estado')) AS estado_anterior,
-            JSON_UNQUOTE(JSON_EXTRACT(datos_nuevos, '$.estado')) AS estado_nuevo
+            JSON_UNQUOTE(JSON_EXTRACT(datos_anteriores, '$.${campo}')) AS estado_anterior,
+            JSON_UNQUOTE(JSON_EXTRACT(datos_nuevos, '$.${campo}')) AS estado_nuevo
      FROM auditoria
      WHERE tabla = ? AND accion = 'actualizar' AND registro_id IN (?)
      ORDER BY creado_en, id`,

@@ -13,6 +13,9 @@ function crearTablerosRutas(pool) {
   router.get("/tiempos", envolverAsync(controlador.tiempos));
   router.get("/comercial", envolverAsync(controlador.comercial));
   router.get("/compras", envolverAsync(controlador.compras));
+  router.get("/diseno", envolverAsync(controlador.diseno));
+  router.get("/soporte", envolverAsync(controlador.soporte));
+  router.get("/entregas", envolverAsync(controlador.entregas));
 
   return router;
 }

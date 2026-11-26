@@ -34,6 +34,7 @@ const { crearNotificacionesRutas } = require("./rutas/notificacionesRutas");
 const { crearMisActividadesRutas } = require("./rutas/misActividadesRutas");
 const { crearTareasRutas } = require("./rutas/tareasRutas");
 const { crearCopiasRutas } = require("./rutas/copiasRutas");
+const { crearAuditoriaRutas } = require("./rutas/auditoriaRutas");
 const { crearArchivosAdjuntosRutas } = require("./rutas/archivosAdjuntosRutas");
 const { crearTablerosRutas } = require("./rutas/tablerosRutas");
 const { crearEquiposRutas } = require("./rutas/equiposRutas");
@@ -174,6 +175,7 @@ function crearApp() {
   app.use("/actividades", requireAuth, crearMisActividadesRutas(pool));
   app.use("/tareas", requireAuth, crearTareasRutas(pool));
   app.use("/copias", requireAuth, crearCopiasRutas(pool));
+  app.use("/auditoria", requireAuth, crearAuditoriaRutas(pool));
   app.use("/archivos-adjuntos", requireAuth, crearArchivosAdjuntosRutas(pool));
   app.use("/tableros", requireAuth, crearTablerosRutas(pool));
   app.use("/equipos", requireAuth, crearEquiposRutas(pool));

@@ -521,4 +521,10 @@ module.exports = {
   obtenerTableroCompras,
   entradaAlEstado,
   FASES_ACTIVAS,
+  // utilidades compartidas con los resúmenes de Diseño, Soporte y Entregas
+  aTextoFecha,
+  diasEntre,
+  ultimosMeses,
+  promedio,
+  MESES_HISTORIA,
 };
