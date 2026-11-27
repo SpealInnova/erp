@@ -129,6 +129,7 @@ function enrutarRuta(ruta) {
   const verEquipo = ruta.match(/^#\/equipos\/(\d+)$/);
   if (verEquipo) return vistaEquipoForm(verEquipo[1]);
   if (/^#\/equipos$/.test(ruta)) return vistaEquipos();
+  if (/^#\/listado-servicios$/.test(ruta)) return window.vistaListadoMaestro(); // listadoMaestro.js
 
   if (/^#\/actas-cierre\/nuevo$/.test(ruta)) return vistaActaCierreForm(null);
   const editarActa = ruta.match(/^#\/actas-cierre\/(\d+)$/);

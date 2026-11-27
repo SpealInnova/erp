@@ -107,7 +107,8 @@ test.describe("Tablero gerencial y navegación por módulos", () => {
     const pestanas = page.locator("#subtabs");
     const modulos = [
       { modulo: "diseno", titulo: "Diseño I+D+i", kpis: 4, pestanas: 2, tabla: "#ds-pendientes" },
-      { modulo: "soporte", titulo: "Soporte técnico", kpis: 5, pestanas: 3, tabla: "#st-ultimos" },
+      // Resumen, Reportes de servicio, Equipos y Listado maestro
+      { modulo: "soporte", titulo: "Soporte técnico", kpis: 5, pestanas: 4, tabla: "#st-ultimos" },
       {
         modulo: "entregas",
         titulo: "Entregas y cierre",

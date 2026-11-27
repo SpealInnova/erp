@@ -1064,3 +1064,14 @@ a.tarea-titulo:hover,
   font-size: 0.82rem;
   margin-top: 4px;
 }
+
+/* Listado maestro de servicios (FO-ST-006): número, fecha y serial en una línea */
+.tabla-listado-maestro {
+  width: 100%;
+}
+
+.tabla-listado-maestro td:nth-child(1),
+.tabla-listado-maestro td:nth-child(2),
+.lm-serie {
+  white-space: nowrap;
+}

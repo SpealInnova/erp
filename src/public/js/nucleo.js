@@ -225,6 +225,7 @@ const SECCIONES_POR_MODULO = {
     { seccion: "resumen-soporte", texto: "Resumen", ruta: "#/soporte" },
     { seccion: "reportes-servicio", texto: "Reportes de servicio", ruta: "#/reportes-servicio" },
     { seccion: "equipos", texto: "Equipos", ruta: "#/equipos" },
+    { seccion: "listado-servicios", texto: "Listado maestro", ruta: "#/listado-servicios" },
   ],
   entregas: [
     { seccion: "resumen-entregas", texto: "Resumen", ruta: "#/entregas" },

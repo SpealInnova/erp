@@ -45,6 +45,7 @@ const PANTALLAS = [
   "expedientes-diseno",
   "reportes-servicio",
   "equipos",
+  "listado-servicios",
   "actas-entrega",
   "actas-cierre",
   "usuarios",
