@@ -1,3 +1,4 @@
+const { HOY_COLOMBIA_SQL: HOY } = require("../dominio/fechaColombia");
 async function crear(pool, proyectoId, datos) {
   const [resultado] = await pool.query(
     `INSERT INTO proyecto_actividades
@@ -129,11 +130,11 @@ async function listarParaAviso(pool, { diasAviso, diasVencida, usuarioId }) {
   const [filas] = await pool.query(
     `SELECT a.id, a.proyecto_id, a.descripcion, a.fecha_fin, p.codigo_pry,
             COALESCE(a.responsable_id, p.responsable_id) AS destinatario_id,
-            DATEDIFF(a.fecha_fin, CURDATE()) AS dias_restantes
+            DATEDIFF(a.fecha_fin, ${HOY}) AS dias_restantes
        FROM proyecto_actividades a
        JOIN proyectos p ON p.id = a.proyecto_id
       WHERE ${CONDICION_PENDIENTE}
-        AND a.fecha_fin BETWEEN CURDATE() - INTERVAL ? DAY AND CURDATE() + INTERVAL ? DAY
+        AND a.fecha_fin BETWEEN ${HOY} - INTERVAL ? DAY AND ${HOY} + INTERVAL ? DAY
         AND COALESCE(a.responsable_id, p.responsable_id) IS NOT NULL
         ${filtroUsuario}
       ORDER BY a.fecha_fin, a.id`,

@@ -15,6 +15,9 @@ module.exports = defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: "retain-on-failure",
+    // El navegador en hora de Colombia, como los usuarios y como el "hoy" del
+    // servidor (src/dominio/fechaColombia.js), sin importar dónde corra la prueba.
+    timezoneId: "America/Bogota",
     // La ventana "Actividades pendientes" no se abre sola (taparía botones de
     // otras pruebas); actividades-pendientes.spec.js la vuelve a activar.
     storageState: {

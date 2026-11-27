@@ -1,6 +1,7 @@
 const tablerosRepositorio = require("../repositorios/tablerosRepositorio");
 const { ESTADOS: ESTADOS_PROYECTO } = require("../dominio/estadoProyecto");
 const { ESTADOS: ESTADOS_COTIZACION } = require("../dominio/estadoCotizacion");
+const { hoyEnColombia } = require("../dominio/fechaColombia");
 
 // Fases en ejecución, en el orden del flujo. "Prospecto" todavía no es un
 // proyecto en curso y "cerrado"/"cancelado" ya terminaron.
@@ -116,7 +117,7 @@ function armarAprobaciones(ordenes, cambios, cotizaciones, hoyTexto) {
   return [...deOrdenes, ...deCambios, ...deCotizaciones].sort((a, b) => b.dias - a.dias);
 }
 
-async function obtenerTableroGerencial(pool, { hoy = new Date() } = {}) {
+async function obtenerTableroGerencial(pool, { hoy = hoyEnColombia() } = {}) {
   const hoyTexto = aTextoFecha(hoy);
   const [
     conteoEstados,
@@ -211,7 +212,7 @@ function seguimientoCliente(cliente, cotizacionesCliente, hoyTexto) {
   return { tipo: "good", texto: "Al día" };
 }
 
-async function obtenerTableroComercial(pool, { hoy = new Date() } = {}) {
+async function obtenerTableroComercial(pool, { hoy = hoyEnColombia() } = {}) {
   const hoyTexto = aTextoFecha(hoy);
   const anio = hoyTexto.slice(0, 4);
   const mesActual = hoyTexto.slice(0, 7);
@@ -372,7 +373,7 @@ function promedio(valores) {
   return valores.length ? valores.reduce((t, v) => t + v, 0) / valores.length : null;
 }
 
-async function obtenerTableroCompras(pool, { hoy = new Date() } = {}) {
+async function obtenerTableroCompras(pool, { hoy = hoyEnColombia() } = {}) {
   const hoyTexto = aTextoFecha(hoy);
   const anio = hoyTexto.slice(0, 4);
   const desde6Meses = `${ultimosMeses(hoy, MESES_HISTORIA)[0]}-01`;

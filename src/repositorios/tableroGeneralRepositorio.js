@@ -1,3 +1,4 @@
+const { HOY_COLOMBIA_SQL: HOY } = require("../dominio/fechaColombia");
 // Consultas del tablero general: lo de cada usuario, de todos sus proyectos.
 
 // Proyectos en los que participa: es su responsable, tiene actividades
@@ -7,7 +8,7 @@ async function proyectosDeUsuario(pool, usuarioId) {
     `SELECT p.id, p.codigo_pry, p.nombre_proyecto, p.estado,
             COUNT(a.id) AS actividades_total,
             COALESCE(SUM(a.estado = 'completada'), 0) AS actividades_finalizadas,
-            COALESCE(SUM(a.estado <> 'completada' AND a.fecha_fin < CURDATE()), 0) AS vencidas,
+            COALESCE(SUM(a.estado <> 'completada' AND a.fecha_fin < ${HOY}), 0) AS vencidas,
             MAX(a.fecha_fin) AS plan_fin
        FROM proyectos p
        LEFT JOIN proyecto_actividades a ON a.proyecto_id = p.id AND a.deleted_at IS NULL
@@ -35,11 +36,11 @@ async function cumplimientoDelMes(pool, usuarioId) {
        FROM (
          SELECT completada_en, fecha_fin FROM proyecto_actividades
           WHERE deleted_at IS NULL AND estado = 'completada' AND completada_por = ?
-            AND completada_en >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+            AND completada_en >= DATE_FORMAT(${HOY}, '%Y-%m-01')
          UNION ALL
          SELECT completada_en, fecha_fin FROM tareas
           WHERE deleted_at IS NULL AND estado = 'completada' AND responsable_id = ?
-            AND completada_en >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+            AND completada_en >= DATE_FORMAT(${HOY}, '%Y-%m-01')
        ) x`,
     [usuarioId, usuarioId]
   );
@@ -56,7 +57,7 @@ async function finalizadasDeLaSemana(pool, usuarioId) {
        SELECT completada_en FROM tareas
         WHERE deleted_at IS NULL AND estado = 'completada' AND responsable_id = ?
      ) x
-     WHERE completada_en >= CURDATE() - INTERVAL WEEKDAY(CURDATE()) DAY
+     WHERE completada_en >= ${HOY} - INTERVAL WEEKDAY(${HOY}) DAY
      GROUP BY DATE(completada_en)`,
     [usuarioId, usuarioId]
   );

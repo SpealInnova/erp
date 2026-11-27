@@ -3,13 +3,14 @@ const request = require("supertest");
 const { crearApp } = require("../../src/app");
 const { crearPool } = require("../../src/config/db");
 const { sufijoUnico } = require("../helpers/unico");
+const { hoyEnColombia } = require("../../src/dominio/fechaColombia");
 
 const hayBaseDeDatos = Boolean(process.env.DB_HOST);
 const describirSiHayBD = hayBaseDeDatos ? describe : describe.skip;
 
-// Fecha y hora local "AAAA-MM-DD HH:MM:SS" a `dias` de hoy.
+// Fecha y hora "AAAA-MM-DD HH:MM:SS" a `dias` del hoy de Colombia (el del servidor).
 function momento(dias, hora = "09:00:00") {
-  const d = new Date();
+  const d = hoyEnColombia();
   d.setDate(d.getDate() + dias);
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");

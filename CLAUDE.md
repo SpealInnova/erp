@@ -15,6 +15,9 @@ Excel/Word dispersos (ver diccionario de datos en el repo de documentación, fue
 - Flujos de aprobación como máquina de estados explícita.
   Ejemplo de referencia: `src/dominio/estadoProyecto.js`.
 - Validación de entrada con Zod en cada endpoint. Nunca confiar en el frontend.
+- "Hoy" es el día de Colombia, no el del servidor (staging y producción corren en UTC). En SQL se
+  usa `HOY_COLOMBIA_SQL` y en JavaScript `hoyEnColombia()`, los dos de
+  `src/dominio/fechaColombia.js`. Nunca `CURDATE()` ni `new Date()` para saber qué día es.
 
 ## Pruebas (no negociable)
 

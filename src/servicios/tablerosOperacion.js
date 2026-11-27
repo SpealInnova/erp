@@ -10,6 +10,7 @@ const {
 } = require("./tableros");
 const { ESTADOS: ESTADOS_PROYECTO } = require("../dominio/estadoProyecto");
 const { ESTADOS: ESTADOS_EXPEDIENTE } = require("../dominio/estadoExpedienteDiseno");
+const { hoyEnColombia } = require("../dominio/fechaColombia");
 
 /* Resúmenes de solo lectura de Diseño I+D+i, Soporte técnico y Entregas y
    cierre. Siguen el patrón de los de Comercial y Compras (servicios/tableros):
@@ -108,7 +109,7 @@ function evaluarExpediente(expediente, pasos, cambiosPendientes) {
   };
 }
 
-async function obtenerTableroDiseno(pool, { hoy = new Date() } = {}) {
+async function obtenerTableroDiseno(pool, { hoy = hoyEnColombia() } = {}) {
   const hoyTexto = aTextoFecha(hoy);
   const meses = ultimosMeses(hoy, MESES_HISTORIA);
   const desde6Meses = `${meses[0]}-01`;
@@ -227,7 +228,7 @@ const MAX_TECNICOS = 8;
 const MAX_EQUIPOS_VISITAR = 15;
 const MAX_ULTIMOS_REPORTES = 10;
 
-async function obtenerTableroSoporte(pool, { hoy = new Date() } = {}) {
+async function obtenerTableroSoporte(pool, { hoy = hoyEnColombia() } = {}) {
   const hoyTexto = aTextoFecha(hoy);
   const meses = ultimosMeses(hoy, MESES_HISTORIA);
   const desde6Meses = `${meses[0]}-01`;
@@ -329,7 +330,7 @@ function cierreDeEntrega(entrega, cierres) {
   );
 }
 
-async function obtenerTableroEntregas(pool, { hoy = new Date() } = {}) {
+async function obtenerTableroEntregas(pool, { hoy = hoyEnColombia() } = {}) {
   const hoyTexto = aTextoFecha(hoy);
   const anio = hoyTexto.slice(0, 4);
   const meses = ultimosMeses(hoy, MESES_HISTORIA);

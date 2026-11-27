@@ -1,3 +1,4 @@
+const { HOY_COLOMBIA_SQL: HOY } = require("../dominio/fechaColombia");
 const { listarPaginado } = require("./consultaListado");
 
 async function contarPorAnio(pool, anio) {
@@ -64,7 +65,7 @@ const COLUMNAS_TARJETA = [
   `(SELECT COUNT(*) ${DE_ACTIVIDADES}) AS actividades_total`,
   `(SELECT COUNT(*) ${DE_ACTIVIDADES} AND a.estado = 'completada') AS actividades_finalizadas`,
   `(SELECT COUNT(*) ${DE_ACTIVIDADES} AND a.estado <> 'completada' AND a.prioridad = 'urgente') AS urgentes`,
-  `(SELECT COUNT(*) ${DE_ACTIVIDADES} AND a.estado <> 'completada' AND a.fecha_fin < CURDATE()) AS vencidas`,
+  `(SELECT COUNT(*) ${DE_ACTIVIDADES} AND a.estado <> 'completada' AND a.fecha_fin < ${HOY}) AS vencidas`,
   `(SELECT a.descripcion ${ACTIVIDAD_ACTUAL}) AS actividad_actual`,
   `(SELECT a.estado ${ACTIVIDAD_ACTUAL}) AS actividad_actual_estado`,
   `(SELECT a.fecha_fin ${ACTIVIDAD_ACTUAL}) AS actividad_actual_fin`,

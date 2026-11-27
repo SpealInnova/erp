@@ -3,6 +3,7 @@ const transicionesRepositorio = require("../repositorios/transicionesRepositorio
 const { segundosEnCurso } = require("./transiciones");
 const { ESTADOS } = require("../dominio/estadoProyecto");
 const { ESTADOS_TRABAJO } = require("../dominio/trabajo");
+const { hoyEnColombia } = require("../dominio/fechaColombia");
 
 /* Tiempos y KPI (tablero de los cargos directivos).
 
@@ -78,7 +79,7 @@ function agrupar(filas, clave) {
 function desdePeriodo(periodo, ahora) {
   const dias = PERIODOS[periodo];
   if (!dias) return null;
-  const desde = soloFecha(ahora);
+  const desde = hoyEnColombia(ahora);
   desde.setDate(desde.getDate() - dias);
   return desde;
 }
@@ -140,7 +141,7 @@ function resumirFases(tramos, planes, desde) {
 // Medidas de un trabajo (actividad o tarea) a partir de sus fechas y de sus
 // transiciones de estado.
 function medir(item, transiciones, ahora) {
-  const hoy = soloFecha(ahora);
+  const hoy = hoyEnColombia(ahora);
   const finalizada = item.estado === ESTADOS_TRABAJO.COMPLETADA && Boolean(item.completada_en);
   const plan =
     item.fecha_inicio && item.fecha_fin ? diasEntre(item.fecha_inicio, item.fecha_fin) + 1 : null;

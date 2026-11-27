@@ -3,6 +3,7 @@ const request = require("supertest");
 const { crearApp } = require("../../src/app");
 const { crearPool } = require("../../src/config/db");
 const { generarAvisosVencimiento } = require("../../src/servicios/avisosActividades");
+const { HOY_COLOMBIA_SQL } = require("../../src/dominio/fechaColombia");
 
 jest.mock("../../src/servicios/correo", () => ({
   enviarCorreo: jest.fn().mockResolvedValue(undefined),
@@ -42,14 +43,14 @@ describirSiHayBD("Actividades pendientes y avisos de vencimiento (integración)"
     return r.insertId;
   }
 
-  // dias: fecha de fin relativa a hoy según la BD (evita desfases de zona).
+  // dias: fecha de fin relativa al hoy de Colombia, el mismo que usa el servidor.
   async function crearActividad(clave, { proyecto, responsable, dias, estado = "pendiente" }) {
     const [r] = await pool.query(
       `INSERT INTO proyecto_actividades
          (proyecto_id, fase, categoria, descripcion, responsable_id, estado, fecha_inicio, fecha_fin)
        VALUES (?, 'planeacion', 'General', ?, ?, ?,
-               IF(? IS NULL, NULL, CURDATE() + INTERVAL ? DAY - INTERVAL 2 DAY),
-               IF(? IS NULL, NULL, CURDATE() + INTERVAL ? DAY))`,
+               IF(? IS NULL, NULL, ${HOY_COLOMBIA_SQL} + INTERVAL ? DAY - INTERVAL 2 DAY),
+               IF(? IS NULL, NULL, ${HOY_COLOMBIA_SQL} + INTERVAL ? DAY))`,
       [proyecto, `Actividad ${clave} ${sufijo}`, responsable, estado, dias, dias, dias, dias]
     );
     ids[clave] = r.insertId;

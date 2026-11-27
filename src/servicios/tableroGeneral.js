@@ -4,6 +4,7 @@ const tareasRepositorio = require("../repositorios/tareasRepositorio");
 const notificacionesRepositorio = require("../repositorios/notificacionesRepositorio");
 const repo = require("../repositorios/tableroGeneralRepositorio");
 const { tienePermiso } = require("../dominio/permisos");
+const { hoyEnColombia } = require("../dominio/fechaColombia");
 
 const UN_DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -32,7 +33,7 @@ function esParaHoy(item, hoy) {
 
 // Tablero general: lo que le toca a cada persona, visible para todos los
 // perfiles (el gerencial queda para los cargos directivos).
-async function obtenerTableroGeneral(pool, usuarioId, { hoy = new Date() } = {}) {
+async function obtenerTableroGeneral(pool, usuarioId, { hoy = hoyEnColombia() } = {}) {
   const hoyFecha = soloFecha(hoy);
   const usuario = await usuariosRepositorio.buscarPorId(pool, usuarioId);
   const [actividades, tareas, proyectos, cumplimiento, finalizadas, porAprobar, avisos] =

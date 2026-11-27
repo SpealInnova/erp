@@ -4,6 +4,7 @@ const transicionesRepositorio = require("../repositorios/transicionesRepositorio
 const { ESTADOS } = require("../dominio/estadoProyecto");
 const { ESTADOS_TRABAJO, PRIORIDADES } = require("../dominio/trabajo");
 const { ErrorProyectoNoEncontrado } = require("../dominio/erroresProyectos");
+const { hoyEnColombia } = require("../dominio/fechaColombia");
 
 const UN_DIA_MS = 24 * 60 * 60 * 1000;
 const DIAS_POR_VENCER = 3;
@@ -48,7 +49,7 @@ async function obtenerResumenEtapas(pool, proyectoId, ahora = new Date()) {
     proyectoActividadesRepositorio.contarEvidenciasPorFase(pool, proyectoId),
   ]);
   const periodos = periodosDeFase(transiciones.filter((t) => t.entidad === "proyecto"));
-  const hoy = soloFecha(ahora);
+  const hoy = hoyEnColombia(ahora);
   const indiceActual = FASES.indexOf(proyecto.estado);
 
   const etapas = FASES.map((fase, indice) => {

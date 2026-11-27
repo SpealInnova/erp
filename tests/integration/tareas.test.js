@@ -3,6 +3,7 @@ const request = require("supertest");
 const { crearApp } = require("../../src/app");
 const { crearPool } = require("../../src/config/db");
 const { generarAvisosVencimiento } = require("../../src/servicios/avisosActividades");
+const { HOY_COLOMBIA_SQL } = require("../../src/dominio/fechaColombia");
 
 jest.mock("../../src/servicios/correo", () => ({
   enviarCorreo: jest.fn().mockResolvedValue(undefined),
@@ -19,10 +20,10 @@ describirSiHayBD("Gestor de tareas, tablero general y acceso al gerencial (integ
   const sufijo = Date.now();
   const ids = {};
 
-  // Fechas según la base (evita desfases entre la zona del equipo y la de la BD).
+  // Fechas relativas al hoy de Colombia, el mismo que usa el servidor.
   async function dia(n) {
     const [[fila]] = await pool.query(
-      "SELECT DATE_FORMAT(CURDATE() + INTERVAL ? DAY, '%Y-%m-%d') AS d",
+      `SELECT DATE_FORMAT(${HOY_COLOMBIA_SQL} + INTERVAL ? DAY, '%Y-%m-%d') AS d`,
       [n]
     );
     return fila.d;

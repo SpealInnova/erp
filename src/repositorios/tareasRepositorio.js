@@ -1,3 +1,4 @@
+const { HOY_COLOMBIA_SQL: HOY } = require("../dominio/fechaColombia");
 const COLUMNAS = `t.*, r.nombre AS responsable_nombre, c.nombre AS creador_nombre,
   cl.nombre_razon_social AS cliente_nombre, p.codigo_pry AS proyecto_codigo`;
 const DESDE = `FROM tareas t
@@ -8,9 +9,9 @@ const DESDE = `FROM tareas t
 
 // Fin de la ventana de cada periodo (hoy, domingo de esta semana, fin de mes).
 const LIMITE_PERIODO = {
-  hoy: "CURDATE()",
-  semana: "CURDATE() + INTERVAL (6 - WEEKDAY(CURDATE())) DAY",
-  mes: "LAST_DAY(CURDATE())",
+  hoy: HOY,
+  semana: `${HOY} + INTERVAL (6 - WEEKDAY(${HOY})) DAY`,
+  mes: `LAST_DAY(${HOY})`,
 };
 
 async function crear(pool, datos) {
@@ -67,14 +68,14 @@ async function listarDeUsuario(
   if (estado === "abiertas") condiciones.push("t.estado <> 'completada'");
   if (estado === "finalizadas") condiciones.push("t.estado = 'completada'");
   if (periodo === "vencidas") {
-    condiciones.push("t.estado <> 'completada' AND t.fecha_fin < CURDATE()");
+    condiciones.push(`t.estado <> 'completada' AND t.fecha_fin < ${HOY}`);
   } else if (LIMITE_PERIODO[periodo]) {
     // en la ventana [hoy, límite], vencidas o sin fechas (para no olvidarlas)
     condiciones.push(`((t.fecha_inicio IS NULL AND t.fecha_fin IS NULL)
-      OR (t.estado <> 'completada' AND t.fecha_fin < CURDATE())
+      OR (t.estado <> 'completada' AND t.fecha_fin < ${HOY})
       OR t.estado = 'en_curso'
       OR (COALESCE(t.fecha_inicio, t.fecha_fin) <= ${LIMITE_PERIODO[periodo]}
-          AND COALESCE(t.fecha_fin, t.fecha_inicio) >= CURDATE()))`);
+          AND COALESCE(t.fecha_fin, t.fecha_inicio) >= ${HOY}))`);
   }
   const [filas] = await pool.query(
     `SELECT ${COLUMNAS} ${DESDE}
@@ -111,10 +112,10 @@ async function listarParaAviso(pool, { diasAviso, diasVencida, usuarioId }) {
   }
   const [filas] = await pool.query(
     `SELECT t.id, t.titulo, t.fecha_fin, t.responsable_id AS destinatario_id,
-            DATEDIFF(t.fecha_fin, CURDATE()) AS dias_restantes
+            DATEDIFF(t.fecha_fin, ${HOY}) AS dias_restantes
        FROM tareas t
       WHERE t.deleted_at IS NULL AND t.estado <> 'completada'
-        AND t.fecha_fin BETWEEN CURDATE() - INTERVAL ? DAY AND CURDATE() + INTERVAL ? DAY
+        AND t.fecha_fin BETWEEN ${HOY} - INTERVAL ? DAY AND ${HOY} + INTERVAL ? DAY
         ${filtro}
       ORDER BY t.fecha_fin, t.id`,
     parametros
