@@ -2,6 +2,7 @@ const reportesServicioTecnicoRepositorio = require("../repositorios/reportesServ
 const equiposRepositorio = require("../repositorios/equiposRepositorio");
 const clientesRepositorio = require("../repositorios/clientesRepositorio");
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
+const usuariosRepositorio = require("../repositorios/usuariosRepositorio");
 const auditoria = require("./auditoria");
 const { aLimites } = require("../repositorios/consultaListado");
 const { insertarConCodigoUnico } = require("./codigoUnico");
@@ -15,6 +16,7 @@ const {
   ErrorEquipoNoExiste,
   ErrorClienteNoExiste,
   ErrorProyectoNoExiste,
+  ErrorTecnicoInvalido,
 } = require("../dominio/erroresReportesServicioTecnico");
 const { ErrorEnlaceInconsistente } = require("../dominio/erroresEnlaces");
 
@@ -62,8 +64,18 @@ async function resolverReferencias(pool, { equipo_numero_serie, cliente_id, proy
   return proyecto.id;
 }
 
+// El técnico del reporte debe ser un usuario activo.
+async function exigirTecnico(pool, tecnicoId) {
+  const tecnico = await usuariosRepositorio.buscarPorId(pool, tecnicoId);
+  if (!tecnico || !tecnico.activo) {
+    throw new ErrorTecnicoInvalido();
+  }
+}
+
 async function crearReporte(pool, datos, usuarioId) {
   const proyectoId = await resolverReferencias(pool, datos);
+  const tecnicoId = datos.tecnico_responsable_id || usuarioId;
+  if (datos.tecnico_responsable_id) await exigirTecnico(pool, tecnicoId);
 
   const id = await insertarConCodigoUnico(
     "uq_reportes_servicio_numero",
@@ -73,7 +85,7 @@ async function crearReporte(pool, datos, usuarioId) {
         ...datos,
         proyecto_id: proyectoId,
         numero_reporte: numero,
-        tecnico_responsable_id: usuarioId,
+        tecnico_responsable_id: tecnicoId,
         created_by: usuarioId,
       })
   );
@@ -110,6 +122,12 @@ async function listarReportes(pool, { pagina, tamanoPagina, q, estado }) {
 
 async function actualizarReporte(pool, id, datos, usuarioId) {
   const anterior = await obtenerReporte(pool, id);
+  if (
+    datos.tecnico_responsable_id &&
+    datos.tecnico_responsable_id !== anterior.tecnico_responsable_id
+  ) {
+    await exigirTecnico(pool, datos.tecnico_responsable_id);
+  }
 
   // Solo se revisan los enlaces si cambia alguno: editar hallazgos o fechas de
   // un reporte antiguo no debe quedar bloqueado por cómo se registró.

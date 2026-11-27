@@ -2,8 +2,8 @@
    alerta, api, bloqueModoVersion, boton, botonCancelar, celda, confirmarCreacion,
    construirCampo, contenido, encabezado, enlazarClienteConProyectos, estadoPill,
    fechaCortaTexto, guardarDocumento, marcarMenu, montarListado, mostrarCargando,
-   mostrarErroresValidacion, obtenerClientes, obtenerProyectos, opcionesProyectosDeCliente,
-   recargarSelect, renderPanelVersiones, renderSeccionEvidencias, renderSeccionSubrecurso */
+   mostrarErroresValidacion, obtenerClientes, obtenerProyectos, obtenerUsuarios,
+   opcionesProyectosDeCliente, PERFIL, recargarSelect, renderPanelVersiones, renderSeccionEvidencias, renderSeccionSubrecurso */
 /* exported vistaEquipoForm, vistaEquipos, vistaReporteServicioForm, vistaReportesServicio */
 // Soporte técnico: reportes de servicio (con parámetros medidos) y equipos instalados.
 
@@ -89,7 +89,8 @@ function tipoPillTipoServicio(valor) {
 // El equipo va primero: al escribir su serial se completan solos el cliente y
 // el proyecto (el del equipo, que puede cambiarse por otro del mismo cliente,
 // p. ej. un contrato de mantenimiento). Todo reporte queda en un proyecto.
-const CAMPOS_REPORTE = (clientes, proyectos) => [
+// usuarios: activos, para elegir el técnico (por defecto, quien crea el reporte).
+const CAMPOS_REPORTE = (clientes, proyectos, usuarios) => [
   { nombre: "equipo_numero_serie", etiqueta: "Número de serie del equipo", requerido: true },
   { nombre: "cliente_id", etiqueta: "Cliente", tipo: "select", requerido: true,
     opciones: clientes.map((c) => ({ valor: String(c.id), texto: c.nombre_razon_social })) },
@@ -98,6 +99,8 @@ const CAMPOS_REPORTE = (clientes, proyectos) => [
   { nombre: "tipo_servicio", etiqueta: "Tipo de servicio", tipo: "select", requerido: true, opciones: TIPOS_SERVICIO },
   { nombre: "en_garantia", etiqueta: "¿En garantía?", tipo: "select",
     opciones: [{ valor: "no", texto: "No" }, { valor: "si", texto: "Sí" }] },
+  { nombre: "tecnico_responsable_id", etiqueta: "Técnico responsable", tipo: "select", requerido: true,
+    opciones: usuarios.map((u) => ({ valor: String(u.id), texto: u.nombre })) },
   { nombre: "fecha_servicio", etiqueta: "Fecha de servicio", tipo: "date" },
   { nombre: "hora_inicio", etiqueta: "Hora de inicio", tipo: "time" },
   { nombre: "hora_fin", etiqueta: "Hora de fin", tipo: "time" },
@@ -163,7 +166,11 @@ async function vistaReporteServicioForm(id, opciones = {}) {
   marcarMenu("reportes-servicio");
   mostrarCargando();
 
-  const [clientes, proyectos] = await Promise.all([obtenerClientes(), obtenerProyectos()]);
+  const [clientes, proyectos, usuarios] = await Promise.all([
+    obtenerClientes(),
+    obtenerProyectos(),
+    obtenerUsuarios(),
+  ]);
   let reporte = null;
   if (id) {
     const r = await api("GET", `/reportes-servicio-tecnico/${id}`);
@@ -180,7 +187,12 @@ async function vistaReporteServicioForm(id, opciones = {}) {
     return;
   }
 
-  const campos = CAMPOS_REPORTE(clientes, proyectos);
+  // un reporte antiguo puede tener un técnico que ya no está activo
+  const tecnicos = [...usuarios];
+  if (reporte && !tecnicos.some((u) => u.id === reporte.tecnico_responsable_id)) {
+    tecnicos.push({ id: reporte.tecnico_responsable_id, nombre: "Usuario inactivo" });
+  }
+  const campos = CAMPOS_REPORTE(clientes, proyectos, tecnicos);
 
   contenido.replaceChildren();
   const volver = modoVersion
@@ -201,7 +213,9 @@ async function vistaReporteServicioForm(id, opciones = {}) {
 
   campos.forEach((config) => {
     let valor = "";
-    if (reporte) {
+    if (config.nombre === "tecnico_responsable_id") {
+      valor = String(reporte ? reporte.tecnico_responsable_id : PERFIL.id || "");
+    } else if (reporte) {
       if (config.nombre === "en_garantia") valor = reporte.en_garantia ? "si" : "no";
       else if (config.nombre === "proyecto_id") valor = reporte.proyecto_id ? String(reporte.proyecto_id) : "";
       else if (config.nombre === "fecha_servicio") valor = reporte.fecha_servicio ? reporte.fecha_servicio.substring(0, 10) : "";

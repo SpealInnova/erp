@@ -62,6 +62,7 @@ const {
   ErrorEquipoNoExiste,
   ErrorClienteNoExiste: ErrorClienteNoExisteReporte,
   ErrorProyectoNoExiste: ErrorProyectoNoExisteReporte,
+  ErrorTecnicoInvalido,
 } = require("../dominio/erroresReportesServicioTecnico");
 const { ErrorParametroNoEncontrado } = require("../dominio/erroresParametrosMedidos");
 const {
@@ -253,7 +254,8 @@ function manejadorErrores(error, req, res, next) {
   if (
     error instanceof ErrorEquipoNoExiste ||
     error instanceof ErrorClienteNoExisteReporte ||
-    error instanceof ErrorProyectoNoExisteReporte
+    error instanceof ErrorProyectoNoExisteReporte ||
+    error instanceof ErrorTecnicoInvalido
   ) {
     return res.status(400).json({ error: error.message });
   }

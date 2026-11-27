@@ -24,9 +24,16 @@ class ErrorProyectoNoExiste extends Error {
   }
 }
 
+class ErrorTecnicoInvalido extends Error {
+  constructor() {
+    super("El técnico indicado no existe o está inactivo");
+  }
+}
+
 module.exports = {
   ErrorReporteNoEncontrado,
   ErrorEquipoNoExiste,
   ErrorClienteNoExiste,
   ErrorProyectoNoExiste,
+  ErrorTecnicoInvalido,
 };

@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { PASSWORD, USUARIO_PRINCIPAL } = require("./fixtures");
+const { PASSWORD, USUARIO_PRINCIPAL, USUARIO_COLEGA } = require("./fixtures");
 const { iniciarSesionComo, responderProximoDialogo } = require("./helpers");
 
 test.describe("Equipos y reportes de servicio", () => {
@@ -51,6 +51,10 @@ test.describe("Equipos y reportes de servicio", () => {
     await expect(page.locator("#cliente_id")).toHaveValue(String(cliente.id));
     await expect(page.locator("#proyecto_id")).toHaveValue(String(proyecto.id));
     await page.selectOption("#tipo_servicio", "mantenimiento_correctivo");
+    // el técnico es quien crea el reporte, salvo que se elija a otra persona
+    const tecnico = page.getByLabel("Técnico responsable");
+    await expect(tecnico).toHaveValue(String(perfil.usuario.id));
+    await tecnico.selectOption({ label: USUARIO_COLEGA.nombre });
     const confirmadoReporte = responderProximoDialogo(page, true);
     await page.click('button:has-text("Crear reporte")');
     await confirmadoReporte;
@@ -63,6 +67,7 @@ test.describe("Equipos y reportes de servicio", () => {
     // el reporte ya creado admite evidencias (fotos y PDF a Drive)
     await fila.getByRole("button", { name: `Editar reporte de ${serie}` }).click();
     await expect(page).toHaveURL(/#\/reportes-servicio\/\d+$/);
+    await expect(tecnico.locator("option:checked")).toHaveText(USUARIO_COLEGA.nombre);
     await expect(page.getByRole("heading", { name: "Evidencias del servicio" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Subir evidencia" })).toBeVisible();
 

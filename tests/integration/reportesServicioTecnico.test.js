@@ -12,6 +12,8 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
   let app;
   let pool;
   let usuarioId;
+  let tecnicoId;
+  let inactivoId;
   let clienteId;
   let proyectoId;
   let expedienteId;
@@ -30,6 +32,16 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
       ["Usuario de prueba", correoUsuario, passwordHash]
     );
     usuarioId = usuario.insertId;
+    const [tecnico] = await pool.query(
+      "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, ?, 'tester', 1)",
+      ["Técnico de prueba", `tec-${correoUsuario}`, passwordHash]
+    );
+    tecnicoId = tecnico.insertId;
+    const [inactivo] = await pool.query(
+      "INSERT INTO usuarios (nombre, correo, password_hash, rol, activo) VALUES (?, ?, ?, 'tester', 0)",
+      ["Técnico inactivo", `inactivo-${correoUsuario}`, passwordHash]
+    );
+    inactivoId = inactivo.insertId;
     token = jwt.sign(
       { id: usuarioId, correo: correoUsuario, rol: "tester" },
       process.env.JWT_SECRET,
@@ -70,17 +82,15 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
   afterAll(async () => {
     await pool.query("DELETE FROM auditoria WHERE usuario_id = ?", [usuarioId]);
     await pool.query(
-      "DELETE FROM parametros_medidos WHERE reporte_id IN (SELECT id FROM reportes_servicio_tecnico WHERE tecnico_responsable_id = ?)",
-      [usuarioId]
+      "DELETE FROM parametros_medidos WHERE reporte_id IN (SELECT id FROM reportes_servicio_tecnico WHERE proyecto_id = ?)",
+      [proyectoId]
     );
-    await pool.query("DELETE FROM reportes_servicio_tecnico WHERE tecnico_responsable_id = ?", [
-      usuarioId,
-    ]);
+    await pool.query("DELETE FROM reportes_servicio_tecnico WHERE proyecto_id = ?", [proyectoId]);
     await pool.query("DELETE FROM equipos WHERE expediente_id = ?", [expedienteId]);
     await pool.query("DELETE FROM expedientes_diseno WHERE id = ?", [expedienteId]);
     await pool.query("DELETE FROM proyectos WHERE id = ?", [proyectoId]);
     await pool.query("DELETE FROM clientes WHERE id = ?", [clienteId]);
-    await pool.query("DELETE FROM usuarios WHERE id = ?", [usuarioId]);
+    await pool.query("DELETE FROM usuarios WHERE id IN (?)", [[usuarioId, tecnicoId, inactivoId]]);
     await pool.end();
   });
 
@@ -169,6 +179,46 @@ describirSiHayBD("Reporte de Servicio Técnico (integración contra BD real)", (
       .send({ hallazgos: "Sin novedades", recomendaciones: "Repetir en 6 meses" });
     expect(respuesta.status).toBe(200);
     expect(respuesta.body.reporte.hallazgos).toBe("Sin novedades");
+  });
+
+  test("el técnico se elige: otro usuario activo al crear y al editar", async () => {
+    const creado = await request(app).post("/reportes-servicio-tecnico").set(autorizacion()).send({
+      equipo_numero_serie: numeroSerie,
+      cliente_id: clienteId,
+      tipo_servicio: "asistencia",
+      tecnico_responsable_id: tecnicoId,
+    });
+    expect(creado.status).toBe(201);
+    expect(creado.body.reporte.tecnico_responsable_id).toBe(tecnicoId);
+    expect(creado.body.reporte.created_by).toBe(usuarioId);
+
+    const editado = await request(app)
+      .put(`/reportes-servicio-tecnico/${reporteId}`)
+      .set(autorizacion())
+      .send({ tecnico_responsable_id: tecnicoId });
+    expect(editado.status).toBe(200);
+    expect(editado.body.reporte.tecnico_responsable_id).toBe(tecnicoId);
+  });
+
+  test("rechaza un técnico inactivo o que no existe", async () => {
+    for (const tecnico of [inactivoId, 99999999]) {
+      const creado = await request(app)
+        .post("/reportes-servicio-tecnico")
+        .set(autorizacion())
+        .send({
+          equipo_numero_serie: numeroSerie,
+          cliente_id: clienteId,
+          tipo_servicio: "asistencia",
+          tecnico_responsable_id: tecnico,
+        });
+      expect(creado.status).toBe(400);
+      expect(creado.body.error).toContain("técnico");
+      const editado = await request(app)
+        .put(`/reportes-servicio-tecnico/${reporteId}`)
+        .set(autorizacion())
+        .send({ tecnico_responsable_id: tecnico });
+      expect(editado.status).toBe(400);
+    }
   });
 
   test("no elimina el reporte: se corrige con una nueva versión", async () => {

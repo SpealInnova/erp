@@ -17,6 +17,8 @@ const crearReporteSchema = z.object({
   proyecto_id: z.coerce.number().int().positive().optional(),
   tipo_servicio: z.enum(TIPOS_SERVICIO),
   en_garantia: z.boolean().optional().default(false),
+  // sin técnico, queda quien crea el reporte
+  tecnico_responsable_id: z.coerce.number().int().positive().optional(),
   motivo: z.string().optional(),
   hallazgos: z.string().optional(),
   recomendaciones: z.string().optional(),
