@@ -62,6 +62,37 @@ test.describe("Usuarios y auditoría", () => {
     expect(errores).toEqual([]);
   });
 
+  test("'Qué cambió' muestra estados, fechas y horas legibles", async ({ page }) => {
+    await iniciarSesionComo(page, USUARIO_PRINCIPAL, PASSWORD);
+    const token = await page.evaluate(() => sessionStorage.getItem("erp_token"));
+    const encabezados = { Authorization: `Bearer ${token}` };
+    const creada = await page.request.post("/tareas", {
+      headers: encabezados,
+      data: { titulo: `E2E auditoría legible ${Date.now()}`, fecha_fin: "2026-12-15" },
+    });
+    expect(creada.status()).toBe(201);
+    const { tarea } = await creada.json();
+    // pasa a "en curso" (llena iniciada_en, fecha y hora) y cambia su fecha final
+    const editada = await page.request.put(`/tareas/${tarea.id}`, {
+      headers: encabezados,
+      data: { estado: "en_curso", fecha_fin: "2026-12-20" },
+    });
+    expect(editada.status()).toBe(200);
+
+    await page.goto("/inicio#/auditoria");
+    await page.getByRole("combobox", { name: "Módulo", exact: true }).selectOption("tareas");
+    await page.getByLabel("Acción").selectOption("actualizar");
+    const cambios = page
+      .locator(".tabla-auditoria tbody tr", { hasText: tarea.titulo })
+      .locator(".aud-cambios");
+    await expect(cambios).toContainText("Estado: Pendiente → En curso");
+    await expect(cambios).toContainText("Fecha fin: 15/12/2026 → 20/12/2026");
+    await expect(cambios).toContainText("Iniciada en: vacío →");
+    const texto = await cambios.textContent();
+    expect(texto).not.toContain("en_curso");
+    expect(texto).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+
   test("otros cargos no ven la auditoría", async ({ page }) => {
     await iniciarSesionComo(page, USUARIO_COLEGA, PASSWORD);
     await page.goto("/inicio#/usuarios");

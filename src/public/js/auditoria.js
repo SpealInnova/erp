@@ -1,5 +1,6 @@
 /* global api, contenido, marcarMenu, alerta, pill, boton, encabezado, formatoFechaHora,
-   obtenerUsuarios, textoEstadoProyecto */
+   obtenerUsuarios, textoEstadoProyecto, textoEstadoCotizacion, textoEstadoRequisicion,
+   textoEstadoOrdenCompra, textoEstadoExpediente */
 /* ------------------------------------------------------------------
    Auditoría (#/auditoria): quién creó, cambió o eliminó cada registro del
    ERP, y cuándo. Solo para admin y Gerente General (permiso ver_auditoria,
@@ -42,13 +43,64 @@
     return caja;
   }
 
-  // Un valor vacío se dice con palabras (no se tacha); las fases del
-  // proyecto se muestran con su nombre y no con su código interno.
+  // Estados con catálogo propio en su módulo (con tildes y textos de negocio).
+  const TEXTO_ESTADO = {
+    proyectos: (v) => textoEstadoProyecto(v),
+    cotizaciones: (v) => textoEstadoCotizacion(v),
+    requisiciones: (v) => textoEstadoRequisicion(v),
+    ordenes_compra: (v) => textoEstadoOrdenCompra(v),
+    expedientes_diseno: (v) => textoEstadoExpediente(v),
+  };
+  // Para los demás códigos (en_curso, correctivo…): sin guiones, con mayúscula
+  // inicial y las tildes de las palabras que más se repiten.
+  const TILDES = {
+    revision: "revisión",
+    cotizacion: "cotización",
+    aprobacion: "aprobación",
+    ingenieria: "ingeniería",
+    diseno: "diseño",
+    garantia: "garantía",
+    produccion: "producción",
+    instalacion: "instalación",
+    automatica: "automática",
+  };
+  const humanizar = (codigo) =>
+    codigo
+      .split("_")
+      .map((p) => TILDES[p] || p)
+      .join(" ")
+      .replace(/^./, (l) => l.toUpperCase());
+  const ES_CODIGO = /^[a-z]+(_[a-z]+)*$/;
+  const ES_FECHA = /^\d{4}-\d{2}-\d{2}/;
+
+  // Las columnas DATE (fecha*) llegan como medianoche del servidor en UTC:
+  // los 10 primeros caracteres ya son el día, sin convertir de zona.
+  const soloFecha = (texto) => texto.slice(0, 10).split("-").reverse().join("/");
+
+  // Texto legible de un valor de la auditoría: fechas en el formato de la
+  // pantalla (las de hora, en la hora local de quien la ve), estados y tipos
+  // con su nombre, sí/no en vez de 1/0.
+  function textoLegible(tabla, campo, texto) {
+    if (/estado/.test(campo) && TEXTO_ESTADO[tabla]) {
+      const conCatalogo = TEXTO_ESTADO[tabla](texto);
+      if (conCatalogo !== texto) return conCatalogo;
+    }
+    if (/^fecha/.test(campo) && ES_FECHA.test(texto)) return soloFecha(texto);
+    if (/(_en|_at|_hasta|_expira)$/.test(campo) && ES_FECHA.test(texto)) {
+      return formatoFechaHora(texto);
+    }
+    if (/^hora_/.test(campo) && /^\d{2}:\d{2}/.test(texto)) return texto.slice(0, 5);
+    if (campo === "activo" || campo === "en_garantia") return Number(texto) ? "Sí" : "No";
+    if (/estado|tipo|prioridad|resultado|origen/.test(campo) && ES_CODIGO.test(texto)) {
+      return humanizar(texto);
+    }
+    return texto;
+  }
+
+  // Un valor vacío se dice con palabras (no se tacha).
   function valor(tabla, campo, texto, clase) {
     if (texto === null || texto === undefined) return crear("span", "muted", "vacío");
-    const legible =
-      tabla === "proyectos" && campo === "estado" ? textoEstadoProyecto(texto) : texto;
-    return crear("span", clase, legible);
+    return crear("span", clase, textoLegible(tabla, campo, texto));
   }
 
   function listaCambios(tabla, cambios) {

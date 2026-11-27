@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "autorizar-gmail": "node scripts/autorizar-gmail.js",
-    "revisar:staging": "node scripts/revisar-sitio.js https://erp-test.speal-pad.com"
+    "revisar:staging": "node scripts/revisar-sitio.js https://erp-test.speal-pad.com",
+    "revisar:produccion": "node scripts/revisar-sitio.js https://erp.soluctiasas.com"
   },
   "engines": {
     "node": ">=18"

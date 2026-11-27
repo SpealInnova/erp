@@ -6,9 +6,10 @@ minuto.
 
 ```
 npm run revisar:staging
+npm run revisar:produccion
 ```
 
-Para otro sitio, pasa la dirección: `node scripts/revisar-sitio.js https://erp.soluctiasas.com`.
+Para otro sitio, pasa la dirección: `node scripts/revisar-sitio.js https://<sitio>`.
 
 ## Es de solo lectura
 
