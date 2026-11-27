@@ -45,4 +45,20 @@ function transicionar(estadoActual, estadoDestino) {
   return estadoDestino;
 }
 
-module.exports = { ESTADOS, puedeTransicionar, transicionar, ErrorTransicionInvalida };
+// Nombre de cada fase para mensajes y avisos (el mismo de la interfaz).
+const TEXTO_ESTADO = {
+  [ESTADOS.PROSPECTO]: "Prospecto",
+  [ESTADOS.PLANEACION]: "Planeación",
+  [ESTADOS.DISENO]: "Diseño",
+  [ESTADOS.COMPRAS]: "Compras",
+  [ESTADOS.PRODUCCION]: "Producción",
+  [ESTADOS.CALIDAD_FAT]: "Calidad / FAT",
+  [ESTADOS.LOGISTICA]: "Logística",
+  [ESTADOS.INSTALACION]: "Instalación",
+  [ESTADOS.SAT]: "SAT",
+  [ESTADOS.SEGUIMIENTO]: "Seguimiento",
+  [ESTADOS.CERRADO]: "Cerrado",
+  [ESTADOS.CANCELADO]: "Cancelado",
+};
+
+module.exports = { ESTADOS, TEXTO_ESTADO, puedeTransicionar, transicionar, ErrorTransicionInvalida };

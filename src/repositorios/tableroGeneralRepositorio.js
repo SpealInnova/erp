@@ -2,7 +2,7 @@ const { HOY_COLOMBIA_SQL: HOY } = require("../dominio/fechaColombia");
 // Consultas del tablero general: lo de cada usuario, de todos sus proyectos.
 
 // Proyectos en los que participa: es su responsable, tiene actividades
-// asignadas o está en el equipo. Con su avance.
+// asignadas, está en el equipo o es responsable de alguna etapa. Con su avance.
 async function proyectosDeUsuario(pool, usuarioId) {
   const [filas] = await pool.query(
     `SELECT p.id, p.codigo_pry, p.nombre_proyecto, p.estado,
@@ -17,11 +17,13 @@ async function proyectosDeUsuario(pool, usuarioId) {
              OR EXISTS (SELECT 1 FROM proyecto_actividades x
                          WHERE x.proyecto_id = p.id AND x.deleted_at IS NULL AND x.responsable_id = ?)
              OR EXISTS (SELECT 1 FROM proyecto_equipo e
-                         WHERE e.proyecto_id = p.id AND e.usuario_id = ? AND e.deleted_at IS NULL))
+                         WHERE e.proyecto_id = p.id AND e.usuario_id = ? AND e.deleted_at IS NULL)
+             OR EXISTS (SELECT 1 FROM proyecto_fase_responsables r
+                         WHERE r.proyecto_id = p.id AND r.usuario_id = ? AND r.deleted_at IS NULL))
       GROUP BY p.id
       ORDER BY vencidas DESC, MAX(a.fecha_fin) IS NULL, MAX(a.fecha_fin), p.id DESC
       LIMIT 8`,
-    [usuarioId, usuarioId, usuarioId]
+    [usuarioId, usuarioId, usuarioId, usuarioId]
   );
   return filas;
 }

@@ -84,6 +84,11 @@ const {
   ErrorUsuarioInvalido,
 } = require("../dominio/erroresProyectoEquipo");
 const {
+  ErrorResponsableYaAsignado,
+  ErrorResponsableEtapaNoEncontrado,
+  ErrorResponsableEtapaInvalido,
+} = require("../dominio/erroresFaseResponsables");
+const {
   ErrorActaEntregaNoEncontrada,
   ErrorProyectoNoExiste: ErrorProyectoNoExisteActaEntrega,
   ErrorClienteNoExiste: ErrorClienteNoExisteActaEntrega,
@@ -321,6 +326,15 @@ function manejadorErrores(error, req, res, next) {
     return res.status(409).json({ error: error.message });
   }
   if (error instanceof ErrorUsuarioInvalido) {
+    return res.status(400).json({ error: error.message });
+  }
+  if (error instanceof ErrorResponsableEtapaNoEncontrado) {
+    return res.status(404).json({ error: error.message });
+  }
+  if (error instanceof ErrorResponsableYaAsignado) {
+    return res.status(409).json({ error: error.message });
+  }
+  if (error instanceof ErrorResponsableEtapaInvalido) {
     return res.status(400).json({ error: error.message });
   }
 

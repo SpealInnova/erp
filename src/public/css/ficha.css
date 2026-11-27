@@ -415,6 +415,12 @@ html[data-contraste="alto"] .ventana-actividades {
   margin-bottom: 12px;
 }
 
+.etapa-responsables {
+  margin: -4px 0 12px;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
 .etapa-det-cab h3 {
   margin: 0;
 }

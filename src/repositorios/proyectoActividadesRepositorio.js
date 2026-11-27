@@ -104,6 +104,14 @@ async function softDelete(pool, id) {
 const CONDICION_PENDIENTE = `a.deleted_at IS NULL AND a.estado <> 'completada'
    AND p.deleted_at IS NULL AND p.estado NOT IN ('cerrado', 'cancelado')`;
 
+// La persona (?) es responsable de la etapa de la actividad `a`.
+const ES_RESPONSABLE_DE_ETAPA = `EXISTS (
+  SELECT 1 FROM proyecto_fase_responsables r
+   WHERE r.proyecto_id = a.proyecto_id AND r.fase = a.fase
+     AND r.usuario_id = ? AND r.deleted_at IS NULL)`;
+
+// Pendientes de la persona: las suyas y, de las que no tienen responsable,
+// las de los proyectos que dirige y las de las etapas de las que es responsable.
 async function listarPendientesDeUsuario(pool, usuarioId) {
   const [filas] = await pool.query(
     `SELECT a.id, a.proyecto_id, a.fase, a.categoria, a.descripcion, a.estado, a.prioridad, a.fecha_inicio,
@@ -111,33 +119,41 @@ async function listarPendientesDeUsuario(pool, usuarioId) {
        FROM proyecto_actividades a
        JOIN proyectos p ON p.id = a.proyecto_id
       WHERE ${CONDICION_PENDIENTE}
-        AND (a.responsable_id = ? OR (a.responsable_id IS NULL AND p.responsable_id = ?))
+        AND (a.responsable_id = ?
+             OR (a.responsable_id IS NULL
+                 AND (p.responsable_id = ? OR ${ES_RESPONSABLE_DE_ETAPA})))
       ORDER BY a.fecha_fin IS NULL, a.fecha_fin, a.id`,
-    [usuarioId, usuarioId]
+    [usuarioId, usuarioId, usuarioId]
   );
   return filas;
 }
 
 // Pendientes que vencen entre hace diasVencida días y dentro de diasAviso
-// días. El aviso va al responsable o, si no tiene, al del proyecto.
+// días, una fila por actividad y destinatario: su responsable o, si no
+// tiene, el del proyecto y los responsables de su etapa.
 async function listarParaAviso(pool, { diasAviso, diasVencida, usuarioId }) {
-  const parametros = [diasVencida, diasAviso];
-  let filtroUsuario = "";
-  if (usuarioId) {
-    filtroUsuario = "AND COALESCE(a.responsable_id, p.responsable_id) = ?";
-    parametros.push(usuarioId);
-  }
+  const enVentana = `${CONDICION_PENDIENTE}
+    AND a.fecha_fin BETWEEN ${HOY} - INTERVAL ? DAY AND ${HOY} + INTERVAL ? DAY`;
+  const columnas = `a.id, a.proyecto_id, a.descripcion, a.fecha_fin, p.codigo_pry,
+    DATEDIFF(a.fecha_fin, ${HOY}) AS dias_restantes`;
+  const parametros = [diasVencida, diasAviso, diasVencida, diasAviso];
+  if (usuarioId) parametros.push(usuarioId);
   const [filas] = await pool.query(
-    `SELECT a.id, a.proyecto_id, a.descripcion, a.fecha_fin, p.codigo_pry,
-            COALESCE(a.responsable_id, p.responsable_id) AS destinatario_id,
-            DATEDIFF(a.fecha_fin, ${HOY}) AS dias_restantes
-       FROM proyecto_actividades a
-       JOIN proyectos p ON p.id = a.proyecto_id
-      WHERE ${CONDICION_PENDIENTE}
-        AND a.fecha_fin BETWEEN ${HOY} - INTERVAL ? DAY AND ${HOY} + INTERVAL ? DAY
-        AND COALESCE(a.responsable_id, p.responsable_id) IS NOT NULL
-        ${filtroUsuario}
-      ORDER BY a.fecha_fin, a.id`,
+    `SELECT * FROM (
+       SELECT ${columnas}, COALESCE(a.responsable_id, p.responsable_id) AS destinatario_id
+         FROM proyecto_actividades a
+         JOIN proyectos p ON p.id = a.proyecto_id
+        WHERE ${enVentana}
+       UNION
+       SELECT ${columnas}, r.usuario_id AS destinatario_id
+         FROM proyecto_actividades a
+         JOIN proyectos p ON p.id = a.proyecto_id
+         JOIN proyecto_fase_responsables r
+           ON r.proyecto_id = a.proyecto_id AND r.fase = a.fase AND r.deleted_at IS NULL
+        WHERE ${enVentana} AND a.responsable_id IS NULL
+     ) avisos
+     WHERE destinatario_id IS NOT NULL ${usuarioId ? "AND destinatario_id = ?" : ""}
+     ORDER BY fecha_fin, id, destinatario_id`,
     parametros
   );
   return filas;

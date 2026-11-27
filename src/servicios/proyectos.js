@@ -12,6 +12,7 @@ const proyectoDocumentosRepositorio = require("../repositorios/proyectoDocumento
 const { ErrorEliminacionBloqueada } = require("../dominio/erroresVersiones");
 const proyectoActividadesServicio = require("./proyectoActividades");
 const notificacionesServicio = require("./notificaciones");
+const faseResponsables = require("./proyectoFaseResponsables");
 const transiciones = require("./transiciones");
 const archivosDrive = require("./archivosDrive");
 const { formatearCodigoPry } = require("../dominio/codigoProyecto");
@@ -196,6 +197,10 @@ async function cambiarEstadoProyecto(pool, id, estadoDestino, usuarioId, observa
     mensaje: `El proyecto ${actualizado.codigo_pry} cambió de fase a "${estadoDestino}".`,
     enlace: `#/proyectos/${id}`,
     enviarCorreo: true,
+  });
+  // y a los responsables de la etapa a la que entra (menos al del proyecto)
+  await faseResponsables.avisarEntradaAEtapa(pool, actualizado, estadoDestino, {
+    excepto: [actualizado.responsable_id],
   });
 
   return actualizado;

@@ -17,6 +17,10 @@ const MODULOS = {
     etiqueta: "Equipo del proyecto",
     enlace: (id, d) => (d.proyecto_id ? `#/proyectos/${d.proyecto_id}` : null),
   },
+  proyecto_fase_responsables: {
+    etiqueta: "Responsable de etapa",
+    enlace: (id, d) => (d.proyecto_id ? `#/proyectos/${d.proyecto_id}` : null),
+  },
   clientes: { etiqueta: "Cliente", enlace: (id) => `#/clientes/${id}` },
   cotizaciones: { etiqueta: "Cotización", enlace: (id) => `#/cotizaciones/${id}` },
   proveedores: { etiqueta: "Proveedor", enlace: (id) => `#/proveedores/${id}` },

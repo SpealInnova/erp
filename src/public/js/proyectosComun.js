@@ -495,8 +495,101 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, op
     return filaAgregar;
   }
 
+  // Responsables de la etapa (pueden ser varios): sus nombres, con × para
+  // quitarlos, y un selector para asignar a otra persona.
+  function filaResponsablesEtapa(fase, asignados) {
+    const textoFase = textoEstadoProyecto(fase);
+    const fila = document.createElement("div");
+    fila.className = "responsables-etapa";
+    const titulo = document.createElement("span");
+    titulo.className = "responsables-etapa__titulo";
+    titulo.textContent = "Responsables de la etapa:";
+    fila.append(titulo);
+    if (asignados.length === 0) {
+      const nadie = document.createElement("span");
+      nadie.className = "subtitulo";
+      nadie.textContent = "sin asignar";
+      fila.append(nadie);
+    }
+    asignados.forEach((responsable) => {
+      const chip = document.createElement("span");
+      chip.className = "chip-responsable";
+      chip.append(document.createTextNode(responsable.usuario_nombre));
+      const quitar = document.createElement("button");
+      quitar.type = "button";
+      quitar.className = "chip-responsable__quitar";
+      quitar.textContent = "×";
+      quitar.setAttribute(
+        "aria-label",
+        `Quitar a ${responsable.usuario_nombre} como responsable de ${textoFase}`
+      );
+      quitar.addEventListener("click", async () => {
+        quitar.disabled = true;
+        const r2 = await api(
+          "DELETE",
+          `/proyectos/${proyectoId}/fase-responsables/${responsable.id}`
+        );
+        if (r2.status !== 204) {
+          quitar.disabled = false;
+          mostrarError(r2.cuerpo?.error || "No se pudo quitar al responsable.");
+          return;
+        }
+        fasesAbiertas.add(fase);
+        cargar();
+      });
+      chip.append(quitar);
+      fila.append(chip);
+    });
+
+    const disponibles = opcionesUsuarios.filter(
+      (o) => !asignados.some((r) => String(r.usuario_id) === o.valor)
+    );
+    if (disponibles.length > 0) {
+      const form = document.createElement("form");
+      form.className = "form-responsable-etapa";
+      form.noValidate = true;
+      // tiene su propio botón Asignar: no cuenta como cambio sin guardar
+      form.dataset.sucioVigilado = "1";
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", `Asignar responsable de ${textoFase}`);
+      select.append(
+        new Option("Asignar a…", ""),
+        ...disponibles.map((o) => new Option(o.texto, o.valor))
+      );
+      const asignar = document.createElement("button");
+      asignar.type = "submit";
+      asignar.className = "boton boton-pequeno";
+      asignar.textContent = "Asignar";
+      form.addEventListener("submit", async (evento) => {
+        evento.preventDefault();
+        if (!select.value) {
+          select.focus();
+          return;
+        }
+        asignar.disabled = true;
+        const r2 = await api("POST", `/proyectos/${proyectoId}/fase-responsables`, {
+          fase,
+          usuario_id: Number(select.value),
+        });
+        asignar.disabled = false;
+        if (r2.status !== 201) {
+          mostrarError(r2.cuerpo?.error || "No se pudo asignar al responsable.");
+          return;
+        }
+        fasesAbiertas.add(fase);
+        cargar();
+      });
+      form.append(select, asignar);
+      fila.append(form);
+    }
+    return fila;
+  }
+
   async function cargar() {
-    const r = await api("GET", `/proyectos/${proyectoId}/actividades`);
+    const [r, rResponsables] = await Promise.all([
+      api("GET", `/proyectos/${proyectoId}/actividades`),
+      api("GET", `/proyectos/${proyectoId}/fase-responsables`),
+    ]);
     if (r.status !== 200) {
       mostrarError("No se pudieron cargar las actividades.");
       return;
@@ -504,6 +597,11 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, op
     mensaje.replaceChildren();
     const actividades = r.cuerpo.actividades;
     if (opciones.alCargar) opciones.alCargar(actividades);
+    const responsablesPorFase = new Map();
+    (rResponsables.status === 200 ? rResponsables.cuerpo.responsables : []).forEach((resp) => {
+      if (!responsablesPorFase.has(resp.fase)) responsablesPorFase.set(resp.fase, []);
+      responsablesPorFase.get(resp.fase).push(resp);
+    });
 
     const porFase = new Map();
     actividades.forEach((actividad) => {
@@ -556,10 +654,18 @@ async function renderSeccionActividadesProyecto(proyectoId, opcionesUsuarios, op
           resumen.append(rango);
         }
       }
+      const asignados = responsablesPorFase.get(fase) || [];
+      if (asignados.length > 0) {
+        const nombres = document.createElement("span");
+        nombres.className = "subtitulo resumen-responsables";
+        nombres.textContent = `· ${asignados.map((x) => x.usuario_nombre).join(", ")}`;
+        resumen.append(nombres);
+      }
       detalles.append(resumen);
 
       const contenidoFase = document.createElement("div");
       contenidoFase.style.padding = "8px 0 0";
+      contenidoFase.append(filaResponsablesEtapa(fase, asignados));
 
       if (lista.length > 0) {
         if (!ajustesRango.has(fase)) ajustesRango.set(fase, { atras: 0, adelante: 0 });

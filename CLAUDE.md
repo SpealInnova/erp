@@ -98,6 +98,11 @@ Flujo: crear rama `feature/<nombre>` desde `develop`, PR a `develop`. Promoción
   `ver_auditoria` (pantalla `#/auditoria`, `GET /auditoria`).
 - Actividades del proyecto: `origen` es `plantilla` (catálogo de la fase) o `manual`
   (subactividad). Las manuales no impiden sembrar la plantilla de su fase y se listan al final.
+- Responsables por etapa (`proyecto_fase_responsables`, varios por fase; los asigna cualquiera con
+  sesión, igual que editar el proyecto). Reciben los avisos de las actividades sin responsable de su
+  etapa, además del responsable del proyecto. Esas actividades les aparecen en "Actividades
+  pendientes", el proyecto les aparece en su inicio, y reciben un aviso cuando el proyecto entra a su
+  etapa. Se muestran en la pestaña Actividades de la ficha y en Resumen por etapa.
 
 ## Pendientes conocidos (no asumir que ya existen)
 

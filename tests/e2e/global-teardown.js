@@ -26,6 +26,10 @@ module.exports = async function globalTeardown() {
     ]);
     await pool.query("DELETE FROM transiciones_estado WHERE usuario_id IN (?)", [idsUsuarios]);
     await pool.query("DELETE FROM proyecto_equipo WHERE usuario_id IN (?)", [idsUsuarios]);
+    await pool.query(
+      "DELETE FROM proyecto_fase_responsables WHERE usuario_id IN (?) OR created_by IN (?)",
+      [idsUsuarios, idsUsuarios]
+    );
     await pool.query("DELETE FROM auditoria WHERE usuario_id IN (?)", [idsUsuarios]);
     await pool.query("DELETE FROM documento_versiones WHERE reemplazada_por IN (?)", [idsUsuarios]);
     // Compras creadas por las pruebas (p. ej. la aprobación de OC del tablero):

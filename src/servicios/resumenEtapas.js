@@ -1,6 +1,7 @@
 const proyectosRepositorio = require("../repositorios/proyectosRepositorio");
 const proyectoActividadesRepositorio = require("../repositorios/proyectoActividadesRepositorio");
 const transicionesRepositorio = require("../repositorios/transicionesRepositorio");
+const faseResponsablesRepositorio = require("../repositorios/proyectoFaseResponsablesRepositorio");
 const { ESTADOS } = require("../dominio/estadoProyecto");
 const { ESTADOS_TRABAJO, PRIORIDADES } = require("../dominio/trabajo");
 const { ErrorProyectoNoEncontrado } = require("../dominio/erroresProyectos");
@@ -43,10 +44,11 @@ async function obtenerResumenEtapas(pool, proyectoId, ahora = new Date()) {
   const proyecto = await proyectosRepositorio.obtenerPorId(pool, proyectoId);
   if (!proyecto) throw new ErrorProyectoNoEncontrado();
 
-  const [actividades, transiciones, evidencias] = await Promise.all([
+  const [actividades, transiciones, evidencias, responsables] = await Promise.all([
     proyectoActividadesRepositorio.listarPorProyecto(pool, proyectoId),
     transicionesRepositorio.listarPorProyecto(pool, proyectoId),
     proyectoActividadesRepositorio.contarEvidenciasPorFase(pool, proyectoId),
+    faseResponsablesRepositorio.listarPorProyecto(pool, proyectoId),
   ]);
   const periodos = periodosDeFase(transiciones.filter((t) => t.entidad === "proyecto"));
   const hoy = hoyEnColombia(ahora);
@@ -92,6 +94,9 @@ async function obtenerResumenEtapas(pool, proyectoId, ahora = new Date()) {
         return dias >= 0 && dias <= DIAS_POR_VENCER;
       }).length,
       evidencias: evidencias[fase] || 0,
+      responsables: responsables
+        .filter((r) => r.fase === fase)
+        .map((r) => ({ id: r.id, usuario_id: r.usuario_id, nombre: r.usuario_nombre })),
     };
   });
 

@@ -619,6 +619,14 @@
           e.estado === "completada" ? "good" : e.estado === "en_curso" ? "info" : "mute"
         )
       );
+      const responsables = e.responsables || [];
+      const quienes = crear(
+        "p",
+        "etapa-responsables",
+        responsables.length
+          ? `${responsables.length === 1 ? "Responsable" : "Responsables"}: ${responsables.map((r) => r.nombre).join(", ")}`
+          : "Sin responsables de etapa asignados (se asignan en la pestaña Actividades)."
+      );
       const metricas = crear("div", "metricas");
       metricas.append(
         metrica("Plan", e.plan_dias ? plural(e.plan_dias, "día", "días") : "—"),
@@ -631,7 +639,7 @@
       (grupos.get(e.fase) || []).forEach((ev) =>
         lista.append(itemEvento(ev, datos.resumen.transiciones))
       );
-      principal.append(cab, metricas, sub);
+      principal.append(cab, quienes, metricas, sub);
       principal.append(
         lista.childElementCount
           ? lista
