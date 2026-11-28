@@ -195,6 +195,11 @@
   display: inline;
 }
 
+/* Ni el texto corto cabe: la celda queda vacía y el title lo dice */
+.gantt .sin-texto .texto-corto {
+  display: none;
+}
+
 .gantt-dia {
   display: flex;
   align-items: center;

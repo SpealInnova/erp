@@ -8,7 +8,9 @@
      desplazamiento horizontal.
    - Encabezado en tres filas: mes (una sola línea), semanas del mes y días.
      Cada texto se centra en su propio tramo de columnas, así que no se
-     pisan. Con columnas estrechas los días se escriben en vertical.
+     pisan. Mes y semana usan el texto largo si cabe, si no el corto
+     ("Nov", "S2"), y si tampoco cabe ninguno (queda en el title). Con
+     columnas estrechas los días se escriben en vertical.
    - Clic en una barra: tarjeta con el resumen de la actividad y un
      engranaje que abre la ventana de gestión (datos, responsable, estado,
      fechas, evidencias y quitar la actividad).
@@ -42,8 +44,6 @@
   const PASO_DIAS = 7; // "+ Días atrás" / "+ Días adelante" suman una semana
   const ANCHO_MIN_COLUMNA = 14; // px; por debajo, desplazamiento horizontal
   const ANCHO_DIA_HORIZONTAL = 46; // px; desde aquí "Vie 13" cabe en una línea
-  const ANCHO_SEMANA_LARGA = 64; // px; "Semana 2" o, si no cabe, "S2"
-  const ANCHO_MES_LARGO = 110; // px; "Noviembre 2026" o, si no cabe, "Nov"
   const UMBRAL_ARRASTRE_PX = 4;
   const BORDE_ESTIRAR_PX = 8;
   // Igual que el servidor (servicios/avisosActividades.js): "por vencer" es
@@ -218,8 +218,7 @@
 
     let rango = null;
     let popup = null;
-    let celdasSemana = [];
-    let celdasMes = [];
+    let celdasEncabezado = []; // mes y semana
 
     function nombreUsuario(id) {
       if (!id) return null;
@@ -233,12 +232,16 @@
       const ancho = lienzo.clientWidth / rango.total;
       if (!ancho) return; // fase plegada: se ajusta al abrirla
       raiz.dataset.dias = ancho >= ANCHO_DIA_HORIZONTAL ? "horizontal" : "vertical";
-      celdasSemana.forEach(({ celda, span }) =>
-        celda.classList.toggle("estrecha", span * ancho < ANCHO_SEMANA_LARGA)
-      );
-      celdasMes.forEach(({ celda, span }) =>
-        celda.classList.toggle("estrecha", span * ancho < ANCHO_MES_LARGO)
-      );
+      celdasEncabezado.forEach(ajustarCelda);
+    }
+
+    // Se mide el texto ya dibujado en vez de usar un ancho fijo: el ancho de
+    // "Noviembre 2026" cambia con las fuentes de cada equipo.
+    function ajustarCelda(celda) {
+      celda.classList.remove("estrecha", "sin-texto");
+      if (celda.scrollWidth <= celda.clientWidth) return;
+      celda.classList.add("estrecha");
+      if (celda.scrollWidth > celda.clientWidth) celda.classList.add("sin-texto");
     }
 
     if (typeof ResizeObserver !== "undefined") {
@@ -266,8 +269,9 @@
     }
 
     function dibujarEncabezado() {
+      celdasEncabezado = [];
       const meses = crear("div", "gantt-fila-enc gantt-meses");
-      celdasMes = tramos(rango.dias, (d) => `${d.getFullYear()}-${d.getMonth()}`).map((t) => {
+      tramos(rango.dias, (d) => `${d.getFullYear()}-${d.getMonth()}`).forEach((t) => {
         const nombre = MESES[t.fecha.getMonth()];
         const celda = celdaConTextos(
           "gantt-mes",
@@ -277,26 +281,25 @@
         );
         if (t.desde > 0) celda.classList.add("inicio-mes");
         meses.append(celda);
-        return { celda, span: t.hasta - t.desde };
+        celdasEncabezado.push(celda);
       });
 
       const semanas = crear("div", "gantt-fila-enc gantt-semanas");
-      celdasSemana = tramos(
-        rango.dias,
-        (d) => `${d.getFullYear()}-${d.getMonth()}-${semanaDelMes(d)}`
-      ).map((t) => {
-        const n = semanaDelMes(t.fecha);
-        const celda = celdaConTextos(
-          "gantt-semana",
-          `Semana ${n}`,
-          `S${n}`,
-          columnas(t.desde, t.hasta)
-        );
-        if (t.desde > 0)
-          celda.classList.add(t.fecha.getDate() === 1 ? "inicio-mes" : "inicio-semana");
-        semanas.append(celda);
-        return { celda, span: t.hasta - t.desde };
-      });
+      tramos(rango.dias, (d) => `${d.getFullYear()}-${d.getMonth()}-${semanaDelMes(d)}`).forEach(
+        (t) => {
+          const n = semanaDelMes(t.fecha);
+          const celda = celdaConTextos(
+            "gantt-semana",
+            `Semana ${n}`,
+            `S${n}`,
+            columnas(t.desde, t.hasta)
+          );
+          if (t.desde > 0)
+            celda.classList.add(t.fecha.getDate() === 1 ? "inicio-mes" : "inicio-semana");
+          semanas.append(celda);
+          celdasEncabezado.push(celda);
+        }
+      );
 
       const dias = crear("div", "gantt-fila-enc gantt-dias");
       rango.dias.forEach((fecha, i) => {
